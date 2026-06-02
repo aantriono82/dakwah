@@ -1,0 +1,10 @@
+node_modules
+dist
+data
+drizzle
+.bun-tmp
+.bun-install
+.env
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

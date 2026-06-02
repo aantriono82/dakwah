@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 98%;
+  --foreground: 220 18% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 18% 14%;
+  --primary: 164 76% 25%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 43 82% 92%;
+  --secondary-foreground: 38 56% 24%;
+  --muted: 210 20% 94%;
+  --muted-foreground: 215 14% 42%;
+  --accent: 188 48% 91%;
+  --accent-foreground: 197 69% 22%;
+  --destructive: 0 72% 48%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 20% 87%;
+  --input: 214 20% 84%;
+  --ring: 164 76% 34%;
+}
+
+.dark {
+  --background: 222 22% 10%;
+  --foreground: 210 20% 96%;
+  --card: 222 20% 13%;
+  --card-foreground: 210 20% 96%;
+  --primary: 166 72% 38%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 41 40% 20%;
+  --secondary-foreground: 43 70% 86%;
+  --muted: 220 16% 20%;
+  --muted-foreground: 215 13% 70%;
+  --accent: 197 42% 22%;
+  --accent-foreground: 188 63% 88%;
+  --destructive: 0 70% 45%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 16% 24%;
+  --input: 220 16% 26%;
+  --ring: 166 72% 44%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.font-amiri {
+  font-family: "Amiri", "Noto Naskh Arabic", "Traditional Arabic", serif;
+}

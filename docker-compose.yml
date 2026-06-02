@@ -1,0 +1,39 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      PORT: 3000
+      DATABASE_URL: /app/data/khutbah-ai.sqlite
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin123}
+      SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-user123}
+      S3_ENDPOINT: http://rustfs:9000
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY_ID: khutbahai
+      S3_SECRET_ACCESS_KEY: khutbahai-secret
+      S3_BUCKET: khutbahai
+      S3_PUBLIC_URL: http://localhost:9000/khutbahai
+    volumes:
+      - app-data:/app/data
+    depends_on:
+      - rustfs
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    ports:
+      - "9000:9000"
+    environment:
+      RUSTFS_ACCESS_KEY: khutbahai
+      RUSTFS_SECRET_KEY: khutbahai-secret
+    volumes:
+      - rustfs-data:/data
+
+volumes:
+  app-data:
+  rustfs-data:
