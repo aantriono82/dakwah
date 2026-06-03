@@ -60,8 +60,8 @@ naskahRoutes.post("/", zValidator("json", saveSchema), async (c) => {
     parameters: body.parameters,
     content: body.content
   });
-  const row = await db.query.naskah.findFirst({ where: eq(naskah.id, id) });
-  return c.json({ data: row }, 201);
+  const row = await db.query.naskah.findFirst({ where: eq(naskah.id, id), with: { user: true } });
+  return c.json({ data: row ? publicNaskah(row) : null }, 201);
 });
 
 naskahRoutes.get("/:id", async (c) => {
@@ -81,13 +81,20 @@ naskahRoutes.put("/:id", zValidator("json", saveSchema.partial()), async (c) => 
   if (!canAccessOwner(c, existing.userId)) return c.json({ message: "Tidak berhak mengubah naskah ini." }, 403);
 
   const body = c.req.valid("json");
+  if (body.jenis || body.parameters) {
+    const nextJenis = body.jenis ?? existing.jenis;
+    const nextParameters = body.parameters ?? existing.parameters;
+    const validationMessage = validateContentParameters(nextJenis, nextParameters);
+    if (validationMessage) return c.json({ message: validationMessage }, 400);
+  }
+
   await db
     .update(naskah)
     .set({ ...body, updatedAt: new Date().toISOString() })
     .where(and(eq(naskah.id, id), eq(naskah.userId, existing.userId)));
 
-  const row = await db.query.naskah.findFirst({ where: eq(naskah.id, id) });
-  return c.json({ data: row });
+  const row = await db.query.naskah.findFirst({ where: eq(naskah.id, id), with: { user: true } });
+  return c.json({ data: row ? publicNaskah(row) : null });
 });
 
 naskahRoutes.delete("/:id", async (c) => {

@@ -57,3 +57,7 @@ export function parseJsonBody<T>(body: unknown, fallback: T): T {
   }
   return body as T;
 }
+
+export function isUniqueConstraintError(error: unknown) {
+  return error instanceof Error && error.message.toLowerCase().includes("unique constraint failed");
+}

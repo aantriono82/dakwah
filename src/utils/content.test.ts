@@ -1,10 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildPrompt,
+  completeMissingSecondKhutbah,
   fallbackNaskah,
+  hasContextLeak,
   hasSubstantialArabicClosingPrayer,
   hasSubstantialArabicOpening,
   isGeneratedTextAcceptable,
+  isKhutbahSecondSectionArabicOnly,
+  isKhutbahJumatSecondSectionArabicOnly,
   matchesTargetLanguage,
   meetsMinimumLength,
   minimumWordCountFor,
@@ -112,7 +116,7 @@ describe("content utilities", () => {
     expect(jawaPrompt).toContain("Bahasa target: Jawa");
     expect(jawaPrompt).toContain("jangan menulis narasi, transisi, terjemah dalil");
     expect(jawaPrompt).toContain("Targetkan 1500-2000 kata");
-    expect(jawaPrompt).toContain("Doa untuk kaum mukminin harus digabungkan ke bagian Doa Penutup");
+    expect(jawaPrompt).toContain("Doa untuk kaum mukminin harus digabungkan dalam rangkaian doa khutbah kedua");
     expect(oganPrompt).toContain("Bahasa target: Ogan (Baturaja)");
     expect(oganPrompt).toContain("bahasa Ogan dialek Baturaja");
     expect(oganPrompt).toContain("kite, jeme, dang, nian, pacak, idak, nak, bae, galak, dusun");
@@ -142,16 +146,19 @@ describe("content utilities", () => {
 
     for (const prompt of [fitriPrompt, adhaPrompt]) {
       expect(prompt).toContain("STYLE PROFILE: dakwah.id");
-      expect(prompt).toContain("Takbir Pembuka Pertama Arab berharakat sebanyak 9 kali");
-      expect(prompt).toContain("Takbir Pembuka Kedua Arab berharakat sebanyak 7 kali");
+      expect(prompt).toContain("Takbir Arab berharakat sebanyak 9 kali");
+      expect(prompt).toContain("takbir Arab 7 kali tanpa heading");
       expect(prompt).toContain("Mukadimah Arab berharakat");
-      expect(prompt).toContain("Ayat Al-Quran Arab berharakat");
-      expect(prompt).toContain("Hadits Arab berharakat");
-      expect(prompt).toContain("Doa Penutup Arab berharakat yang memuat doa untuk kaum mukminin");
+      expect(prompt).toContain("Allah SWT berfirman dalam AlQuran berisi ayat Arab berharakat");
+      expect(prompt).toContain("Rasulullah SAW bersabda berisi hadits Arab berharakat");
+      expect(prompt).toContain('Setelah heading "Khutbah Kedua", seluruh isi harus hanya teks Arab berharakat');
+      expect(prompt).toContain('Jangan tulis heading "Pesan Praktis", "Doa Penutup", "Takbir Pembuka Kedua"');
       expect(prompt).toContain('Jangan membuat heading terpisah "Doa untuk Kaum Mukminin"');
       expect(prompt).not.toContain("Rukun 1: Hamdalah Arab berharakat");
     }
     expect(jumatPrompt).toContain("STYLE PROFILE: dakwah.id (Khutbah Jumat)");
+    expect(jumatPrompt).toContain('Setelah heading "Khutbah Kedua", seluruh isi harus hanya teks Arab berharakat');
+    expect(jumatPrompt).toContain('Jangan tulis heading "Pesan Praktis", "Doa Penutup"');
   });
 
   test("buildPrompt gives thematic dalil guidance for selected theme", () => {
@@ -339,20 +346,43 @@ Isi khutbah.`);
   test("fallbackNaskah keeps Idul khutbah Arabic sections complete", () => {
     const draft = fallbackNaskah("idul-adha", { bahasa: "Indonesia", tema: "Ikhlas berkurban" });
 
-    expect(draft).toContain("Takbir Pembuka");
+    expect(draft).toContain("اَللهُ أَكْبَرُ");
+    expect(draft).not.toContain("Takbir Pembuka Kedua");
     expect(draft).toMatch(/اَلْحَمْدُ|إِنَّ الْحَمْدَ/);
     expect(draft).toMatch(/أَشْهَدُ|نَشْهَدُ/);
     expect(draft).toContain("Jamaah Idul Adha");
-    expect(draft).toContain("Ayat Al-Quran");
-    expect(draft).toContain("Hadits");
+    expect(draft).toContain("Allah SWT berfirman dalam AlQuran");
+    expect(draft).toContain("Rasulullah SAW bersabda");
     expect(draft).toContain("Penutup Khutbah Pertama");
-    expect(draft).toContain("Duduk di Antara Dua Khutbah");
-    expect(draft).toContain("Doa Penutup");
+    expect(draft).not.toContain("Duduk di Antara" + " Dua Khutbah");
+    expect(draft).not.toContain("Pesan Praktis");
+    expect(draft).not.toContain("Doa Penutup");
     expect(draft).not.toContain("Doa untuk Kaum Mukminin");
-    expect(draft).toMatch(/Doa Penutup[\s\S]*(?:الْمُسْلِمِيْنَ|الْمُسْلِمِينَ|الْمُؤْمِنِيْنَ|الْمُؤْمِنِينَ)/);
+    expect(draft).toMatch(/Khutbah Kedua[\s\S]*(?:الْمُسْلِمِيْنَ|الْمُسْلِمِينَ|الْمُؤْمِنِيْنَ|الْمُؤْمِنِينَ)/);
+    expect(isKhutbahSecondSectionArabicOnly(draft)).toBe(true);
     expect(draft).not.toContain("Rukun 1:");
     expect(missingRequiredArabicSections("idul-adha", draft)).toEqual([]);
     expect(isGeneratedTextAcceptable("idul-adha", draft)).toBe(true);
+  });
+
+  test("fallback Idul Fitri does not leak Jumat context", () => {
+    const draft = fallbackNaskah("idul-fitri", { bahasa: "Indonesia", tema: "silaturahmi" });
+
+    expect(draft).toContain("Jamaah Idul Fitri");
+    expect(draft).toContain("silaturahmi");
+    expect(draft).not.toMatch(/shalat Jumat|Khutbah Jumat|Jumat meminta|majelis Jumat|Setiap Jumat/i);
+    expect(hasContextLeak("idul-fitri", draft)).toBe(false);
+    expect(isGeneratedTextAcceptable("idul-fitri", draft, { bahasa: "Indonesia" })).toBe(true);
+  });
+
+  test("Idul khutbah with Jumat context leak is rejected", () => {
+    const leaked = fallbackNaskah("idul-fitri", { bahasa: "Indonesia", tema: "silaturahmi" }).replace(
+      "Maka pada hari yang mulia ini",
+      "Padahal Jumat meminta lebih dari itu. Maka pada hari yang mulia ini"
+    );
+
+    expect(hasContextLeak("idul-fitri", leaked)).toBe(true);
+    expect(isGeneratedTextAcceptable("idul-fitri", leaked, { bahasa: "Indonesia" })).toBe(false);
   });
 
   test("fallbackNaskah keeps Jumat khutbah rukun complete", () => {
@@ -363,17 +393,43 @@ Isi khutbah.`);
     expect(draft).toMatch(/اَلْحَمْدُ|إِنَّ الْحَمْدَ/);
     expect(draft).toMatch(/أَشْهَدُ|نَشْهَدُ/);
     expect(draft).toContain("Jamaah shalat Jumat");
-    expect(draft).toContain("Ayat Al-Quran");
-    expect(draft).toContain("Doa Penutup");
+    expect(draft).toContain("Allah SWT berfirman dalam AlQuran");
     expect(draft).not.toContain("Doa untuk Kaum Mukminin");
-    expect(draft).toMatch(/Doa Penutup[\s\S]*(?:الْمُسْلِمِيْنَ|الْمُسْلِمِينَ|الْمُؤْمِنِيْنَ|الْمُؤْمِنِينَ)/);
+    expect(draft).toMatch(/Khutbah Kedua[\s\S]*(?:الْمُسْلِمِيْنَ|الْمُسْلِمِينَ|الْمُؤْمِنِيْنَ|الْمُؤْمِنِينَ)/);
+    expect(draft).not.toContain("Pesan Praktis");
+    expect(draft).not.toContain("Doa Penutup");
+    expect(isKhutbahJumatSecondSectionArabicOnly(draft)).toBe(true);
     expect(draft).not.toContain("Rukun 1:");
     expect(draft).not.toContain("hari raya ini");
     expect(missingRequiredArabicSections("khutbah-jumat", draft)).toEqual([]);
     expect(isGeneratedTextAcceptable("khutbah-jumat", draft)).toBe(true);
   });
 
-  test("fallbackNaskah varies Arabic opening and closing across generation seeds", () => {
+  test("khutbah validation accepts standard headings with colon", () => {
+    const draft = fallbackNaskah("khutbah-jumat", { bahasa: "Indonesia", temaUtama: "Amanah" })
+      .replace(/^Khutbah Pertama$/m, "Khutbah Pertama:")
+      .replace(/^Allah SWT berfirman dalam AlQuran$/m, "Allah SWT berfirman dalam AlQuran:")
+      .replace(/^Khutbah Kedua$/m, "Khutbah Kedua:")
+      .replace(/^Doa Penutup$/m, "Doa Penutup:");
+
+    expect(missingRequiredArabicSections("khutbah-jumat", draft)).toEqual([]);
+    expect(isGeneratedTextAcceptable("khutbah-jumat", draft, { bahasa: "Indonesia" })).toBe(true);
+  });
+
+  test("can complete provider text that only misses second khutbah", () => {
+    const draft = fallbackNaskah("khutbah-jumat", { bahasa: "Indonesia", temaUtama: "Amanah" });
+    const incomplete = draft.replace(/Khutbah Kedua[\s\S]*$/m, "").trim();
+    const completed = completeMissingSecondKhutbah("khutbah-jumat", incomplete, {
+      bahasa: "Indonesia",
+      temaUtama: "Amanah"
+    });
+
+    expect(completed).toContain("Khutbah Kedua");
+    expect(missingRequiredArabicSections("khutbah-jumat", completed)).toEqual([]);
+    expect(isGeneratedTextAcceptable("khutbah-jumat", completed, { bahasa: "Indonesia" })).toBe(true);
+  });
+
+  test("fallbackNaskah varies Arabic opening and keeps Jumat second khutbah Arabic-only", () => {
     const drafts = ["seed-a", "seed-b", "seed-c", "seed-d", "seed-e"].map((seed) =>
       fallbackNaskah("khutbah-jumat", {
         bahasa: "Indonesia",
@@ -384,13 +440,12 @@ Isi khutbah.`);
     const openings = drafts.map(
       (draft) => draft.match(/Khutbah Pertama\n([\s\S]*?)\n\nJamaah shalat Jumat/)?.[1] ?? ""
     );
-    const closings = drafts.map(
-      (draft) => draft.match(/Doa Penutup\n([\s\S]*?)\n\nSemoga Allah/)?.[1] ?? ""
-    );
+    const secondKhutbahs = drafts.map((draft) => draft.match(/Khutbah Kedua\n([\s\S]*)$/)?.[1] ?? "");
 
     expect(new Set(openings).size).toBeGreaterThan(1);
-    expect(new Set(closings).size).toBeGreaterThan(1);
+    expect(new Set(secondKhutbahs).size).toBeGreaterThan(1);
     for (const draft of drafts) {
+      expect(isKhutbahJumatSecondSectionArabicOnly(draft)).toBe(true);
       expect(isGeneratedTextAcceptable("khutbah-jumat", draft, { bahasa: "Indonesia" })).toBe(true);
       expect(hasSubstantialArabicOpening("khutbah-jumat", draft)).toBe(true);
       expect(hasSubstantialArabicClosingPrayer("khutbah-jumat", draft)).toBe(true);
@@ -419,7 +474,7 @@ Isi khutbah.`);
     expect(kesabaran).not.toContain("QS. An-Nahl: 90");
     expect(kesabaran).not.toContain("berkata baik atau diam");
     expect(nikah).toContain("QS. Ar-Rum: 21");
-    expect(nikah).toContain("Hadits");
+    expect(nikah).toContain("Rasulullah SAW bersabda");
     expect(nikah).toContain("paling baik kepada keluarganya");
     expect(shalatSunah).toContain("Tema: shalat - shalat sunah");
     expect(shalatSunah).toMatch(/QS\. (Al-'Ankabut: 45|Al-Mu'minun: 1-2)/);

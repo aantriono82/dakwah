@@ -1,15 +1,17 @@
-import { Copy, Download, FileDown, Trash2 } from "lucide-react";
+import { Copy, Download, FileDown, Search, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { EmptyState } from "../components/EmptyState";
 import { NaskahPreview } from "../components/NaskahPreview";
-import { Button, Card, IconButton, Input } from "../components/ui";
-import { api, cn } from "../lib/utils";
+import { Button, Card, IconButton, Input, Select } from "../components/ui";
+import { api, cn, jenisOptions, type JenisId } from "../lib/utils";
 import type { Naskah, User } from "../types";
 
 export function History({ user }: { user: User }) {
   const [items, setItems] = useState<Naskah[]>([]);
   const [selected, setSelected] = useState<Naskah | null>(null);
   const [exportLinks, setExportLinks] = useState<Record<string, string>>({});
+  const [query, setQuery] = useState("");
+  const [jenisFilter, setJenisFilter] = useState<"all" | JenisId>("all");
   const [message, setMessage] = useState("");
 
   async function load() {
@@ -80,11 +82,40 @@ export function History({ user }: { user: User }) {
   }
 
   const selectedLink = selected ? exportLinks[selected.id] || selected.fileUrl || "" : "";
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredItems = items.filter((item) => {
+    const matchesJenis = jenisFilter === "all" || item.jenis === jenisFilter;
+    const searchable = [item.title, item.bahasa, item.content, item.user?.name, item.user?.username].filter(Boolean).join(" ").toLowerCase();
+    return matchesJenis && (!normalizedQuery || searchable.includes(normalizedQuery));
+  });
 
   return (
     <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
       <section className="grid gap-3">
-        {items.map((item) => (
+        <Card className="grid gap-3 p-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Cari judul, isi, bahasa, atau user"
+              aria-label="Cari riwayat"
+            />
+          </div>
+          <Select value={jenisFilter} onChange={(event) => setJenisFilter(event.target.value as "all" | JenisId)} aria-label="Filter jenis naskah">
+            <option value="all">Semua jenis</option>
+            {jenisOptions.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {filteredItems.length} dari {items.length} naskah
+          </p>
+        </Card>
+        {filteredItems.map((item) => (
           <button key={item.id} className="text-left" onClick={() => setSelected(item)}>
             <Card className={cn("p-4 transition hover:border-primary", selected?.id === item.id && "border-primary")}>
               <p className="font-medium">{item.title}</p>
@@ -96,6 +127,7 @@ export function History({ user }: { user: User }) {
           </button>
         ))}
         {items.length === 0 && <EmptyState text="Belum ada riwayat." />}
+        {items.length > 0 && filteredItems.length === 0 && <EmptyState text="Tidak ada naskah yang cocok." />}
       </section>
       <section>
         {selected ? (

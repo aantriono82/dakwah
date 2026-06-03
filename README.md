@@ -83,9 +83,16 @@ Variabel penting:
 |---|---|---|
 | `PORT` | `3000` | Port aplikasi |
 | `DATABASE_URL` | `./data/khutbah-ai.sqlite` | Lokasi file SQLite |
-| `OPENAI_API_KEY` | kosong | Jika kosong, aplikasi memakai generator fallback lokal |
+| `AI_PROVIDER` | `openai` | Provider AI: `openai` untuk OpenAI/OpenRouter atau `gemini` untuk Google AI Studio |
+| `OPENAI_API_KEY` | kosong | API key OpenAI/OpenRouter. Jika kosong saat `AI_PROVIDER=openai`, aplikasi memakai generator fallback lokal |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model OpenAI untuk generate |
+| `OPENAI_MODELS` | kosong | Opsional. Daftar model prioritas dipisah koma; jika diisi, aplikasi mencoba model berurutan sebelum fallback lokal |
 | `OPENAI_BASE_URL` | kosong | Base URL provider kompatibel OpenAI, misalnya OpenRouter |
+| `OPENAI_MAX_TOKENS` | `5500` | Plafon global token output AI. Request tetap dibatasi lagi secara dinamis berdasarkan jenis naskah dan durasi |
+| `OPENAI_TIMEOUT_MS` | `30000` | Timeout request provider AI dalam milidetik |
+| `GEMINI_API_KEY` | kosong | API key Google AI Studio. Dipakai saat `AI_PROVIDER=gemini` |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Model Gemini utama |
+| `GEMINI_MODELS` | kosong | Opsional. Daftar model Gemini prioritas dipisah koma |
 | `SEED_ADMIN_PASSWORD` | `admin123` | Password awal admin saat database kosong |
 | `SEED_USER_PASSWORD` | `user123` | Password awal user saat database kosong |
 | `S3_ENDPOINT` | `http://localhost:9000` | Endpoint RustFS/S3 |
@@ -98,8 +105,17 @@ Variabel penting:
 Contoh `.env` lokal:
 
 ```bash
+AI_PROVIDER=gemini
+GEMINI_API_KEY=AIza...
+GEMINI_MODEL=gemini-2.5-flash
+# GEMINI_MODELS=gemini-2.5-flash,gemini-2.5-flash-lite
+
+# Untuk OpenAI/OpenRouter, ubah AI_PROVIDER=openai lalu isi konfigurasi berikut:
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o-mini
+# OPENAI_MODELS=model-utama,model-cadangan-1,model-cadangan-2
+OPENAI_MAX_TOKENS=5500
+OPENAI_TIMEOUT_MS=30000
 # Untuk OpenRouter/provider kompatibel:
 # OPENAI_BASE_URL=https://openrouter.ai/api/v1
 DATABASE_URL=./data/khutbah-ai.sqlite
@@ -158,5 +174,6 @@ Semua endpoint berada di bawah `/api`.
 
 - Set `OPENAI_API_KEY` agar generate memakai OpenAI. Tanpa key, aplikasi tetap berjalan dengan contoh naskah fallback.
 - Untuk OpenRouter/provider kompatibel OpenAI, set juga `OPENAI_BASE_URL` dan gunakan nama model dari provider tersebut.
+- Aplikasi tidak memakai satu `max_tokens` besar untuk semua generate. Batas efektif mengikuti durasi: kultum sekitar 1200-2000 token, ceramah 2500-4000 token, dan khutbah Jumat/Id 2500-4500 token, lalu tetap dipotong oleh `OPENAI_MAX_TOKENS`.
 - Set `SEED_ADMIN_PASSWORD` dan `SEED_USER_PASSWORD` sebelum database pertama dibuat.
 - Pastikan RustFS/S3 bisa diakses dari container `app`.

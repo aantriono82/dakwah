@@ -5,7 +5,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../db/client";
 import { naskah, templates, users } from "../db/schema";
-import { adminRequired, authRequired, publicUser, type AppEnv } from "../utils/http";
+import { adminRequired, authRequired, isUniqueConstraintError, publicUser, type AppEnv } from "../utils/http";
 import { hashPassword } from "../utils/password";
 
 export const adminRoutes = new Hono<AppEnv>();
@@ -49,13 +49,18 @@ adminRoutes.post(
   async (c) => {
     const body = c.req.valid("json");
     const id = nanoid();
-    await db.insert(users).values({
-      id,
-      username: body.username,
-      name: body.name,
-      role: body.role,
-      passwordHash: await hashPassword(body.password)
-    });
+    try {
+      await db.insert(users).values({
+        id,
+        username: body.username,
+        name: body.name,
+        role: body.role,
+        passwordHash: await hashPassword(body.password)
+      });
+    } catch (error) {
+      if (isUniqueConstraintError(error)) return c.json({ message: "Username sudah digunakan." }, 409);
+      throw error;
+    }
     const row = await db.query.users.findFirst({ where: eq(users.id, id) });
     return c.json({ data: row ? publicUser(row) : null }, 201);
   }
@@ -81,7 +86,12 @@ adminRoutes.put(
       updatedAt: new Date().toISOString()
     };
     if (body.password) patch.passwordHash = await hashPassword(body.password);
-    await db.update(users).set(patch).where(eq(users.id, c.req.param("id")));
+    try {
+      await db.update(users).set(patch).where(eq(users.id, c.req.param("id")));
+    } catch (error) {
+      if (isUniqueConstraintError(error)) return c.json({ message: "Username sudah digunakan." }, 409);
+      throw error;
+    }
     const row = await db.query.users.findFirst({ where: eq(users.id, c.req.param("id")) });
     return c.json({ data: row ? publicUser(row) : null });
   }

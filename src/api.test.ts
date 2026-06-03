@@ -12,7 +12,9 @@ let createdNaskahId = "";
 
 beforeAll(async () => {
   process.env.DATABASE_URL = databaseUrl;
+  process.env.AI_PROVIDER = "openai";
   delete process.env.OPENAI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
 
   const module = await import("./index");
   app = module.app;
@@ -84,6 +86,98 @@ describe("API auth and roles", () => {
     expect(allowed.status).toBe(200);
     expect((await allowed.json()).data.some((item: { role: string }) => item.role === "admin")).toBe(true);
   });
+
+  test("admin can create, update, and delete users", async () => {
+    const username = `editor-${Date.now()}`;
+    const create = await request(
+      "/api/admin/users",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          username,
+          name: "Editor User",
+          password: "password123",
+          role: "user"
+        })
+      },
+      adminCookie
+    );
+    const created = await create.json();
+
+    expect(create.status).toBe(201);
+    expect(created.data).toMatchObject({ username, name: "Editor User", role: "user" });
+
+    const update = await request(
+      `/api/admin/users/${created.data.id}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          name: "Editor Updated",
+          password: "password456",
+          role: "admin"
+        })
+      },
+      adminCookie
+    );
+    const updated = await update.json();
+
+    expect(update.status).toBe(200);
+    expect(updated.data).toMatchObject({ username, name: "Editor Updated", role: "admin" });
+
+    const updatedLogin = await login(username, "password456");
+    expect(updatedLogin.response.status).toBe(200);
+    expect(updatedLogin.body.user.role).toBe("admin");
+
+    const remove = await request(`/api/admin/users/${created.data.id}`, { method: "DELETE" }, adminCookie);
+    expect(remove.status).toBe(200);
+  });
+
+  test("admin user mutations report duplicate usernames clearly", async () => {
+    const username = `duplicate-${Date.now()}`;
+    const create = await request(
+      "/api/admin/users",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          username,
+          name: "Duplicate User",
+          password: "password123",
+          role: "user"
+        })
+      },
+      adminCookie
+    );
+    const created = await create.json();
+
+    expect(create.status).toBe(201);
+
+    const duplicateCreate = await request(
+      "/api/admin/users",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          username,
+          name: "Duplicate User Two",
+          password: "password123",
+          role: "user"
+        })
+      },
+      adminCookie
+    );
+    expect(duplicateCreate.status).toBe(409);
+    expect((await duplicateCreate.json()).message).toBe("Username sudah digunakan.");
+
+    const duplicateUpdate = await request(
+      `/api/admin/users/${created.data.id}`,
+      { method: "PUT", body: JSON.stringify({ username: "admin" }) },
+      adminCookie
+    );
+    expect(duplicateUpdate.status).toBe(409);
+    expect((await duplicateUpdate.json()).message).toBe("Username sudah digunakan.");
+
+    const remove = await request(`/api/admin/users/${created.data.id}`, { method: "DELETE" }, adminCookie);
+    expect(remove.status).toBe(200);
+  });
 });
 
 describe("API naskah, template, generate, and export", () => {
@@ -128,7 +222,7 @@ describe("API naskah, template, generate, and export", () => {
         theme: "Syukur setelah Ramadhan",
         ayat: ["QS. Ibrahim: 7"],
         hadith: "tidak bersyukur kepada Allah",
-        extra: "Takbir Pembuka Kedua"
+        extra: "Khutbah Kedua"
       },
       {
         jenis: "idul-adha",
@@ -137,7 +231,7 @@ describe("API naskah, template, generate, and export", () => {
         theme: "Ikhlas berkurban",
         ayat: ["QS. Al-Hajj: 37"],
         hadith: "amal-amal itu bergantung pada niat",
-        extra: "Takbir Pembuka Pertama"
+        extra: "اَللهُ أَكْبَرُ"
       },
       {
         jenis: "nikah",
@@ -256,7 +350,18 @@ describe("API naskah, template, generate, and export", () => {
       userCookie
     );
     expect(update.status).toBe(200);
-    expect((await update.json()).data.title).toBe("Ceramah Amanah Updated");
+    const updatedBody = await update.json();
+    expect(updatedBody.data.title).toBe("Ceramah Amanah Updated");
+    expect(updatedBody.data.user).toMatchObject({ username: "user", role: "user" });
+    expect(updatedBody.data.user).not.toHaveProperty("passwordHash");
+
+    const invalidTypeUpdate = await request(
+      `/api/naskah/${createdNaskahId}`,
+      { method: "PUT", body: JSON.stringify({ jenis: "kultum" }) },
+      userCookie
+    );
+    expect(invalidTypeUpdate.status).toBe(400);
+    expect((await invalidTypeUpdate.json()).message).toBe("Topik singkat wajib diisi.");
 
     const adminDetail = await request(`/api/naskah/${createdNaskahId}`, {}, adminCookie);
     const adminDetailBody = await adminDetail.json();

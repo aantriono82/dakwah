@@ -20,6 +20,9 @@ export const contentTypeLabels: Record<ContentType, string> = {
 
 export type SupportedLanguage = "Indonesia" | "Jawa" | "Sunda" | "Ogan (Baturaja)" | "Arab";
 
+const QURAN_HEADING = "Allah SWT berfirman dalam AlQuran";
+const HADITH_HEADING = "Rasulullah SAW bersabda";
+
 export function normalizeLanguage(value: unknown): SupportedLanguage {
   const language = String(value ?? "Indonesia").trim().toLowerCase();
   if (language.includes("jawa")) return "Jawa";
@@ -66,59 +69,51 @@ function structureRequirementsFor(jenis: string) {
   Judul
   Khutbah Pertama
   Mukadimah Arab berharakat yang memuat hamdalah, syahadat, shalawat Nabi, dan wasiat takwa
-  Ayat Al-Quran Arab berharakat, terjemah, dan rujukan
-  Hadits Arab berharakat, terjemah, dan rujukan
+  ${QURAN_HEADING} berisi ayat Arab berharakat, terjemah, dan rujukan
+  ${HADITH_HEADING} berisi hadits Arab berharakat, terjemah, dan rujukan
   Isi Khutbah dengan 2-4 subbahasan
   Penutup Khutbah Pertama
-  Duduk di Antara Dua Khutbah
   Khutbah Kedua
-  Mukadimah Arab berharakat yang memuat hamdalah, shalawat Nabi, dan wasiat takwa
-  Pesan Praktis
-  Doa Penutup Arab berharakat yang memuat doa untuk kaum mukminin`;
+  Seluruh isi Khutbah Kedua hanya teks Arab berharakat: mukadimah, shalawat, wasiat takwa, dan doa penutup untuk kaum mukminin
+  Jangan menulis Pesan Praktis, terjemah, transliterasi, atau narasi bahasa Indonesia di Khutbah Kedua`;
   }
 
   if (jenis === "idul-fitri") {
     return `Khutbah Idul Fitri harus terdiri dari:
   Judul
   Khutbah Pertama
-  Takbir Pembuka Pertama Arab berharakat sebanyak 9 kali
+  Takbir Arab berharakat sebanyak 9 kali
   Mukadimah Arab berharakat yang memuat hamdalah, syahadat, shalawat Nabi, dan wasiat takwa
-  Ayat Al-Quran Arab berharakat, terjemah, dan rujukan
-  Hadits Arab berharakat, terjemah, dan rujukan yang masyhur
+  ${QURAN_HEADING} berisi ayat Arab berharakat, terjemah, dan rujukan
+  ${HADITH_HEADING} berisi hadits Arab berharakat, terjemah, dan rujukan yang masyhur
   Isi Khutbah dengan 2-4 subbahasan
   Penutup Khutbah Pertama
-  Duduk di Antara Dua Khutbah
   Khutbah Kedua
-  Takbir Pembuka Kedua Arab berharakat sebanyak 7 kali
-  Mukadimah Arab berharakat yang memuat hamdalah, shalawat Nabi, dan wasiat takwa
-  Pesan Praktis
-  Doa Penutup Arab berharakat yang memuat doa untuk kaum mukminin`;
+  Seluruh isi Khutbah Kedua hanya teks Arab berharakat: takbir 7 kali, mukadimah, shalawat, wasiat takwa, dan doa penutup untuk kaum mukminin
+  Jangan menulis Pesan Praktis, Doa Penutup, terjemah, transliterasi, atau narasi bahasa Indonesia di Khutbah Kedua`;
   }
 
   if (jenis === "idul-adha") {
     return `Khutbah Idul Adha harus terdiri dari:
   Judul
   Khutbah Pertama
-  Takbir Pembuka Pertama Arab berharakat sebanyak 9 kali
+  Takbir Arab berharakat sebanyak 9 kali
   Mukadimah Arab berharakat yang memuat hamdalah, syahadat, shalawat Nabi, dan wasiat takwa
-  Ayat Al-Quran Arab berharakat, terjemah, dan rujukan
-  Hadits Arab berharakat, terjemah, dan rujukan yang masyhur
+  ${QURAN_HEADING} berisi ayat Arab berharakat, terjemah, dan rujukan
+  ${HADITH_HEADING} berisi hadits Arab berharakat, terjemah, dan rujukan yang masyhur
   Isi Khutbah dengan 2-4 subbahasan tentang kurban, haji, ketakwaan, dan kepedulian sosial
   Penutup Khutbah Pertama
-  Duduk di Antara Dua Khutbah
   Khutbah Kedua
-  Takbir Pembuka Kedua Arab berharakat sebanyak 7 kali
-  Mukadimah Arab berharakat yang memuat hamdalah, shalawat Nabi, dan wasiat takwa
-  Pesan Praktis
-  Doa Penutup Arab berharakat yang memuat doa untuk kaum mukminin`;
+  Seluruh isi Khutbah Kedua hanya teks Arab berharakat: takbir 7 kali, mukadimah, shalawat, wasiat takwa, dan doa penutup untuk kaum mukminin
+  Jangan menulis Pesan Praktis, Doa Penutup, terjemah, transliterasi, atau narasi bahasa Indonesia di Khutbah Kedua`;
   }
 
   if (jenis === "nikah") {
     return `Khutbah Nikah harus terdiri dari:
   Judul
   Pembukaan Arab berharakat yang memuat hamdalah, syahadat, dan shalawat Nabi
-  Ayat Al-Quran Arab berharakat yang relevan dengan pernikahan/tema pesan, terjemah, dan rujukan
-  Hadits Arab berharakat yang relevan dengan pernikahan/tema pesan, terjemah, dan rujukan
+  ${QURAN_HEADING} berisi ayat Arab berharakat yang relevan dengan pernikahan/tema pesan, terjemah, dan rujukan
+  ${HADITH_HEADING} berisi hadits Arab berharakat yang relevan dengan pernikahan/tema pesan, terjemah, dan rujukan
   Nasihat untuk Mempelai
   Pesan untuk Keluarga
   Doa Penutup`;
@@ -127,8 +122,8 @@ function structureRequirementsFor(jenis: string) {
   return `Naskah harus terdiri dari:
   Judul
   Pembukaan
-  Ayat Al-Quran Arab berharakat yang relevan dengan tema, terjemah, dan rujukan
-  Hadits Arab berharakat yang relevan dengan tema, terjemah, dan rujukan
+  ${QURAN_HEADING} berisi ayat Arab berharakat yang relevan dengan tema, terjemah, dan rujukan
+  ${HADITH_HEADING} berisi hadits Arab berharakat yang relevan dengan tema, terjemah, dan rujukan
   Isi Utama
   Pesan Praktis
   Penutup`;
@@ -229,7 +224,7 @@ function languageGuidanceFor(parameters: Record<string, unknown>) {
   return `Bahasa output:
 - Bahasa target: ${language}.
 - Semua bagian non-heading harus mengikuti bahasa target: sapaan jamaah, transisi, isi, renungan, terjemah/penjelasan ayat-hadits, pesan praktis, dan kalimat penutup.
-- Heading struktur seperti "Khutbah Pertama", "Ayat Al-Quran", "Hadits", "Khutbah Kedua", dan "Doa Penutup" boleh tetap memakai label standar agar naskah rapi.
+- Heading struktur seperti "Khutbah Pertama", "${QURAN_HEADING}", "${HADITH_HEADING}", "Khutbah Kedua", dan "Doa Penutup" boleh tetap memakai label standar agar naskah rapi.
 ${specific[language]}`;
 }
 
@@ -268,10 +263,14 @@ function lengthGuidanceFor(jenis: string, parameters: Record<string, unknown>) {
   }
 
   const range = duration === "pendek" ? "1000-1300" : duration === "panjang" ? "2000-2600" : "1500-2000";
+  const secondKhutbahGuidance = isKhutbahRukunType(jenis)
+    ? "- Khutbah Kedua harus hanya berisi teks Arab berharakat: mukadimah, shalawat, wasiat takwa, dan doa; khusus Idul Fitri/Idul Adha diawali takbir Arab 7 kali. Jangan ada Pesan Praktis, Doa Penutup, terjemah, transliterasi, atau narasi bahasa Indonesia di bagian itu."
+    : "- Khutbah Kedua tetap lebih ringkas, tetapi jangan hanya doa; beri 2-3 paragraf penguatan takwa sebelum doa.";
+
   return `Panjang naskah:
 - Jangan terlalu ringkas. Targetkan ${range} kata untuk khutbah.
 - Khutbah Pertama harus menjadi bagian utama: setelah mukadimah Arab, tulis minimal 4 subbahasan, masing-masing 2 paragraf narasi yang mengalir.
-- Khutbah Kedua tetap lebih ringkas, tetapi jangan hanya doa; beri 2-3 paragraf penguatan takwa sebelum doa.
+${secondKhutbahGuidance}
 - Pesan praktis boleh bernomor, tetapi jangan menggantikan uraian utama.`;
 }
 
@@ -310,9 +309,22 @@ function arabicVariationGuidanceFor(jenis: string) {
 - Mukadimah Arab jangan monoton. Jangan hanya menulis satu kalimat hamdalah lalu langsung isi; rangkai hamdalah, isti'anah/istighfar, syahadat, shalawat, dan wasiat takwa dalam redaksi yang utuh.
 - Variasikan pembuka khutbah pertama dan khutbah kedua. Jangan mengulang mukadimah yang sama persis di dua khutbah.
 - Penutup khutbah pertama gunakan variasi istighfar, permohonan keberkahan Al-Qur'an, doa penerimaan amal, atau ajakan kembali kepada Allah yang sesuai tema.
-- Doa untuk kaum mukminin harus digabungkan ke bagian Doa Penutup, bukan dibuat sebagai heading terpisah.
-- Doa Penutup harus lebih kaya dan tidak repetitif: minimal 4-6 kalimat Arab berharakat, mencakup doa untuk kaum mukminin, ampunan, keteguhan iman, keluarga, rezeki halal, keselamatan negeri, dan kebaikan akhirat.
+- Doa untuk kaum mukminin harus digabungkan dalam rangkaian doa khutbah kedua, bukan dibuat sebagai heading terpisah.
+- Doa akhir khutbah kedua harus lebih kaya dan tidak repetitif: minimal 4-6 kalimat Arab berharakat, mencakup doa untuk kaum mukminin, ampunan, keteguhan iman, keluarga, rezeki halal, keselamatan negeri, dan kebaikan akhirat.
 - Jangan hanya memakai satu doa pendek seperti "Rabbana atina..." sebagai seluruh doa penutup. Doa tersebut boleh dipakai sebagai salah satu bagian saja.`;
+}
+
+function arabicOnlySecondKhutbahGuidanceFor(jenis: string) {
+  if (!isKhutbahRukunType(jenis)) return "";
+  const idulTakbir = jenis === "idul-fitri" || jenis === "idul-adha"
+    ? "\n- Untuk Khutbah Idul Fitri/Idul Adha, awali Khutbah Kedua langsung dengan takbir Arab 7 kali tanpa heading \"Takbir Pembuka Kedua\"."
+    : "";
+
+  return `Aturan khusus Khutbah Kedua:
+- Setelah heading "Khutbah Kedua", seluruh isi harus hanya teks Arab berharakat.
+- Jangan tulis heading "Pesan Praktis", "Doa Penutup", "Takbir Pembuka Kedua", terjemah, transliterasi, sapaan Indonesia, atau narasi Indonesia di bagian Khutbah Kedua.
+- Jika perlu heading doa, gunakan heading Arab "الدُّعَاءُ".
+- Isi Khutbah Kedua harus memuat hamdalah, shalawat Nabi, wasiat takwa, doa untuk kaum mukminin, dan doa penutup dalam bahasa Arab berharakat.${idulTakbir}`;
 }
 
 export function buildPrompt(jenis: string, parameters: Record<string, unknown>) {
@@ -334,6 +346,8 @@ ${themeAlignmentGuidanceFor(jenis, tema, parameters)}
 
 ${arabicVariationGuidanceFor(jenis)}
 
+${arabicOnlySecondKhutbahGuidanceFor(jenis)}
+
 WAJIB:
 - Fokus pembahasan utama: ${tema}. Jika ada sub-tema, jadikan sub-tema sebagai arah isi yang lebih spesifik daripada tema utama.
 - Jawaban harus langsung berupa naskah final. Jangan tampilkan analisis, rencana, pertimbangan sumber, catatan model, atau komentar proses.
@@ -346,9 +360,10 @@ WAJIB:
 - Ikuti rukun khutbah mazhab Syafi'i yang umum dipakai di Indonesia: hamdalah, shalawat Nabi, dan wasiat takwa wajib ada di khutbah pertama dan khutbah kedua; ayat Al-Qur'an wajib ada minimal di salah satu khutbah; doa untuk kaum mukminin wajib ada di khutbah kedua dan digabungkan dalam bagian Doa Penutup.
 - Untuk khutbah Jumat, Idul Fitri, dan Idul Adha, mukadimah khutbah pertama wajib memuat syahadat Arab berharakat setelah hamdalah dan sebelum/bersama shalawat.
 - Untuk Khutbah Jumat, pembuka khutbah dimulai dengan hamdalah, bukan takbir.
-- Untuk khutbah Idul Fitri/Idul Adha, khutbah pertama dibuka dengan takbir 9 kali, khutbah kedua dibuka dengan takbir 7 kali, lalu tetap memuat hamdalah, shalawat, wasiat takwa, ayat, dan doa sesuai rukun.
+- Untuk Khutbah Jumat, Idul Fitri, dan Idul Adha, bagian setelah heading "Khutbah Kedua" tidak boleh memuat bahasa Indonesia sama sekali; isi hanya Arab berharakat sampai akhir naskah.
+- Untuk khutbah Idul Fitri/Idul Adha, khutbah pertama dibuka dengan takbir 9 kali, khutbah kedua langsung diawali takbir Arab 7 kali tanpa heading "Takbir Pembuka Kedua", lalu tetap memuat hamdalah, shalawat, wasiat takwa, ayat, dan doa sesuai rukun.
 - Jangan menghilangkan bagian Arab wajib: hamdalah, shalawat Nabi, wasiat takwa, ayat Al-Qur'an, doa mukminin, serta takbir pembuka untuk khutbah Idul Fitri/Idul Adha.
-- Jangan membuat heading terpisah "Doa untuk Kaum Mukminin"; masukkan redaksi doa mukminin langsung di bawah heading "Doa Penutup".
+- Jangan membuat heading terpisah "Doa untuk Kaum Mukminin"; untuk Khutbah Jumat masukkan langsung dalam rangkaian doa Arab di Khutbah Kedua, sedangkan untuk khutbah Idul masukkan di bawah heading "Doa Penutup".
 - Jika rujukan hadits tidak yakin, gunakan hadits masyhur yang aman dan cantumkan rujukan singkat.
 - Jangan menyebut "saya akan", "let's craft", "need", "maybe", "could", "harus hati-hati", atau catatan serupa.
 
@@ -485,20 +500,19 @@ export function matchesTargetLanguage(text: string, languageValue: unknown) {
   return oganBaturajaSignalPattern.test(nonArabicText);
 }
 
-const idulRequiredArabicSectionPatterns = [
-  /takbir\s+pembuka\s+pertama|takbir/i,
-  /takbir\s+pembuka\s+kedua|takbir/i,
-  /ayat(?:\s+al[- ]?qur['’`a]?n)?/i,
-  /hadits|hadis/i,
-  /doa(?:\s+untuk\s+kaum\s+mukminin|\s+penutup)?/i
-];
-
 const hamdalahPattern = /(?:اَلْحَمْدُ|الْحَمْدُ|حَمْدًا|نَحْمَدُ)/;
 const syahadatPattern = /(?:أَشْهَدُ|نَشْهَدُ)[\s\S]{0,160}(?:لَا إِلٰهَ إِلَّا اللهُ|لَا إِلَهَ إِلَّا اللهُ)[\s\S]{0,220}(?:مُحَمَّدًا|مُحَمَّدٌ|مُحَمَّد)/;
-const shalawatPattern = /(?:الصَّلَاةُ|صَلِّ|صَلَّى|مُحَمَّدٍ|مُحَمَّد)/;
-const wasiatTakwaPattern = /(?:أُوْصِي|أُوصِي|اِتَّقُوا|اتَّقُوا|فَاتَّقُوا|تَقْوَى|بِتَقْوَى|التَّقْوَى)/;
-const mukmininDoaPattern = /(?:اَللّٰهُمَّ|اللّٰهُمَّ)[\s\S]{0,220}(?:الْمُسْلِمِيْنَ|الْمُسْلِمِينَ|الْمُؤْمِنِيْنَ|الْمُؤْمِنِينَ)/;
+const shalawatPattern = /(?:الصَّلَاةُ|الصَّلَاةُ|صَلِّ|صَلِّ|صَلَّى|صَلَّى|صَلُّوا|صَلُّوا|مُحَم|النَّبِي|النَّبِي)/;
+const wasiatTakwaPattern = /(?:أُوْصِي|أُوصِي|اُوْصِي|اِتَّقُوا|اتَّقُوا|اتَّقُوا|فَاتَّقُوا|تَقْو|تَّقْو|بِتَقْو|التَّقْوَى|التَّقْوَى|الْمُتَّق|الْمُتَّق)/;
+const mukmininDoaPattern = /(?:الْمُسْلِمِيْنَ|الْمُسْلِمِينَ|الْمُؤْمِنِيْنَ|الْمُؤْمِنِينَ|الْمُسْلِمَاتِ|الْمُؤْمِنَاتِ)/;
 const takbirPattern = /(?:اَللهُ أَكْبَرُ|اللهُ أَكْبَرُ|اللّٰهُ أَكْبَرُ)/;
+const khutbahPertamaHeaderPattern = /^\s*Khutbah\s+Pertama\s*:?\s*$/im;
+const khutbahKeduaHeaderPattern = /^\s*Khutbah\s+Kedua\s*:?\s*$/im;
+const sittingHeaderPattern = /^\s*Duduk\s+di\s+Antara\s+Dua\s+Khutbah\s*:?\s*$/im;
+const ayatHeaderPattern = /^\s*(?:Rukun\s+4:\s*)?(?:Ayat\s+Al[- ]?Qur['’`a]?n|Allah\s+SWT\s+berfirman\s+dalam\s+AlQuran)\s*:?\s*$/im;
+const hadithHeaderPattern = /^\s*(?:Hadits|Hadis|Rasulullah\s+SAW\s+bersabda)\s*:?\s*$/im;
+const doaPenutupHeaderPattern = /^\s*(?:Doa\s+Penutup|الدُّعَاءُ|الدعاء)\s*:?\s*$/im;
+const arabicDoaHeaderPattern = /^\s*(?:الدُّعَاءُ|الدعاء)\s*:?\s*$/im;
 
 function collectSections(text: string) {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
@@ -525,18 +539,7 @@ function collectSections(text: string) {
 
 export function missingRequiredArabicSections(jenis: string, text: string) {
   if (!isKhutbahRukunType(jenis)) return [];
-
-  const sections = collectSections(text);
-  const missingIdul = jenis === "idul-fitri" || jenis === "idul-adha"
-    ? idulRequiredArabicSectionPatterns
-        .map((pattern) => {
-          const hasSectionWithArabic = sections.some(({ header, body }) => pattern.test(header) && arabicPattern.test(body));
-          return hasSectionWithArabic ? "" : pattern.source;
-        })
-        .filter(Boolean)
-    : [];
-
-  return [...missingIdul, ...missingRequiredKhutbahRukun(jenis, text)];
+  return missingRequiredKhutbahRukun(jenis, text);
 }
 
 function isKhutbahRukunType(jenis: string) {
@@ -596,14 +599,14 @@ export function meetsMinimumLength(jenis: string, text: string, parameters: Reco
 
 export function hasSubstantialArabicOpening(jenis: string, text: string) {
   if (!isKhutbahRukunType(jenis)) return true;
-  const khutbahOpening = sectionText(text, /^\s*Khutbah Pertama\s*$/im, /^\s*Ayat Al-Quran\s*$/im);
+  const khutbahOpening = sectionText(text, khutbahPertamaHeaderPattern, ayatHeaderPattern);
   const arabicChars = (khutbahOpening.match(/[\u0600-\u06FF]/g) ?? []).length;
   return arabicChars >= 220;
 }
 
 export function hasSubstantialArabicClosingPrayer(jenis: string, text: string) {
   if (!isKhutbahRukunType(jenis)) return true;
-  const closingPrayer = sectionText(text, /^\s*Doa Penutup\s*$/im);
+  const closingPrayer = sectionText(text, doaPenutupHeaderPattern) || sectionText(text, khutbahKeduaHeaderPattern);
   const arabicChars = (closingPrayer.match(/[\u0600-\u06FF]/g) ?? []).length;
   const sentenceMarks = (closingPrayer.match(/[.،؛؟]/g) ?? []).length;
   return arabicChars >= 140 && sentenceMarks >= 2;
@@ -612,8 +615,8 @@ export function hasSubstantialArabicClosingPrayer(jenis: string, text: string) {
 function missingRequiredKhutbahRukun(jenis: string, text: string) {
   if (!isKhutbahRukunType(jenis)) return [];
 
-  const khutbahPertama = sectionText(text, /^\s*Khutbah Pertama\s*$/im, /^\s*(?:Duduk di Antara Dua Khutbah|Khutbah Kedua)\s*$/im);
-  const khutbahKedua = sectionText(text, /^\s*Khutbah Kedua\s*$/im);
+  const khutbahPertama = sectionText(text, khutbahPertamaHeaderPattern, khutbahKeduaHeaderPattern);
+  const khutbahKedua = sectionText(text, khutbahKeduaHeaderPattern);
   const checks: Array<[string, boolean]> = [
     ["khutbah_pertama", khutbahPertama.length > 0],
     ["khutbah_kedua", khutbahKedua.length > 0],
@@ -624,7 +627,8 @@ function missingRequiredKhutbahRukun(jenis: string, text: string) {
     ["hamdalah_khutbah_kedua", hamdalahPattern.test(khutbahKedua)],
     ["shalawat_khutbah_kedua", shalawatPattern.test(khutbahKedua)],
     ["wasiat_takwa_khutbah_kedua", wasiatTakwaPattern.test(khutbahKedua)],
-    ["ayat_al_quran", /Ayat Al-Quran/i.test(text) && arabicPattern.test(sectionText(text, /^\s*(?:Rukun 4:\s*)?Ayat Al-Quran\s*$/im))],
+    ["ayat_al_quran", ayatHeaderPattern.test(text) && arabicPattern.test(sectionText(text, ayatHeaderPattern))],
+    ["hadits", hadithHeaderPattern.test(text) && arabicPattern.test(sectionText(text, hadithHeaderPattern))],
     ["doa_mukminin_khutbah_kedua", mukmininDoaPattern.test(khutbahKedua)]
   ];
 
@@ -645,13 +649,14 @@ function hasRequiredKhutbahRukun(jenis: string, text: string) {
 function hasRequiredIdulArabicSections(jenis: string, text: string) {
   if (jenis !== "idul-fitri" && jenis !== "idul-adha") return true;
 
-  const sections = collectSections(text);
-  return idulRequiredArabicSectionPatterns
-    .map((pattern) => {
-      const hasSectionWithArabic = sections.some(({ header, body }) => pattern.test(header) && arabicPattern.test(body));
-      return hasSectionWithArabic ? "" : pattern.source;
-    })
-    .filter(Boolean).length === 0;
+  const khutbahPertama = sectionText(text, khutbahPertamaHeaderPattern, khutbahKeduaHeaderPattern);
+  const khutbahKedua = sectionText(text, khutbahKeduaHeaderPattern);
+  return (
+    takbirPattern.test(khutbahPertama) &&
+    takbirPattern.test(khutbahKedua) &&
+    arabicPattern.test(sectionText(text, ayatHeaderPattern)) &&
+    arabicPattern.test(sectionText(text, hadithHeaderPattern))
+  );
 }
 
 export function isGeneratedTextAcceptable(jenis: string, text: string, parameters: Record<string, unknown> = {}) {
@@ -659,10 +664,58 @@ export function isGeneratedTextAcceptable(jenis: string, text: string, parameter
   return (
     hasRequiredIdulArabicSections(jenis, text) &&
     hasRequiredKhutbahRukun(jenis, text) &&
+    (!isKhutbahRukunType(jenis) || isKhutbahSecondSectionArabicOnly(text)) &&
+    !hasContextLeak(jenis, text) &&
     !hasUndiacritizedArabicInCriticalSections(text) &&
     !hasUndiacritizedArabic(text) &&
     matchesTargetLanguage(text, parameters.bahasa)
   );
+}
+
+export function hasContextLeak(jenis: string, text: string) {
+  if (jenis === "idul-fitri" || jenis === "idul-adha") {
+    return /\b(?:shalat\s+jumat|salat\s+jumat|khutbah\s+jumat|majelis\s+jumat|jumat\s+meminta|setiap\s+jumat|ibadah\s+jumat)\b/i.test(text);
+  }
+
+  if (jenis === "khutbah-jumat") {
+    return /\b(?:idul\s+fitri|idul\s+adha|hari\s+raya\s+ini|syawal\s+menguji|gema\s+takbir)\b/i.test(text);
+  }
+
+  return false;
+}
+
+export function completeMissingSecondKhutbah(jenis: string, text: string, parameters: Record<string, unknown>) {
+  if (!isKhutbahRukunType(jenis)) return text;
+  const missing = missingRequiredKhutbahRukun(jenis, text);
+  const onlySecondKhutbahMissing = missing.length > 0 && missing.every((item) => item.includes("khutbah_kedua") || item === "doa_mukminin_khutbah_kedua");
+  if (!onlySecondKhutbahMissing) return text;
+
+  const fallback = fallbackNaskah(jenis, { ...parameters, __variationSeed: "second-khutbah-completion" });
+  const fallbackSecondKhutbah = sectionText(fallback, khutbahKeduaHeaderPattern);
+  if (!fallbackSecondKhutbah) return text;
+
+  const withoutIncompleteSecond = text
+    .replace(new RegExp(`${sittingHeaderPattern.source}[\\s\\S]*$`, "im"), "")
+    .replace(new RegExp(`${khutbahKeduaHeaderPattern.source}[\\s\\S]*$`, "im"), "")
+    .trimEnd();
+  return `${withoutIncompleteSecond}
+
+${fallbackSecondKhutbah}`.trim();
+}
+
+export function isKhutbahSecondSectionArabicOnly(text: string) {
+  const secondKhutbah = sectionText(text, khutbahKeduaHeaderPattern);
+  if (!secondKhutbah) return false;
+  const nonArabicText = stripArabicText(secondKhutbah)
+    .replace(khutbahKeduaHeaderPattern, "")
+    .replace(arabicDoaHeaderPattern, "")
+    .replace(/[0-9\s.,:;!?'"()\-–—/\\[\]{}،؛؟]+/g, "")
+    .trim();
+  return nonArabicText.length === 0;
+}
+
+export function isKhutbahJumatSecondSectionArabicOnly(text: string) {
+  return isKhutbahSecondSectionArabicOnly(text);
 }
 
 function variantIndex(seed: string, length: number, salt = 0) {
@@ -1622,7 +1675,7 @@ function dalilGuidanceFor(jenis: string, tema: string) {
   return `  Paket dalil paling relevan untuk tema "${tema}" (${label}):
   Ayat:
   ${ayatList}
-  Hadits:
+  Daftar hadits:
   ${hadithList}
   Isi naskah wajib menjelaskan hubungan dalil ini dengan tema, bukan sekadar menempelkan kutipan.`;
 }
@@ -2808,13 +2861,6 @@ function practicalStepsFor(language: SupportedLanguage, tema: string, dalilLabel
   ];
 }
 
-function sittingLineFor(language: SupportedLanguage) {
-  if (language === "Jawa") return "Khatib lenggah sakedhap sadurunge miwiti khutbah kaping kalih.";
-  if (language === "Sunda") return "Khatib calik sakedap sateuacan ngamimitian khutbah kadua.";
-  if (language === "Arab") return "يَجْلِسُ الْخَطِيْبُ جَلْسَةً خَفِيْفَةً قَبْلَ أَنْ يَبْدَأَ الْخُطْبَةَ الثَّانِيَةَ.";
-  return "Khatib duduk sejenak sebelum memulai khutbah kedua.";
-}
-
 function finalClosingFor(jenis: string, language: SupportedLanguage) {
   const isJumat = jenis === "khutbah-jumat";
 
@@ -2841,8 +2887,28 @@ function finalClosingFor(jenis: string, language: SupportedLanguage) {
     : "Semoga Allah menerima ibadah kita, memperbaiki hati kita, dan menjadikan hari raya ini jalan menuju ketakwaan yang lebih kokoh. Amin ya rabbal 'alamin.";
 }
 
-function indonesianKhutbahDeepeningFor(tema: string, dalilLabel: string) {
+function indonesianKhutbahDeepeningFor(jenis: string, tema: string, dalilLabel: string) {
   const label = normalizedTopic(dalilLabel);
+
+  if (jenis === "idul-fitri") {
+    return `Jamaah Idul Fitri rahimakumullah, hari raya ini mempertemukan kita dengan keluarga, tetangga, dan saudara yang mungkin lama tidak saling menyapa. Maka tema ${tema} tidak cukup menjadi ucapan di bibir; ia harus menjadi keberanian untuk membuka pintu maaf, menghubungi yang renggang, dan menyambung kembali hubungan yang pernah retak.
+
+Silaturahmi bukan sekadar datang berkunjung, bersalaman, lalu berfoto bersama. Silaturahmi adalah melembutkan hati, menahan kalimat yang menyakitkan, menghargai perbedaan, dan tidak menjadikan masa lalu sebagai alasan untuk terus menjauh. Setelah Ramadhan melatih kita menahan lapar dan hawa nafsu, Syawal menguji apakah hati kita cukup lapang untuk memaafkan.
+
+Maka pada hari yang mulia ini, pilihlah satu hubungan yang perlu diperbaiki. Mungkin dengan orang tua, saudara kandung, kerabat jauh, tetangga, atau teman lama. Mulailah dengan salam, doa, permintaan maaf, atau bantuan kecil yang tulus. Jangan tunggu semua luka hilang sempurna untuk memulai kebaikan.
+
+Di akhir khutbah pertama ini, mari kita memohon agar Allah menjadikan Idul Fitri bukan hanya hari berganti pakaian, tetapi hari berganti sikap: dari keras menjadi lembut, dari jauh menjadi dekat, dari gengsi menjadi rendah hati, dan dari dendam menuju rahmat Allah.`;
+  }
+
+  if (jenis === "idul-adha") {
+    return `Jamaah Idul Adha rahimakumullah, hari raya kurban mengajarkan bahwa ketaatan selalu meminta pengorbanan. Tema ${tema} tidak cukup disebut sebagai kisah masa lalu; ia harus menjadi cermin untuk melihat apa yang hari ini masih terlalu kita cintai hingga berat dikorbankan di jalan Allah.
+
+Nabi Ibrahim dan Nabi Ismail mengajarkan bahwa cinta kepada Allah harus berada di atas ego, harta, kenyamanan, dan ambisi pribadi. Kurban bukan hanya menyembelih hewan, tetapi juga menyembelih kesombongan, sifat kikir, dan keengganan berbagi kepada sesama.
+
+Maka pada hari raya ini, dekatkan diri kepada Allah dengan ketaatan yang nyata: tunaikan amanah, bantu orang yang membutuhkan, bahagiakan keluarga, dan jadikan rezeki sebagai jalan manfaat. Jangan biarkan takbir hanya menggema di lisan, sementara hati masih tunduk kepada ego.
+
+Di akhir khutbah pertama ini, mari kita memohon agar Allah menerima kurban dan amal kita, melembutkan hati kita, serta menjadikan kita hamba yang taat seperti keluarga Nabi Ibrahim yang mulia.`;
+  }
 
   if (label.includes("sabar")) {
     return `Ketika tema ${tema} disebut dari mimbar, yang kita tuju bukan hanya mengagumi orang yang tabah, tetapi belajar menjadi hamba yang tetap lurus saat diuji. Sabar harus tampak ketika musibah datang, ketika doa belum terjawab, ketika keluarga belum sesuai harapan, dan ketika pekerjaan menghadirkan tekanan.
@@ -2893,8 +2959,8 @@ Maka jangan menunggu perubahan besar yang sulit dimulai. Mulailah dari amal yang
 Di akhir khutbah pertama ini, mari setiap kita memilih satu niat yang jelas dan satu amal yang bisa dimulai hari ini.`;
 }
 
-function khutbahDeepeningFor(language: SupportedLanguage, tema: string, dalilLabel = "takwa dan amal saleh") {
-  if (language === "Indonesia") return indonesianKhutbahDeepeningFor(tema, dalilLabel);
+function khutbahDeepeningFor(jenis: string, language: SupportedLanguage, tema: string, dalilLabel = "takwa dan amal saleh") {
+  if (language === "Indonesia") return indonesianKhutbahDeepeningFor(jenis, tema, dalilLabel);
 
   if (language === "Jawa") {
     return `Nalika tema ${tema} dipun sebat wonten mimbar, ingkang dipun tuju boten namung pangertosan wonten pikiran. Ingkang langkung wigati inggih punapa tema punika saged nyentuh manah, nuntun keputusan, lan nggantos cara kita tumindak dhateng kulawarga, tangga teparo, lan masyarakat.
@@ -2957,6 +3023,155 @@ Takwa anu urang bangun kedah ngahasilkeun lisan anu leuwih lemes, kaputusan anu 
   return `Jamaah yang dirahmati Allah, pada khutbah kedua ini kita menguatkan kembali wasiat takwa. Jangan sampai tema ${tema} berhenti sebagai rasa sesaat, tetapi jadikan ia niat baru ketika kita pulang ke rumah, bekerja, dan bergaul dengan sesama.
 
 Takwa yang kita bangun harus melahirkan lisan yang lebih lembut, keputusan yang lebih jujur, dan hati yang lebih cepat meminta ampun. Jika ada kesalahan, segeralah kembali kepada Allah; jika ada kesempatan berbuat baik, jangan ditunda.`;
+}
+
+const secondKhutbahArabicVariants = [
+`إِنَّ الْحَمْدَ للهِ نَحْمَدُهُ وَنَسْتَعِيْنُهُ وَنَسْتَغْفِرُهُ، وَنَعُوْذُ بِاللهِ مِنْ شُرُوْرِ أَنْفُسِنَا وَمِنْ سَيِّئَاتِ أَعْمَالِنَا، مَنْ يَهْدِهِ اللهُ فَلَا مُضِلَّ لَهُ وَمَنْ يُضْلِلْ فَلَا هَادِيَ لَهُ، أَشْهَدُ أَنْ لَا إِلٰهَ إِلَّا اللّٰهُ وَحْدَهُ لَا شَرِيْكَ لَهُ وَأَشْهَدُ أَنَّ مُحَمَّدًا عَبْدُهُ وَرَسُوْلُهُ.
+
+إِنَّ اللَّهَ وَمَلَائِكَتَهُ يُصَلُّونَ عَلَى النَّبِيِّ، يَا أَيُّهَا الَّذِينَ آمَنُوا صَلُّوا عَلَيْهِ وَسَلِّمُوا تَسْلِيمًا.
+
+اَللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا صَلَّيْتَ عَلَى إِبْرَاهِيْمَ وَعَلَى آلِ إِبْرَاهِيْمَ، إِنَّكَ حَمِيْدٌ مَجِيْدٌ. وَبَارِكْ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا بَارَكْتَ عَلَى إِبْرَاهِيْمَ وَعَلَى آلِ إِبْرَاهِيْمَ، إِنَّكَ حَمِيْدٌ مَجِيْدٌ.
+
+أُوْصِيْكُمْ وَإِيَّايَ بِتَقْوَى اللهِ، فَاتَّقُوا اللهَ حَقَّ تُقَاتِهِ، وَلَا تَمُوْتُنَّ إِلَّا وَأَنْتُمْ مُسْلِمُوْنَ.
+
+الدُّعَاءُ
+اللَّهُمَّ اغْفِرْ لَنَا وَلِلْمُؤْمِنِيْنَ وَالْمُؤْمِنَاتِ وَالْمُسْلِمِينَ وَالْمُسْلِمَاتِ، وَأَلِّفْ بَيْنَ قُلُوْبِهِمْ، وَأَصْلِحْ ذَاتَ بَيْنِهِمْ، وَانْصُرْهُمْ عَلَى عَدُوِّكَ وَعَدُوِّهِمْ.
+
+اللَّهُمَّ أَعِزَّ الْإِسْلَامَ وَالْمُسْلِمِيْنَ، وَأَذِلَّ الشِّرْكَ وَالْمُشرِكِيْنَ، وَدَمِّرْ أَعْدَاءَكَ أَعْدَاءَ الدِّيْنِ.
+
+اللَّهُمَّ خَالِفْ بَيْنَ كَلِمِهِمْ، وَزَلْزِلْ أَقْدَامَهُمْ، وَأَنْزِلْ بِهِمْ بَأْسَكَ الَّذِي لَا تَرُدُّهُ عَنِ الْقَوْمِ الْمُجْرِمِيْنَ.
+
+اللَّهُمَّ الْعَنِ الْكَفَرَةَ الَّذِيْنَ يَصُدُّوْنَ عَنْ سَبِيْلِكَ، وَيُكَذِّبُوْنَ رُسُلَكَ، وَيُقَاتِلُوْنَ أَوْلِيَاءَكَ.
+
+اللَّهُمَّ إِيَّاكَ نَعْبُدُ، وَلَكَ نُصَلِّي وَنَسْجُدُ، وَإِلَيْكَ نَسْعَى وَنَحْفِدُ، نَرْجُوْ رَحْمَتَكَ وَنَخْشَى عَذَابَكَ، إِنَّ عَذَابَكَ بِالْكُفَّارِ مُلْحِقٌ.
+
+اللَّهُمَّ انْصُرْ إِخْوَانَنَا الْمُسْلِمِيْنَ الْإِيْغُوْرَ الْمَظْلُوْمِيْنَ فِي الصِّيْنِ.
+
+اللَّهُمَّ انْصُرْ إِخْوَانَنَا الْمُضْطَهَدِيْنَ الْمَظْلُوْمِيْنَ فِي سُوْرِيَا.
+
+اللَّهُمَّ انْصُرْ إِخْوَانَنَا الْمُضْطَهَدِيْنَ الْمَظْلُوْمِيْنَ فِي كُلِّ مَكَانٍ.
+
+اللَّهُمَّ انْصُرْهُمْ نَصْرًا مُؤَزَّرًا، اللَّهُمَّ انْصُرْهُمْ نَصْرًا مُؤَزَّرًا، اللَّهُمَّ انْصُرْهُمْ نَصْرًا مُؤَزَّرًا.
+
+اللَّهُمَّ انْصُرِ الْمُجَاهِدِيْنَ فِيْ سَبِيْلِكَ، اللَّهُمَّ انْصُرِ الْمُجَاهِدِيْنَ فِيْ سَبِيْلِكَ، اللَّهُمَّ انْصُرِ الْمُجَاهِدِيْنَ فِيْ سَبِيْلِكَ.
+
+اللَّهُمَّ زِدْنَا وَلَا تَنْقُصْنَا، وَأَكْرِمْنَا وَلَا تُهِنَّا، وَأَعْطِنَا وَلَا تَحْرِمْنَا، وَآثِرْنَا وَلَا تُؤْثِرْ عَلَيْنَا، وَارْضِنَا وَارْضَ عَنَّا.
+
+اللَّهُمَّ إِنِّي أَعُوذُ بِرِضَاكَ مِنْ سَخَطِكَ، وَبِمُعَافَاتِكَ مِنْ عُقُوبَتِكَ، وَبِكَ مِنْكَ، لَا أُحْصِي ثَنَاءً عَلَيْكَ، أَنْتَ كَمَا أَثْنَيْتَ عَلَى نَفْسِكَ.
+
+وَصَلَّ اللَّهُمَّ وَسَلِّمْ وَبَارِكْ عَلَى عَبْدِكَ وَرَسُوْلِكَ مُحَمَّدٍ، وَعَلَى آلِهِ وَصَحْبِهِ أَجْمَعِيْنَ.`,
+`إِنَّ الْحَمْدَ للهِ نَحْمَدُهُ وَنَسْتَعِيْنُهُ وَنَسْتَغْفِرُهُ، وَنَعُوْذُ بِاللهِ مِنْ شُرُوْرِ أَنْفُسِنَا وَمِنْ سَيِّئَاتِ أَعْمَالِنَا، مَنْ يَهْدِهِ اللهُ فَلَا مُضِلَّ لَهُ وَمَنْ يُضْلِلْ فَلَا هَادِيَ لَهُ، أَشْهَدُ أَنْ لَا إِلٰهَ إِلَّا اللّٰهُ وَحْدَهُ لَا شَرِيْكَ لَهُ وَأَشْهَدُ أَنَّ مُحَمَّدًا عَبْدُهُ وَرَسُوْلُهُ.
+
+إِنَّ اللَّهَ وَمَلَائِكَتَهُ يُصَلُّونَ عَلَى النَّبِيِّ، يَا أَيُّهَا الَّذِينَ آمَنُوا صَلُّوا عَلَيْهِ وَسَلِّمُوا تَسْلِيمًا.
+
+اَللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا صَلَّيْتَ عَلَى إِبْرَاهِيْمَ وَعَلَى آلِ إِبْرَاهِيْمَ، إِنَّكَ حَمِيْدٌ مَجِيْدٌ. وَبَارِكْ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا بَارَكْتَ عَلَى إِبْرَاهِيْمَ وَعَلَى آلِ إِبْرَاهِيْمَ، إِنَّكَ حَمِيْدٌ مَجِيْدٌ.
+
+أُوْصِيْكُمْ وَنَفْسِيْ بِتَقْوَى اللهِ، فَقَدْ فَازَ الْمُتَّقُوْنَ.
+
+رَبَّنَا اغْفِرْ لَنَا وَلِلْمُسْلِمِيْنَ وَالْمُسْلِمَاتِ، وَالْمُؤْمِنِيْنَ وَالْمُؤْمِنَاتِ اَلْأَحْيَاءِ مِنْهُمْ وَالْأَمْوَاتِ، إِنَّكَ سَمِيْعٌ قَرِيْبٌ مُجِيْبُ الدَّعَوَاتِ.
+
+رَبَّنَا اغْفِرْ لَنَا وَلِوَالِدِيْنَا وَارْحَمْهُمْ كَمَا رَبَّوْنَا صِغَارًا.
+
+اَللَّهُمَّ أَعِزَّ الْإِسْلَامَ وَالْمُسْلِمِيْنَ، وَأَذِلَّ الشِّرْكَ وَالْمُشْرِكِيْنَ، وَدَمِّرْ أَعْدَاءَ الدِّيْنِ.
+
+اَللَّهُمَّ أَصْلِحْ أَحْوَالَ الْمُسْلِمِيْنَ حُكَّامًا وَمَحْكُوْمِيْنَ، يَا رَبَّ الْعَالَمِيْنَ، اَللَّهُمَّ اشْفِ مَرْضَانَا وَمَرْضَاهُمْ، وَفُكَّ أَسْرَانَا وَأَسْرَاهُمْ، وَاغْفِرْ لِمَوْتَانَا وَمَوْتَاهُمْ، وَأَلِّفْ بَيْنَ قُلُوْبِهِمْ يَا أَرْحَمَ الرَّاحِمِيْنَ.
+
+اَللَّهُمَّ آتِ نُفُوْسَنَا تَقْوَاهَا، وَزَكِّهَا أَنْتَ خَيْرُ مَنْ زَكَّاهَا، أَنْتَ وَلِيُّهَا وَمَوْلَاهَا، اَللَّهُمَّ حَبِّبْ إِلَيْنَا الْإِيْمَانَ وَزَيِّنْهُ فِي قُلُوْبِنَا، وَكَرِّهْ إِلَيْنَا الْكُفْرَ وَالْفُسُوْقَ وَالْعِصْيَانَ، وَاجْعَلْنَا مِنَ الرَّاشِدِيْنَ.
+
+رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ.
+
+عِبَادَ اللهِ، إِنَّ اللهَ يَأْمُرُ بِالْعَدْلِ وَالْإِحْسَانِ وَإِيتَاءِ ذِي الْقُرْبَى وَيَنْهَى عَنِ الْفَحْشَاءِ وَالْمُنْكَرِ وَالْبَغْيِ يَعِظُكُمْ لَعَلَّكُمْ تَذَكَّرُوْنَ.
+
+وَاذْكُرُوْا اللهَ الْعَظِيْمَ الْجَلِيْلَ يَذْكُرْكُمْ، وَأَقِمِ الصَّلَاةَ.`,
+`إِنَّ الْحَمْدَ لِلّٰهِ، نَحْمَدُهُ وَنَسْتَعِيْنُهُ وَنَسْتَغْفِرُهُ، وَنَعُوْذُ بِاللّٰهِ مِنْ شُرُوْرِ أَنْفُسِنَا، مَنْ يَهْدِ اللّٰهُ فَلَا مُضِلَّ لَهُ، وَمَنْ يُضْلِلْ فَلَا هَادِيَ لَهُ، وَأَشْهَدُ أَنْ لَا إِلٰهَ إِلَّا اللّٰهُ وَحْدَهُ لَا شَرِيْكَ لَهُ، وَأَشْهَدُ أَنَّ مُحَمَّدًا عَبْدُهُ وَرَسُوْلُهُ.
+
+اَللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا صَلَّيْتَ عَلَى إِبْرَاهِيْمَ وَعَلَى آلِ إِبْرَاهِيْمَ، إِنَّكَ حَمِيْدٌ مَجِيْدٌ. وَبَارِكْ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا بَارَكْتَ عَلَى إِبْرَاهِيْمَ وَعَلَى آلِ إِبْرَاهِيْمَ، إِنَّكَ حَمِيْدٌ مَجِيْدٌ.
+
+أُوْصِيْكُمْ وَإِيَّايَ نَفْسِيْ بِتَقْوَى اللَّهِ فَقَدْ فَازَ الْمُتَّقُوْنَ.
+
+اللَّهُمَّ اغْفِرْ لِلْمُؤْمِنِيْنَ وَالْمُؤْمِنَاتِ، وَالْمُسْلِمِيْنَ وَالْمُسْلِمَاتِ اَلْأَحْيَاءِ مِنْهُمْ وَالْأَمْوَاتِ إِنَّكَ سَمِيْعٌ قَرِيْبٌ مُجِيْبُ الدَّعَوَاتِ. اللَّهُمَّ أَلِّفْ بَيْنَ قُلُوْبِهِمْ وَأَصْلِحْ ذَاتَ بَيْنِهِمْ وَانْصُرْهُمْ عَلَى عَدُوِّكَ وَعَدُوِّهِمْ.
+
+اللَّهُمَّ أَرِنَا الْحَقَّ حَقًّا، وَارْزُقْنَا اتِّبَاعَهُ، وَأَرِنَا الْبَاطِلَ بَاطِلًا، وَارْزُقْنَا اجْتِنَابَهُ، وَلَا تَجْعَلْهُ مُلْتَبِسًا عَلَيْنَا فَنَضِلَّ.
+
+رَبَّنَا آتِنَا فِى الدُّنْيَا حَسَنَةً وَفِى الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ.
+
+وَالْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِيْنَ.`,
+`إِنَّ الْحَمْدَ لِلَّهِ نَحْمَدُهُ وَنَسْتَعِيْنُهُ وَنَسْتَغْفِرُهُ وَنَعُوْذُ بِاللهِ مِنْ شُرُوْرِ أَنْفُسِنَا وَسَيّئَاتِ أَعْمَالِنَا مَنْ يَهْدِهِ اللهُ فَلَا مُضِلَّ لَهُ وَمَنْ يُضْلِلْ فَلَا هَادِيَ لَهُ. أَشْهَدُ أَنْ لَا إِلٰهَ إِلَّا اللهُ وَأَشْهَدُ أَنَّ مُحَمَّدًا عَبْدُهُ وَرَسُوْلُهُ. وَالصَّلَاةُ وَالسَّلَامُ عَلَى مُحَمَّدٍ وَعَلَى آلِهِ وَصَحْبِهِ.
+
+فَيَا عِبَادَ اللهِ أُوْصِيْ نَفْسِيْ وَإِيَّاكُمْ بِتَقْوَى اللهِ، فَقَدْ فَازَ الْمُتَّقُوْنَ.
+
+قَالَ اللهُ تَعَالَى فِيْ كِتَابِهِ الْكَرِيْمِ، بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيْمِ. يَا أَيُّهَا الَّذِيْنَ آمَنُوْا اتَّقُوا اللهَ حَقَّ تُقَاتِهِ وَلَا تَمُوْتُنَّ إِلَّا وَأَنْتُمْ مُسْلِمُوْنَ.
+
+إِنَّ اللهَ وَمَلَائِكَتَهُ يُصَلُّوْنَ عَلَى النَّبِيِّ، يَا أَيُّهَا الَّذِيْنَ آمَنُوْا صَلُّوْا عَلَيْهِ وَسَلِّمُوْا تَسْلِيْمًا.
+
+اَللّٰهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا صَلَّيْتَ عَلَى إِبْرَاهِيْمَ وَعَلَى آلِ إِبْرَاهِيْمَ، إِنَّكَ حَمِيْدٌ مَجِيْدٌ. وَبَارِكْ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا بَارَكْتَ عَلَى إِبْرَاهِيْمَ وَعَلَى آلِ إِبْرَاهِيْمَ، إِنَّكَ حَمِيْدٌ مَجِيْدٌ.
+
+رَبَّنَا اغْفِرْ لَنَا وَلِلْمُسْلِمِيْنَ وَالْمُسْلِمَاتِ، وَالْمُؤْمِنِيْنَ وَالْمُؤْمِنَاتِ اَلْأَحْيَاءِ مِنْهُمْ وَالْأَمْوَاتِ، إِنَّكَ سَمِيْعٌ قَرِيْبٌ مُجِيْبُ الدَّعَوَاتِ. رَبَّنَا اغْفِرْ لَنَا وَلِوَالِدِيْنَا وَارْحَمْهُمْ كَمَا رَبَّوْنَا صِغَارًا.
+
+اَللّٰهُمَّ أَرِنَا الْحَقَّ حَقًّا وَارْزُقْنَا اتِّبَاعَهُ، وَأَرِنَا الْبَاطِلَ بَاطِلًا وَارْزُقْنَا اجْتِنَابَهُ.
+
+رَبَّنَا هَبْ لَنَا مِنْ أَزْوَاجِنَا وَذُرِّيَّاتِنَا قُرَّةَ أَعْيُنٍ وَاجْعَلْنَا لِلْمُتَّقِيْنَ إِمَامًا.
+
+اَللّٰهُمَّ أَعِزَّ الْإِسْلَامَ وَالْمُسْلِمِيْنَ، وَأَذِلَّ الشِّرْكَ وَالْمُشْرِكِيْنَ، وَدَمِّرْ أَعْدَاءَ الدِّيْنِ.
+
+اَللّٰهُمَّ ادْفَعْ عَنَّا الْغَلَاءَ وَالْبَلَاءَ وَالْوَبَاءَ وَالْفَحْشَاءَ وَالْمُنْكَرَ، وَالسُّيُوْفَ الْمُخْتَلِفَةَ وَالشَّدَائِدَ وَالْمِحَنَ، مَا ظَهَرَ مِنْهَا وَمَا بَطَنَ مِنْ بَلَدِنَا هَذَا خَاصَّةً وَمِنْ بُلْدَانِ الْمُسْلِمِيْنَ عَامَّةً، إِنَّكَ عَلَى كُلِّ شَيْئٍ قَدِيْرٌ.
+
+اَللّٰهُمَّ أَصْلِحْ أَحْوَالَ الْمُسْلِمِيْنَ حُكَّامًا وَمَحْكُوْمِيْنَ، يَا رَبَّ الْعَالَمِيْنَ، اَللّٰهُمَّ اشْفِ مَرْضَانَا وَمَرْضَاهُمْ، وَفُكَّ أَسْرَانَا وَأَسْرَاهُمْ، وَاغْفِرْ لِمَوْتَانَا وَمَوْتَاهُمْ، وَأَلِّفْ بَيْنَ قُلُوْبِهِمْ يَا أَرْحَمَ الرَّاحِمِيْنَ.
+
+رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ.
+
+عِبَادَ اللهِ، إِنَّ اللهَ يَأْمُرُ بِالْعَدْلِ وَالْإِحْسَانِ وَإِيْتَاءِ ذِي الْقُرْبَى وَيَنْهَى عَنِ الْفَحْشَاءِ وَالْمُنْكَرِ وَالْبَغْيِ يَعِظُكُمْ لَعَلَّكُمْ تَذَكَّرُوْنَ. وَاذْكُرُوا اللهَ الْعَظِيْمَ الْجَلِيْلَ يَذْكُرْكُمْ، وَأَقِمِ الصَّلَاةَ.`,
+`إِنَّ الْحَمْدَ للهِ نَحْمَدُهُ وَنَسْتَعِيْنُهُ وَنَسْتَغْفِرُهُ، وَنَعُوْذُ بِاللهِ مِنْ شُرُوْرِ أَنْفُسِنَا وَمِنْ سَيِّئَاتِ أَعْمَالِنَا، مَنْ يَهْدِهِ اللهُ فَلَا مُضِلَّ لَهُ وَمَنْ يُضْلِلْ فَلَا هَادِيَ لَهُ، أَشْهَدُ أَنْ لَا إِلٰهَ إِلَّا اللّٰهُ وَحْدَهُ لَا شَرِيْكَ لَهُ وَأَشْهَدُ أَنَّ مُحَمَّدًا عَبْدُهُ وَرَسُوْلُهُ.
+
+عِبَادَ اللهِ، أُوْصِيْكُمْ وَنَفْسِيْ بِتَقْوَى اللهِ عَزَّ وَجَلَّ حَيْثُ قَالَ تَبَارَكَ وَتَعَالَى، يَا أَيُّهَا الَّذِينَ آمَنُوا اتَّقُوا اللَّهَ حَقَّ تُقَاتِهِ وَلَا تَمُوتُنَّ إِلَّا وَأَنْتُمْ مُسْلِمُونَ.
+
+إِنَّ اللَّهَ وَمَلَائِكَتَهُ يُصَلُّونَ عَلَى النَّبِيِّ، يَا أَيُّهَا الَّذِينَ آمَنُوا صَلُّوا عَلَيْهِ وَسَلِّمُوا تَسْلِيمًا.
+
+اَللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا صَلَّيْتَ عَلَى إِبْرَاهِيْمَ وَعَلَى آلِ إِبْرَاهِيْمَ، إِنَّكَ حَمِيْدٌ مَجِيْدٌ. وَبَارِكْ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا بَارَكْتَ عَلَى إِبْرَاهِيْمَ وَعَلَى آلِ إِبْرَاهِيْمَ، إِنَّكَ حَمِيْدٌ مَجِيْدٌ.
+
+اَللَّهُمَّ أَصْلِحْ أَئِمَّتَنَا وَوُلَاةَ أُمُوْرِنَا، اَللَّهُمَّ وَفِّقْ وُلَاةَ أُمُوْرِنَا لِإِقَامَةِ دِيْنِكَ وَشَرِيْعَتِكَ وَإِزَالَةِ الْمَلَاهِي وَالْمُنْكَرَاتِ، وَإِظْهَارِ الْمَحَاسِنَ وَأَنْوَاعِ الْخَيْرَاتِ.
+
+اَللَّهُمَّ أَصْلِحْ شَبَابَ الْمُسْلِمِيْنَ، اَللَّهُمَّ أَصْلِحْ شَبَابَ الْمُسْلِمِيْنَ، اَللَّهُمَّ بَغِّضْ إِلَيْهِمُ الْكُفْرَ وَالْفُسُوْقَ وَالْعِصْيَانَ، وَاجْعَلْهُمْ مِنَ الرَّاشِدِيْنَ يَا رَبَّ الْعَالَمِيْنَ.
+
+اَللَّهُمَّ إِنَّا نَعُوْذُ بِكَ مِنَ الْفَوَاحِشِ وَالْفِتَنِ؛ مَا ظَهَرَ مِنْهَا، وَمَا بَطَنَ، اَللَّهُمَّ احْفَظْ عَلَيْنَا وَعَلَى أَهْلِيْنَا وَأَوْلَادِنَا وَإِخْوَانِنَا الدِّيْنَ وَالنَّفْسَ وَالْعِرْضَ، وَحُسْنَ الْأَخْلَاقِ، يَا رَحِيْمُ يَا كَرِيْمُ.
+
+اَللَّهُمَّ إِنَّا نَسْأَلُكَ بِأَنَّكَ أَنْتَ اللهُ، لَا إِلَهَ إِلَّا أَنْتَ الْمَنَّانُ، بَدِيْعُ السَّمَاوَاتِ وَالْأَرْضِ، يَا ذَا الْجَلَالِ وَالْإِكْرَامِ، اَللَّهُمَّ انْصُرِ الْمُجَاهِدِيْنَ فِي سَبِيْلِكَ فِي كُلِّ مَكَانٍ، اَللَّهُمَّ انْصُرْهُمْ نَصْرًا مُؤَزَّرًا، اَللَّهُمَّ ارْبِطْ عَلَى قُلُوْبِهِمْ، وَثَبِّتْ أَقْدَامَهُمْ.
+
+اَللَّهُمَّ أَنْجِ الْمُسْتَضْعَفِيْنَ الْمُسْلِمِيْنَ فِي كُلِّ مَكَانٍ، اَللَّهُمَّ احْقِنْ دِمَاءَهُمْ وَآمِنْ رَوْعَاتِهِمْ، وَاسْتُرْ عَوْرَاتِهِمْ وَاحْفَظْهُمْ يَا كَرِيْمُ يَا مَنَّانُ.
+
+رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ.
+
+عِبَادَ اللهِ، إِنَّ اللهَ يَأْمُرُ بِالْعَدْلِ وَالْإِحْسَانِ وَإِيْتَاءِ ذِي الْقُرْبَى وَيَنْهَى عَنِ الْفَحْشَاءِ وَالْمُنْكَرِ وَالْبَغْيِ يَعِظُكُمْ لَعَلَّكُمْ تَذَكَّرُوْنَ.
+
+وَاذْكُرُوْا اللهَ الْعَظِيْمَ الْجَلِيْلَ يَذْكُرْكُمْ، وَأَقِمِ الصَّلَاةَ.`,
+`إِنَّ الْحَمْدَ لِلهِ، نَحْمَدُهُ وَنَسْتَعِيْنُهُ وَنَسْتَغْفِرُهُ وَنَعُوْذُ بِاللهِ مِنْ شُرُوْرِ أَنْفُسِنَا وَسَيِّئَاتِ أَعْمَالِنَا، مَنْ يَهْدِهِ اللهُ فَلَا مُضِلَّ لَهُ، وَمَنْ يُضْلِلْ فَلَا هَادِيَ لَهُ وَأَشْهَدُ أَنْ لَا إِلَهَ إِلَّا اللهُ وَحْدَهُ لَا شَرِيْكَ لَهُ وَأَنَّ مُحَمَّدًا عَبْدُهُ وَرَسُوْلُهُ.
+
+عِبَادَ اللهِ، أُوْصِيْكُمْ وَنَفْسِيْ بِتَقْوَى اللهِ عَزَّ وَجَلَّ حَيْثُ قَالَ تَبَارَكَ وَتَعَالَى، أَعُوْذُ بِاللهِ مِنَ الشَّيْطَانِ الرَّجِيْمِ:
+
+يَا أَيُّهَا الَّذِيْنَ آمَنُوا اتَّقُوا اللهَ حَقَّ تُقَاتِهِ وَلَا تَمُوْتُنَّ إِلَّا وَأَنْتُمْ مُّسْلِمُوْنَ.
+
+إِنَّ اللهَ وَمَلَائِكَتَهُ يُصَلُّونَ عَلَى النَّبِيِّ يَا أَيُّهَا الَّذِيْنَ آمَنُوا صَلُّوا عَلَيْهِ وَسَلِّمُوا تَسْلِيْمًا.
+
+اَللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ، وَارْضَ اللَّهُمَّ عَنْ خُلَفَائِهِ الرَّاشِدِيْنَ الَّذِيْنَ قَضَوْا بِالْحَقِّ وَبِهِ كَانُوْا يَعْدِلُوْنَ: أَبِي بَكْرٍ، وَعُمَرَ، وَعُثْمَانَ، وَعَليٍّ، وَعَنْ سَائِرِ الصَّحَابَةِ أَجْمَعِيْنَ، وَعَنَّا مَعَهُمْ بِجُوْدِكَ وَكَرَمِكَ يَا أَكْرَمَ الْأَكْرَمِيْنَ.
+
+اَللَّهُمَّ أَعِزَّ الْإِسْلَامَ وَالْمُسْلِمِيْنَ، وَأَذِلَّ الشِّرْكَ وَالْمُشْرِكِيْنَ، وَدَمِّرْ أَعْدَاءَ الدِّيْنَ، وَاجْعَلِ اللَّهُمَّ هَذَا الْبَلَدَ آمِنًا مُطْمَئِنًّا رَخَاءً وَسَائِرَ بِلَادِ الْمُسْلِمِيْنَ.
+
+اللَّهُمَّ إِنَّا نَعُوذُ بِكَ مِنْ عَذَابِ النَّارِ، وَنَعُوذُ بِكَ مِنْ عَذَابِ الْقَبْرِ، وَنَعُوذُ بِكَ مِنَ الْفِتَنِ مَا ظَهَرَ مِنْهَا وَمَا بَطَنَ، وَنَعُوذُ بِكَ مِنْ فِتْنَةِ الدَّجالِ.
+
+اللَّهُمَّ إِنَّا نَسْألُكَ مُوْجِباتِ رَحْمَتِكَ، وَعَزائِمَ مَغْفِرَتِكَ، وَالسَّلامَةَ مِنْ كُلِّ إثمٍ، وَالغَنِيمَةَ مِنْ كُلِّ بِرٍّ، وَالفَوْزَ بِالجَنَّةِ، وَالنَّجاةَ مِنَ النَّارِ.
+
+رَبَّنَا اصْرِفْ عَنَّا عَذَابَ جَهَنَّمَ إِنَّ عَذَابَهَا كَانَ غَرَامًا. إِنَّهَا سَاءَتْ مُسْتَقَرًّا وَمُقَامًا. رَبَّنَا إِنَّنَا آمَنَّا فَاغْفِرْ لَنَا ذُنُوبَنَا وَقِنَا عَذَابَ النَّارِ.
+
+رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ. اَللَّهُمَّ إِنَّا نَسْأَلُكَ الْإِخْلَاصَ فِي الْقَوْلِ وَالْعَمَلِ.
+
+عِبَادَ اللهِ، إِنَّ اللَّهَ يَأْمُرُ بِالْعَدْلِ وَالْإِحْسَانِ وَإِيتَاءِ ذِي الْقُرْبَى وَيَنْهَى عَنِ الْفَحْشَاءِ وَالْمُنْكَرِ وَالْبَغْيِ يَعِظُكُمْ لَعَلَّكُمْ تَذَكَّرُونَ.
+
+فَاذْكُرُوْا اللهَ الْعَظِيْمَ الْجَلِيْلَ يَذْكُرْكُمْ، وَاشْكُرُوْهُ عَلَى آلَائِهِ وَنِعَمِهِ يَزِدْكُمْ، وَلَذِكْرُ اللهِ أَكْبَرُ، وَاللهُ يَعْلَمُ مَا تَصْنَعُوْنَ.`
+];
+
+function secondKhutbahArabicOnly(opening = "", seed = "") {
+  const normalizedOpening = opening ? `${opening}\n\n` : "";
+  return `${normalizedOpening}${pick(secondKhutbahArabicVariants, seed, 31)}`;
 }
 
 function generalIntroFor(jenis: string, language: SupportedLanguage, tema: string) {
@@ -3436,29 +3651,20 @@ function fallbackRukunKhutbah(jenis: string, label: string, bahasa: string, tema
   const takbirTujuh =
     "اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ.";
   const hamdalahArab = pick(khutbahArabicVariants.hamdalah, seed, 1);
-  const secondHamdalahArab = pick(khutbahArabicVariants.hamdalah, seed, 2);
   const syahadatArab = pick(khutbahArabicVariants.syahadat, seed, 12);
   const shalawatArab = pick(khutbahArabicVariants.shalawat, seed, 3);
-  const secondShalawatArab = pick(khutbahArabicVariants.shalawat, seed, 4);
   const wasiatTakwaArab = pick(khutbahArabicVariants.wasiat, seed, 5);
-  const secondWasiatTakwaArab = pick(khutbahArabicVariants.wasiat, seed, 6);
   const selectedDalil = selectedDalilFor(jenis, tema, seed);
   const ayat = selectedDalil.ayat;
   const hadith = selectedDalil.hadith;
   const penutupPertamaArab = pick(khutbahArabicVariants.penutupPertama, seed, 9);
-  const doaMukmininArab = pickDistinct(khutbahArabicVariants.doaMukminin, seed, [10, 18]);
-  const doaPenutupArab = pickDistinct(khutbahArabicVariants.doaPenutup, seed, [11, 19, 27]);
   const idulMessage = khutbahMessageFor(jenis, tema, seed, language, selectedDalil.label);
   const subsections = khutbahSubsectionsFor(jenis, tema, seed, language, selectedDalil.label);
-  const practicalSteps = practicalStepsFor(language, tema, selectedDalil.label);
   const firstTakbir = jenis === "idul-fitri" || jenis === "idul-adha"
-    ? `Takbir Pembuka Pertama\n${takbirSembilan}\n\n`
-    : "";
-  const secondTakbir = jenis === "idul-fitri" || jenis === "idul-adha"
-    ? `Takbir Pembuka Kedua\n${takbirTujuh}\n\n`
+    ? `${takbirSembilan}\n\n`
     : "";
   const audience = audienceFor(jenis, language);
-  const finalClosing = finalClosingFor(jenis, language);
+  const secondKhutbahBlock = secondKhutbahArabicOnly(jenis === "idul-fitri" || jenis === "idul-adha" ? takbirTujuh : "", seed);
 
   return `${label}
 
@@ -3476,11 +3682,11 @@ ${wasiatTakwaArab}
 
 ${audience}, ${takwaIntroFor(language)}
 
-Ayat Al-Quran
+${QURAN_HEADING}
 ${ayat.arab}
 ${meaningLineFor(ayat, language)}
 
-Hadits
+${HADITH_HEADING}
 ${hadith.arab}
 ${meaningLineFor(hadith, language)}
 
@@ -3493,34 +3699,13 @@ ${section.body}`
 
 ${idulMessage}
 
-${khutbahDeepeningFor(language, tema, selectedDalil.label)}
+${khutbahDeepeningFor(jenis, language, tema, selectedDalil.label)}
 
 Penutup Khutbah Pertama
 ${penutupPertamaArab}
 
-Duduk di Antara Dua Khutbah
-${sittingLineFor(language)}
-
 Khutbah Kedua
-${secondTakbir}${secondHamdalahArab}
-
-${secondShalawatArab}
-
-${secondWasiatTakwaArab}
-
-${secondKhutbahReminderFor(language, tema)}
-
-${labels.practical}
-1. ${practicalSteps[0]}
-2. ${practicalSteps[1]}
-3. ${practicalSteps[2]}
-
-Doa Penutup
-${doaMukmininArab}
-
-${doaPenutupArab}
-
-${finalClosing}`;
+${secondKhutbahBlock}`;
 }
 
 function fallbackGeneralNaskah(
@@ -3561,11 +3746,11 @@ ${shalawat}
 ${labels.weddingIntro}
 ${wedding.intro}
 
-Ayat Al-Quran
+${QURAN_HEADING}
 ${weddingAyat.arab}
 ${meaningLineFor(weddingAyat, language)}
 
-Hadits
+${HADITH_HEADING}
 ${weddingHadith.arab}
 ${meaningLineFor(weddingHadith, language)}
 

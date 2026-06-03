@@ -11,6 +11,7 @@ import { templateRoutes } from "./routes/templates";
 import { exportRoutes } from "./routes/export";
 import { adminRoutes } from "./routes/admin";
 import { statsRoutes } from "./routes/stats";
+import { activeModelCount, aiProvider, generateClientTimeoutMs, providerTimeoutMs } from "./config";
 import type { AppEnv } from "./utils/http";
 
 await migrate();
@@ -28,6 +29,16 @@ app.use(
 
 const api = new Hono<AppEnv>();
 api.get("/health", (c) => c.json({ ok: true }));
+api.get("/config", (c) =>
+  c.json({
+    data: {
+      generateClientTimeoutMs,
+      providerTimeoutMs,
+      modelCount: activeModelCount,
+      aiProvider
+    }
+  })
+);
 api.route("/auth", authRoutes);
 api.route("/generate", generateRoutes);
 api.route("/naskah", naskahRoutes);
@@ -59,7 +70,7 @@ if (shouldServeFrontend) {
 
 if (import.meta.main) {
   const port = Number(process.env.PORT ?? 3000);
-  Bun.serve({ hostname: "0.0.0.0", port, fetch: app.fetch });
+  Bun.serve({ hostname: "0.0.0.0", port, fetch: app.fetch, idleTimeout: Math.ceil(generateClientTimeoutMs / 1000) });
   console.log(`KhutbahAI berjalan di http://localhost:${port}`);
 }
 

@@ -8,6 +8,8 @@ import { api, jenisOptions, type JenisId } from "../lib/utils";
 import { validateGenerateParameters } from "../lib/validation";
 import type { Template } from "../types";
 
+const defaultGenerateTimeoutMs = 120000;
+
 export function Generate({
   initialJenis,
   template,
@@ -23,6 +25,7 @@ export function Generate({
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [generateTimeoutMs, setGenerateTimeoutMs] = useState(defaultGenerateTimeoutMs);
 
   useEffect(() => {
     changeJenis(initialJenis);
@@ -37,6 +40,16 @@ export function Generate({
     setMessage(`Template "${template.name}" siap dipakai.`);
     onTemplateApplied();
   }, [onTemplateApplied, template]);
+
+  useEffect(() => {
+    api<{ data: { generateClientTimeoutMs: number } }>("/api/config")
+      .then((data) => {
+        if (Number.isFinite(data.data.generateClientTimeoutMs)) {
+          setGenerateTimeoutMs(data.data.generateClientTimeoutMs);
+        }
+      })
+      .catch(() => null);
+  }, []);
 
   function changeJenis(next: JenisId) {
     setJenis(next);
@@ -74,11 +87,11 @@ export function Generate({
     setTitle(makeTitle());
     const controller = new AbortController();
     const waitingTimer = window.setTimeout(() => {
-      setMessage("Menunggu respons dari provider AI...");
+      setMessage("Menunggu respons dari provider AI. Jika model pertama penuh, aplikasi akan mencoba model berikutnya...");
     }, 3000);
     const timeoutTimer = window.setTimeout(() => {
       controller.abort();
-    }, 120000);
+    }, generateTimeoutMs);
 
     try {
       const response = await fetch("/api/generate/stream", {
@@ -104,7 +117,7 @@ export function Generate({
       window.clearTimeout(waitingTimer);
       const isAbort = error instanceof DOMException && error.name === "AbortError";
       if (isAbort) {
-        setMessage("Generate terlalu lama. Coba ulangi atau pilih model lain.");
+        setMessage("Generate terlalu lama. Coba ulangi, kurangi durasi, atau ganti daftar model.");
       } else {
         setMessage("Koneksi streaming gagal. Mencoba mode kompatibilitas...");
         try {

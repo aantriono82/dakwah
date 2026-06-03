@@ -1,6 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
-import { Trash2, Users } from "lucide-react";
+import { Pencil, Save, Trash2, Users, X } from "lucide-react";
 import { Button, Card, Field, IconButton, Input, Select } from "../components/ui";
 import { api } from "../lib/utils";
 import type { User } from "../types";
@@ -9,6 +9,8 @@ export function Admin() {
   const [stats, setStats] = useState<{ users: number; naskah: number; templates: number; byJenis: { jenis: string; total: number }[] } | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [form, setForm] = useState({ username: "", name: "", password: "", role: "user" });
+  const [editingUserId, setEditingUserId] = useState("");
+  const [editForm, setEditForm] = useState({ username: "", name: "", password: "", role: "user" });
   const [message, setMessage] = useState("");
 
   async function load() {
@@ -38,6 +40,37 @@ export function Admin() {
       setMessage("User berhasil ditambahkan.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Gagal menambah user.");
+    }
+  }
+
+  function startEdit(user: User) {
+    setEditingUserId(user.id);
+    setEditForm({ username: user.username, name: user.name, password: "", role: user.role });
+    setMessage("");
+  }
+
+  function cancelEdit() {
+    setEditingUserId("");
+    setEditForm({ username: "", name: "", password: "", role: "user" });
+  }
+
+  async function updateUser(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editingUserId) return;
+
+    try {
+      const payload: { username: string; name: string; role: string; password?: string } = {
+        username: editForm.username,
+        name: editForm.name,
+        role: editForm.role
+      };
+      if (editForm.password.trim()) payload.password = editForm.password;
+      await api(`/api/admin/users/${editingUserId}`, { method: "PUT", body: JSON.stringify(payload) });
+      cancelEdit();
+      await load();
+      setMessage("User berhasil diperbarui.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Gagal memperbarui user.");
     }
   }
 
@@ -90,15 +123,59 @@ export function Admin() {
           <div className="grid gap-2">
             {users.map((item) => (
               <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{item.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {item.username} - {item.role}
-                  </p>
-                </div>
-                <IconButton onClick={() => removeUser(item.id)} aria-label="Hapus user">
-                  <Trash2 className="size-4" />
-                </IconButton>
+                {editingUserId === item.id ? (
+                  <form onSubmit={updateUser} className="grid flex-1 gap-3">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Field label="Nama">
+                        <Input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} required />
+                      </Field>
+                      <Field label="Username">
+                        <Input value={editForm.username} onChange={(event) => setEditForm({ ...editForm, username: event.target.value })} required />
+                      </Field>
+                      <Field label="Role">
+                        <Select value={editForm.role} onChange={(event) => setEditForm({ ...editForm, role: event.target.value })}>
+                          <option value="user">User</option>
+                          <option value="admin">Admin</option>
+                        </Select>
+                      </Field>
+                      <Field label="Password baru">
+                        <Input
+                          type="password"
+                          value={editForm.password}
+                          onChange={(event) => setEditForm({ ...editForm, password: event.target.value })}
+                          placeholder="Kosongkan jika tidak diubah"
+                        />
+                      </Field>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button>
+                        <Save className="size-4" />
+                        Simpan
+                      </Button>
+                      <Button type="button" className="bg-secondary text-secondary-foreground" onClick={cancelEdit}>
+                        <X className="size-4" />
+                        Batal
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{item.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {item.username} - {item.role}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <IconButton onClick={() => startEdit(item)} aria-label="Edit user">
+                        <Pencil className="size-4" />
+                      </IconButton>
+                      <IconButton onClick={() => removeUser(item.id)} aria-label="Hapus user">
+                        <Trash2 className="size-4" />
+                      </IconButton>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>

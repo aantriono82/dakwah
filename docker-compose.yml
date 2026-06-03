@@ -8,9 +8,16 @@ services:
     environment:
       PORT: 3000
       DATABASE_URL: /app/data/khutbah-ai.sqlite
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_MODELS: ${OPENAI_MODELS:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MAX_TOKENS: ${OPENAI_MAX_TOKENS:-5500}
+      OPENAI_TIMEOUT_MS: ${OPENAI_TIMEOUT_MS:-30000}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_MODELS: ${GEMINI_MODELS:-}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin123}
       SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-user123}
       S3_ENDPOINT: http://rustfs:9000

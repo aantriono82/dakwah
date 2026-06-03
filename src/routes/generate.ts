@@ -1,9 +1,10 @@
 import { Hono } from "hono";
+import { streamText } from "hono/streaming";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { authRequired, type AppEnv } from "../utils/http";
 import { CONTENT_TYPES, titleFromParameters, validateContentParameters } from "../utils/content";
-import { generateText } from "../services/openai";
+import { generateText, streamGeneratedText } from "../services/openai";
 
 const generateSchema = z.object({
   jenis: z.enum(CONTENT_TYPES),
@@ -31,8 +32,10 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
   const validationMessage = validateContentParameters(jenis, parameters);
   if (validationMessage) return c.json({ message: validationMessage }, 400);
 
-  return c.text(await generateText(jenis, parameters), 200, {
-    "Cache-Control": "no-cache, no-transform",
-    "X-Content-Type-Options": "nosniff"
+  c.header("Cache-Control", "no-cache, no-transform");
+  return streamText(c, async (stream) => {
+    for await (const chunk of streamGeneratedText(jenis, parameters)) {
+      await stream.write(chunk);
+    }
   });
 });
