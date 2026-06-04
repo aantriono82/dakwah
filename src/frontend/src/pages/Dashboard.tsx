@@ -152,7 +152,7 @@ function HomeFooter({
               <MoonStar className="size-6" />
             </span>
             <div>
-              <p className="text-xl font-black tracking-normal">DakwahAI</p>
+              <p className="text-xl font-black tracking-normal">Dakwah</p>
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/55">Naskah Dakwah</p>
             </div>
           </div>
@@ -214,7 +214,7 @@ function HomeFooter({
         </div>
       </div>
       <div className="border-t border-white/10 bg-[#0d1412] px-6 py-6 text-center text-xs text-white/55">
-        DakwahAI &copy; 2026. Gunakan naskah sebagai draft dan tinjau kembali sebelum disampaikan.
+        Dakwah &copy; 2026. Gunakan naskah sebagai draft dan tinjau kembali sebelum disampaikan.
       </div>
     </footer>
   );

@@ -179,10 +179,10 @@ export function App() {
         <InfoPage
           title="About"
           body={[
-            "DakwahAI adalah aplikasi web yang dirancang untuk membantu ustaz, khatib, dai, dan pengelola kegiatan keislaman menyiapkan naskah dakwah dengan lebih terarah, rapi, dan efisien. Aplikasi ini mendukung pembuatan berbagai jenis naskah, mulai dari Khutbah Jumat, Khutbah Idul Fitri, Khutbah Idul Adha, Khutbah Nikah, Ceramah Umum, hingga Kultum.",
+            "Dakwah adalah aplikasi web yang dirancang untuk membantu ustaz, khatib, dai, dan pengelola kegiatan keislaman menyiapkan naskah dakwah dengan lebih terarah, rapi, dan efisien. Aplikasi ini mendukung pembuatan berbagai jenis naskah, mulai dari Khutbah Jumat, Khutbah Idul Fitri, Khutbah Idul Adha, Khutbah Nikah, Ceramah Umum, hingga Kultum.",
             "Melalui bantuan AI, pengguna dapat menyusun naskah berdasarkan tema, durasi, bahasa, audiens, suasana penyampaian, dan kebutuhan acara. Hasil naskah dapat ditinjau secara langsung, disesuaikan kembali, disimpan sebagai riwayat, digunakan ulang melalui template, serta diekspor ke format PDF atau DOCX.",
-            "DakwahAI tidak dimaksudkan untuk menggantikan peran keilmuan, ketelitian, dan kebijaksanaan seorang dai. Aplikasi ini hadir sebagai alat bantu penyusunan awal agar proses menulis menjadi lebih cepat dan terstruktur. Setiap naskah tetap perlu ditinjau oleh pengguna, terutama dalam memastikan ketepatan dalil, kesesuaian konteks jamaah, adab penyampaian, dan kedalaman pesan dakwah.",
-            "Dengan fitur penyimpanan naskah, template favorit, riwayat penggunaan, mode gelap, tampilan responsif, serta dukungan akun pengguna dan admin, DakwahAI menjadi ruang kerja digital yang praktis untuk menyiapkan materi dakwah secara konsisten. Tujuannya sederhana: membantu para penyampai dakwah fokus pada substansi pesan, sementara proses teknis penyusunan naskah menjadi lebih ringan, tertata, dan mudah dikelola."
+            "Dakwah tidak dimaksudkan untuk menggantikan peran keilmuan, ketelitian, dan kebijaksanaan seorang dai. Aplikasi ini hadir sebagai alat bantu penyusunan awal agar proses menulis menjadi lebih cepat dan terstruktur. Setiap naskah tetap perlu ditinjau oleh pengguna, terutama dalam memastikan ketepatan dalil, kesesuaian konteks jamaah, adab penyampaian, dan kedalaman pesan dakwah.",
+            "Dengan fitur penyimpanan naskah, template favorit, riwayat penggunaan, mode gelap, tampilan responsif, serta dukungan akun pengguna dan admin, Dakwah menjadi ruang kerja digital yang praktis untuk menyiapkan materi dakwah secara konsisten. Tujuannya sederhana: membantu para penyampai dakwah fokus pada substansi pesan, sementara proses teknis penyusunan naskah menjadi lebih ringan, tertata, dan mudah dikelola."
           ]}
         />
       )}
@@ -201,11 +201,11 @@ export function App() {
         <InfoPage
           title="Disclaimer"
           body={[
-            "DakwahAI adalah alat bantu penyusunan naskah dakwah berbasis AI. Seluruh teks yang dihasilkan, termasuk khutbah, ceramah, kultum, nasihat pernikahan, doa, dan materi pendukung lainnya, bersifat draf awal yang perlu diperiksa kembali sebelum digunakan atau disampaikan kepada jamaah.",
+            "Dakwah adalah alat bantu penyusunan naskah dakwah berbasis AI. Seluruh teks yang dihasilkan, termasuk khutbah, ceramah, kultum, nasihat pernikahan, doa, dan materi pendukung lainnya, bersifat draf awal yang perlu diperiksa kembali sebelum digunakan atau disampaikan kepada jamaah.",
             "Pengguna bertanggung jawab penuh untuk memastikan ketepatan dalil, kebenaran terjemahan, kesesuaian penafsiran, adab penyampaian, serta relevansi isi dengan kondisi jamaah dan tempat acara. Periksa kembali ayat Al-Quran, hadis, kutipan ulama, istilah fikih, dan informasi faktual yang muncul dalam naskah.",
-            "DakwahAI tidak menggantikan peran ustaz, khatib, dai, lembaga keagamaan, atau otoritas keilmuan Islam. Aplikasi ini juga tidak dimaksudkan sebagai sumber fatwa, rujukan hukum syar'i final, atau penentu keputusan keagamaan. Untuk persoalan akidah, ibadah, muamalah, keluarga, dan masalah sensitif lainnya, rujuklah kepada ulama atau lembaga yang kompeten.",
+            "Dakwah tidak menggantikan peran ustaz, khatib, dai, lembaga keagamaan, atau otoritas keilmuan Islam. Aplikasi ini juga tidak dimaksudkan sebagai sumber fatwa, rujukan hukum syar'i final, atau penentu keputusan keagamaan. Untuk persoalan akidah, ibadah, muamalah, keluarga, dan masalah sensitif lainnya, rujuklah kepada ulama atau lembaga yang kompeten.",
             "Hasil naskah dapat mengandung kekeliruan, kekurangan konteks, pengulangan, pilihan kata yang kurang tepat, atau sudut pandang yang belum sesuai dengan kebutuhan pengguna. Karena itu, lakukan penyuntingan akhir agar pesan dakwah tetap santun, akurat, proporsional, dan membawa maslahat.",
-            "Dengan menggunakan DakwahAI, pengguna memahami bahwa aplikasi ini membantu mempercepat proses penulisan dan pengelolaan naskah, sementara tanggung jawab akhir atas isi, penyampaian, dan dampak materi dakwah tetap berada pada pengguna."
+            "Dengan menggunakan Dakwah, pengguna memahami bahwa aplikasi ini membantu mempercepat proses penulisan dan pengelolaan naskah, sementara tanggung jawab akhir atas isi, penyampaian, dan dampak materi dakwah tetap berada pada pengguna."
           ]}
         />
       )}
@@ -345,10 +345,10 @@ function Login({
     <LegalPanel
       title="Syarat Ketentuan"
       paragraphs={[
-        "Dengan menggunakan DakwahAI, pengguna setuju untuk memakai aplikasi ini sebagai alat bantu penyusunan awal naskah dakwah, bukan sebagai rujukan keagamaan final.",
+        "Dengan menggunakan Dakwah, pengguna setuju untuk memakai aplikasi ini sebagai alat bantu penyusunan awal naskah dakwah, bukan sebagai rujukan keagamaan final.",
         "Pengguna bertanggung jawab penuh untuk meninjau, menyunting, dan memastikan ketepatan isi naskah sebelum disampaikan kepada jamaah atau digunakan dalam kegiatan resmi.",
         "Pengguna tidak diperkenankan menggunakan layanan untuk membuat konten yang menyesatkan, merugikan pihak lain, melanggar hukum, atau bertentangan dengan adab penyampaian dakwah.",
-        "DakwahAI dapat melakukan pembaruan fitur, perbaikan layanan, atau perubahan ketentuan penggunaan sesuai kebutuhan pengembangan aplikasi."
+        "Dakwah dapat melakukan pembaruan fitur, perbaikan layanan, atau perubahan ketentuan penggunaan sesuai kebutuhan pengembangan aplikasi."
       ]}
       onBack={() => setAuthPanel("register")}
     />
@@ -356,7 +356,7 @@ function Login({
     <LegalPanel
       title="Kebijakan Privasi"
       paragraphs={[
-        "DakwahAI menggunakan data akun seperti nama, email, dan informasi autentikasi untuk menyediakan akses pengguna dan menjaga keamanan sesi penggunaan aplikasi.",
+        "Dakwah menggunakan data akun seperti nama, email, dan informasi autentikasi untuk menyediakan akses pengguna dan menjaga keamanan sesi penggunaan aplikasi.",
         "Naskah, template, dan riwayat penggunaan yang disimpan di aplikasi digunakan untuk mendukung fitur penyimpanan, pencarian, penggunaan ulang, serta pengelolaan dokumen pengguna.",
         "Data pengguna tidak ditampilkan kepada pengguna lain kecuali dibutuhkan untuk fitur administrasi, pemeliharaan layanan, atau kewajiban teknis yang relevan.",
         "Pengguna dapat menghubungi pengelola aplikasi untuk permintaan terkait akun, data tersimpan, atau pertanyaan mengenai penggunaan informasi pribadi."
@@ -666,7 +666,7 @@ function MainLayout({
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur lg:py-0">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 lg:h-24">
           <button className="text-left" onClick={() => setActiveTab("home")}>
-            <p className="text-2xl font-black tracking-normal text-primary">DakwahAI</p>
+            <p className="text-2xl font-black tracking-normal text-primary">Dakwah</p>
             <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Naskah Dakwah</p>
           </button>
 
