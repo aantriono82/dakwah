@@ -214,7 +214,7 @@ export function App() {
 }
 
 function ShellLoader() {
-  return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">Memuat KhutbahAI...</div>;
+  return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">Memuat Dakwah...</div>;
 }
 
 function Login({

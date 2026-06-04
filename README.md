@@ -1,6 +1,6 @@
-# KhutbahAI
+# Dakwah
 
-KhutbahAI adalah aplikasi web full-stack untuk membantu ustaz, khatib, dan dai membuat naskah khutbah, ceramah, dan kultum dengan bantuan AI. Aplikasi ini memiliki backend Hono di bawah path `/api`, database SQLite melalui Drizzle ORM, export PDF/DOCX, penyimpanan file ke RustFS yang kompatibel S3, autentikasi session, role Admin/User, serta frontend React + Tailwind.
+Dakwah adalah aplikasi web full-stack untuk membantu ustaz, khatib, dai, dan pengelola kegiatan keislaman membuat naskah khutbah, ceramah, kultum, dan materi dakwah dengan bantuan AI. Aplikasi ini memiliki backend Hono di bawah path `/api`, database SQLite melalui Drizzle ORM, export PDF/DOCX, penyimpanan file ke RustFS yang kompatibel S3, autentikasi session, role Admin/User, serta frontend React + Tailwind.
 
 ## Fitur
 
@@ -83,14 +83,14 @@ Setelah aplikasi berjalan, jalankan smoke test UI:
 bun run qa:ui
 ```
 
-Default test memakai `http://localhost:3000`, akun `admin/admin123`, dan menyimpan screenshot di `/tmp/khutbahai-ui-smoke`.
+Default test memakai `http://localhost:3000`, akun `admin/admin123`, dan menyimpan screenshot di `/tmp/dakwah-ui-smoke`.
 Override jika perlu:
 
 ```bash
 UI_SMOKE_URL=http://localhost:3000 \
 UI_SMOKE_USERNAME=admin \
 UI_SMOKE_PASSWORD=password-admin \
-UI_SMOKE_SCREENSHOT_DIR=/tmp/khutbahai-ui-smoke \
+UI_SMOKE_SCREENSHOT_DIR=/tmp/dakwah-ui-smoke \
 bun run qa:ui
 ```
 
@@ -101,7 +101,7 @@ Variabel penting:
 | Variabel | Default | Keterangan |
 |---|---|---|
 | `PORT` | `3000` | Port aplikasi |
-| `DATABASE_URL` | `./data/khutbah-ai.sqlite` | Lokasi file SQLite |
+| `DATABASE_URL` | `./data/dakwah.sqlite` | Lokasi file SQLite |
 | `AI_PROVIDER` | `openai` | Provider AI: `openai` untuk OpenAI/OpenRouter atau `gemini` untuk Google AI Studio |
 | `OPENAI_API_KEY` | kosong | API key OpenAI/OpenRouter. Jika kosong saat `AI_PROVIDER=openai`, aplikasi memakai generator fallback lokal |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model OpenAI untuk generate |
@@ -115,10 +115,10 @@ Variabel penting:
 | `SEED_ADMIN_PASSWORD` | `admin123` | Password awal admin saat database kosong |
 | `SEED_USER_PASSWORD` | `user123` | Password awal user saat database kosong |
 | `S3_ENDPOINT` | `http://localhost:9000` | Endpoint RustFS/S3 |
-| `S3_ACCESS_KEY_ID` | `khutbahai` | Access key storage |
-| `S3_SECRET_ACCESS_KEY` | `khutbahai-secret` | Secret key storage |
-| `S3_BUCKET` | `khutbahai` | Bucket export |
-| `S3_PUBLIC_URL` | `http://localhost:9000/khutbahai` | URL publik file export |
+| `S3_ACCESS_KEY_ID` | `dakwah` | Access key storage |
+| `S3_SECRET_ACCESS_KEY` | `dakwah-secret` | Secret key storage |
+| `S3_BUCKET` | `dakwah` | Bucket export |
+| `S3_PUBLIC_URL` | `http://localhost:9000/dakwah` | URL publik file export |
 | `S3_SIGNED_URL_EXPIRES` | `604800` | Masa berlaku signed link export dalam detik |
 | `S3_REQUIRED` | `false` | Jika `true`, export gagal dengan error jelas saat upload ke RustFS/S3 gagal. Docker Compose mengaktifkan ini. |
 
@@ -138,7 +138,7 @@ OPENAI_MAX_TOKENS=5500
 OPENAI_TIMEOUT_MS=30000
 # Untuk OpenRouter/provider kompatibel:
 # OPENAI_BASE_URL=https://openrouter.ai/api/v1
-DATABASE_URL=./data/khutbah-ai.sqlite
+DATABASE_URL=./data/dakwah.sqlite
 PORT=3000
 SEED_ADMIN_PASSWORD=password-admin-kuat
 SEED_USER_PASSWORD=password-user-kuat

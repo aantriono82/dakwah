@@ -7,7 +7,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const bucket = process.env.S3_BUCKET ?? "khutbahai";
+const bucket = process.env.S3_BUCKET ?? "dakwah";
 const endpoint = process.env.S3_ENDPOINT ?? "http://localhost:9000";
 const publicUrl = process.env.S3_PUBLIC_URL ?? `${endpoint}/${bucket}`;
 const signedUrlExpires = Number(process.env.S3_SIGNED_URL_EXPIRES ?? 60 * 60 * 24 * 7);
@@ -18,8 +18,8 @@ const client = new S3Client({
   endpoint,
   forcePathStyle: true,
   credentials: {
-    accessKeyId: process.env.S3_ACCESS_KEY_ID ?? "khutbahai",
-    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? "khutbahai-secret"
+    accessKeyId: process.env.S3_ACCESS_KEY_ID ?? "dakwah",
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? "dakwah-secret"
   }
 });
 
@@ -29,8 +29,8 @@ const publicClient = new S3Client({
   endpoint: publicEndpoint,
   forcePathStyle: true,
   credentials: {
-    accessKeyId: process.env.S3_ACCESS_KEY_ID ?? "khutbahai",
-    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? "khutbahai-secret"
+    accessKeyId: process.env.S3_ACCESS_KEY_ID ?? "dakwah",
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? "dakwah-secret"
   }
 });
 

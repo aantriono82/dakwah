@@ -4,7 +4,7 @@ import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import * as schema from "./schema";
 
-const databaseUrl = process.env.DATABASE_URL ?? "./data/khutbah-ai.sqlite";
+const databaseUrl = process.env.DATABASE_URL ?? "./data/dakwah.sqlite";
 
 if (!databaseUrl.startsWith(":memory:")) {
   mkdirSync(dirname(databaseUrl), { recursive: true });

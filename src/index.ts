@@ -67,7 +67,7 @@ if (shouldServeFrontend) {
       <html lang="id">
         <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
         <body>
-          <p>Backend KhutbahAI aktif. Jalankan frontend dengan <code>bunx vite --host 0.0.0.0</code> atau build production.</p>
+          <p>Backend Dakwah aktif. Jalankan frontend dengan <code>bunx vite --host 0.0.0.0</code> atau build production.</p>
         </body>
       </html>
     `)
@@ -77,7 +77,7 @@ if (shouldServeFrontend) {
 if (import.meta.main) {
   const port = Number(process.env.PORT ?? 3000);
   Bun.serve({ hostname: "0.0.0.0", port, fetch: app.fetch, idleTimeout: Math.ceil(generateClientTimeoutMs / 1000) });
-  console.log(`KhutbahAI berjalan di http://localhost:${port}`);
+  console.log(`Dakwah berjalan di http://localhost:${port}`);
 }
 
 export { app };
