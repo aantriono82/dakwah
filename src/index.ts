@@ -12,6 +12,7 @@ import { exportRoutes } from "./routes/export";
 import { adminRoutes } from "./routes/admin";
 import { statsRoutes } from "./routes/stats";
 import { activeModelCount, aiProvider, generateClientTimeoutMs, providerTimeoutMs } from "./config";
+import { checkStorageHealth, isStorageRequired } from "./services/storage";
 import type { AppEnv } from "./utils/http";
 
 await migrate();
@@ -28,14 +29,19 @@ app.use(
 );
 
 const api = new Hono<AppEnv>();
-api.get("/health", (c) => c.json({ ok: true }));
+api.get("/health", (c) => c.json({ ok: true, storageRequired: isStorageRequired() }));
+api.get("/health/storage", async (c) => {
+  const status = await checkStorageHealth();
+  return c.json(status, status.ok || !status.required ? 200 : 503);
+});
 api.get("/config", (c) =>
   c.json({
     data: {
       generateClientTimeoutMs,
       providerTimeoutMs,
       modelCount: activeModelCount,
-      aiProvider
+      aiProvider,
+      storageRequired: isStorageRequired()
     }
   })
 );

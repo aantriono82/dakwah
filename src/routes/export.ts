@@ -34,12 +34,19 @@ exportRoutes.post("/:id/:format", async (c) => {
       ? "application/pdf"
       : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
   const key = `exports/${row.userId}/${row.id}.${format}`;
-  const uploaded = await uploadFile(key, bytes, contentType);
+  let uploaded: Awaited<ReturnType<typeof uploadFile>>;
+  try {
+    uploaded = await uploadFile(key, bytes, contentType);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Upload storage gagal.";
+    return c.json({ message }, 502);
+  }
 
   await db.update(naskah).set({ fileKey: uploaded.key, fileUrl: uploaded.url }).where(eq(naskah.id, row.id));
 
   c.header("Content-Type", contentType);
   c.header("Content-Disposition", `attachment; filename="${exportFilename(row.title, row.id, format)}"`);
   c.header("X-Storage-Url", uploaded.url);
+  if ("error" in uploaded && uploaded.error) c.header("X-Storage-Error", uploaded.error);
   return c.body(Buffer.from(bytes));
 });

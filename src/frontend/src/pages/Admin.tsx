@@ -1,7 +1,7 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { Pencil, Save, Trash2, Users, X } from "lucide-react";
-import { Button, Card, Field, IconButton, Input, Select } from "../components/ui";
+import { Badge, Button, Card, Field, IconButton, Input, Notice, Select } from "../components/ui";
 import { api } from "../lib/utils";
 import type { User } from "../types";
 
@@ -87,13 +87,33 @@ export function Admin() {
 
   return (
     <div className="grid gap-6">
-      {message && <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">{message}</p>}
+      <section>
+        <Badge>Admin</Badge>
+        <h2 className="mt-3 text-2xl font-semibold">Monitoring dan user</h2>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          Pantau penggunaan aplikasi dan kelola akun yang boleh mengakses generator naskah.
+        </p>
+      </section>
+      {message && <Notice>{message}</Notice>}
       <section className="grid gap-4 md:grid-cols-3">
         <Stat label="User" value={stats?.users ?? 0} />
         <Stat label="Semua naskah" value={stats?.naskah ?? 0} />
         <Stat label="Semua template" value={stats?.templates ?? 0} />
       </section>
-      <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
+      {stats?.byJenis?.length ? (
+        <Card className="p-4">
+          <h2 className="mb-4 text-lg font-semibold">Distribusi naskah</h2>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {stats.byJenis.map((item) => (
+              <div key={item.jenis} className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+                <span className="text-sm text-muted-foreground">{item.jenis}</span>
+                <Badge>{item.total}</Badge>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+      <section className="grid gap-4 xl:grid-cols-[400px_1fr]">
         <Card className="p-4">
           <h2 className="mb-4 text-lg font-semibold">Tambah user</h2>
           <form onSubmit={createUser} className="grid gap-3">
@@ -119,7 +139,10 @@ export function Admin() {
           </form>
         </Card>
         <Card className="p-4">
-          <h2 className="mb-4 text-lg font-semibold">Daftar user</h2>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">Daftar user</h2>
+            <Badge>{users.length} akun</Badge>
+          </div>
           <div className="grid gap-2">
             {users.map((item) => (
               <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
@@ -162,9 +185,13 @@ export function Admin() {
                   <>
                     <div className="min-w-0">
                       <p className="truncate font-medium">{item.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {item.username} - {item.role}
-                      </p>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        <Badge>{item.username}</Badge>
+                        <Badge className={item.role === "admin" ? "border-primary/30 bg-primary/10 text-primary" : undefined}>{item.role}</Badge>
+                        <Badge title="Password asli tidak dapat ditampilkan karena disimpan sebagai hash terenkripsi. Gunakan edit untuk reset password.">
+                          Password: ********
+                        </Badge>
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <IconButton onClick={() => startEdit(item)} aria-label="Edit user">

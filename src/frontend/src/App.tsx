@@ -1,31 +1,95 @@
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
-import { BookOpen, History as HistoryIcon, LayoutDashboard, LogOut, Moon, Save, Shield, Sun } from "lucide-react";
-import { Button, Card, Field, IconButton, Input } from "./components/ui";
+import {
+  ChevronDown,
+  CircleUserRound,
+  Eye,
+  EyeOff,
+  Github,
+  LockKeyhole,
+  LogOut,
+  Mail,
+  Moon,
+  RefreshCw,
+  Search,
+  Sun,
+  User as UserIcon,
+  X
+} from "lucide-react";
+import { Badge, Button, Card, IconButton, Input } from "./components/ui";
 import { Admin } from "./pages/Admin";
 import { Dashboard } from "./pages/Dashboard";
 import { Generate } from "./pages/Generate";
 import { History } from "./pages/History";
 import { Templates } from "./pages/Templates";
-import { api, cn, type JenisId } from "./lib/utils";
-import type { Template, User } from "./types";
+import { api, cn, jenisOptions, type JenisId } from "./lib/utils";
+import type { Naskah, Template, User } from "./types";
 
-type TabId = "dashboard" | "generate" | "history" | "templates" | "admin";
+type TabId = "home" | "about" | "generate" | "history" | "templates" | "admin" | "disclaimer";
 
-const tabs = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "generate", label: "Generate", icon: BookOpen },
-  { id: "history", label: "Riwayat", icon: HistoryIcon },
-  { id: "templates", label: "Template", icon: Save }
-] as const;
+const khutbahItems: Array<{ label: string; jenis: JenisId }> = [
+  { label: "Jumat", jenis: "khutbah-jumat" },
+  { label: "Idul Fitri", jenis: "idul-fitri" },
+  { label: "Idul Adha", jenis: "idul-adha" },
+  { label: "Nikah", jenis: "nikah" }
+];
+
+const khutbahJenis = new Set<JenisId>(khutbahItems.map((item) => item.jenis));
+const generatePathByJenis: Record<JenisId, string> = {
+  "khutbah-jumat": "/khutbah/jumat",
+  "idul-fitri": "/khutbah/idul-fitri",
+  "idul-adha": "/khutbah/idul-adha",
+  nikah: "/khutbah/nikah",
+  ceramah: "/ceramah",
+  kultum: "/kultum"
+};
+
+const tabPathById: Record<Exclude<TabId, "generate">, string> = {
+  home: "/",
+  about: "/about",
+  history: "/riwayat",
+  templates: "/templates",
+  admin: "/admin",
+  disclaimer: "/disclaimer"
+};
+
+function routeFromPath(pathname: string): { tab: TabId; jenis?: JenisId } {
+  const normalizedPath = pathname.replace(/\/+$/, "") || "/";
+  const generateEntry = Object.entries(generatePathByJenis).find(([, path]) => path === normalizedPath);
+
+  if (generateEntry) return { tab: "generate", jenis: generateEntry[0] as JenisId };
+  if (normalizedPath === "/generate") return { tab: "generate", jenis: "khutbah-jumat" };
+  if (normalizedPath === "/about") return { tab: "about" };
+  if (normalizedPath === "/riwayat" || normalizedPath === "/history") return { tab: "history" };
+  if (normalizedPath === "/templates") return { tab: "templates" };
+  if (normalizedPath === "/admin") return { tab: "admin" };
+  if (normalizedPath === "/disclaimer") return { tab: "disclaimer" };
+
+  return { tab: "home" };
+}
+
+function pushPath(path: string) {
+  if (window.location.pathname !== path) {
+    window.history.pushState(null, "", path);
+  }
+}
+
+function jenisLabelById(jenis: JenisId) {
+  return jenisOptions.find((item) => item.id === jenis)?.label ?? jenis;
+}
 
 export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabId>("dashboard");
-  const [initialGenerateJenis, setInitialGenerateJenis] = useState<JenisId>("khutbah-jumat");
+  const initialRoute = routeFromPath(window.location.pathname);
+  const [activeTab, setActiveTab] = useState<TabId>(initialRoute.tab);
+  const [initialGenerateJenis, setInitialGenerateJenis] = useState<JenisId>(initialRoute.jenis ?? "khutbah-jumat");
   const [templateToUse, setTemplateToUse] = useState<Template | null>(null);
   const [dark, setDark] = useState(() => localStorage.getItem("theme") === "dark");
+  const [naskahSearch, setNaskahSearch] = useState("");
+  const [naskahSearchItems, setNaskahSearchItems] = useState<Naskah[]>([]);
+  const [selectedNaskahId, setSelectedNaskahId] = useState("");
+  const [showAccountPanel, setShowAccountPanel] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -39,15 +103,44 @@ export function App() {
       .finally(() => setAuthLoading(false));
   }, []);
 
-  const openGenerate = useCallback((jenis?: JenisId) => {
-    if (jenis) setInitialGenerateJenis(jenis);
+  useEffect(() => {
+    function syncRoute() {
+      const route = routeFromPath(window.location.pathname);
+      setActiveTab(route.tab);
+      if (route.jenis) setInitialGenerateJenis(route.jenis);
+    }
+
+    window.addEventListener("popstate", syncRoute);
+    return () => window.removeEventListener("popstate", syncRoute);
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setNaskahSearchItems([]);
+      return;
+    }
+
+    api<{ data: Naskah[] }>("/api/naskah")
+      .then((data) => setNaskahSearchItems(data.data))
+      .catch(() => setNaskahSearchItems([]));
+  }, [user]);
+
+  const openGenerate = useCallback((jenis: JenisId = "khutbah-jumat") => {
+    setInitialGenerateJenis(jenis);
     setActiveTab("generate");
+    pushPath(generatePathByJenis[jenis]);
+  }, []);
+
+  const openTab = useCallback((tab: Exclude<TabId, "generate">) => {
+    setActiveTab(tab);
+    pushPath(tabPathById[tab]);
   }, []);
 
   const useTemplate = useCallback((template: Template) => {
     setTemplateToUse(template);
     setInitialGenerateJenis(template.jenis);
     setActiveTab("generate");
+    pushPath(generatePathByJenis[template.jenis]);
   }, []);
 
   const clearTemplate = useCallback(() => setTemplateToUse(null), []);
@@ -57,23 +150,65 @@ export function App() {
 
   return (
     <MainLayout
-      user={user}
       activeTab={activeTab}
-      setActiveTab={setActiveTab}
+      activeJenis={initialGenerateJenis}
+      user={user}
+      setActiveTab={openTab}
+      onOpenGenerate={openGenerate}
       dark={dark}
       setDark={setDark}
+      naskahSearch={naskahSearch}
+      onNaskahSearchChange={setNaskahSearch}
+      naskahSearchItems={naskahSearchItems}
+      showAccountPanel={showAccountPanel}
+      onToggleAccountPanel={() => setShowAccountPanel((value) => !value)}
+      onCloseAccountPanel={() => setShowAccountPanel(false)}
+      onSelectNaskah={(item) => {
+        setSelectedNaskahId(item.id);
+        setNaskahSearch(item.title);
+        openTab("history");
+      }}
       onLogout={async () => {
         await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => null);
+        setShowAccountPanel(false);
         setUser(null);
       }}
     >
-      {activeTab === "dashboard" && <Dashboard user={user} onCreate={openGenerate} />}
-      {activeTab === "generate" && (
-        <Generate initialJenis={initialGenerateJenis} template={templateToUse} onTemplateApplied={clearTemplate} />
+      {activeTab === "home" && <Dashboard user={user} onCreate={openGenerate} />}
+      {activeTab === "about" && (
+        <InfoPage
+          title="About"
+          body={[
+            "DakwahAI adalah aplikasi web yang dirancang untuk membantu ustaz, khatib, dai, dan pengelola kegiatan keislaman menyiapkan naskah dakwah dengan lebih terarah, rapi, dan efisien. Aplikasi ini mendukung pembuatan berbagai jenis naskah, mulai dari Khutbah Jumat, Khutbah Idul Fitri, Khutbah Idul Adha, Khutbah Nikah, Ceramah Umum, hingga Kultum.",
+            "Melalui bantuan AI, pengguna dapat menyusun naskah berdasarkan tema, durasi, bahasa, audiens, suasana penyampaian, dan kebutuhan acara. Hasil naskah dapat ditinjau secara langsung, disesuaikan kembali, disimpan sebagai riwayat, digunakan ulang melalui template, serta diekspor ke format PDF atau DOCX.",
+            "DakwahAI tidak dimaksudkan untuk menggantikan peran keilmuan, ketelitian, dan kebijaksanaan seorang dai. Aplikasi ini hadir sebagai alat bantu penyusunan awal agar proses menulis menjadi lebih cepat dan terstruktur. Setiap naskah tetap perlu ditinjau oleh pengguna, terutama dalam memastikan ketepatan dalil, kesesuaian konteks jamaah, adab penyampaian, dan kedalaman pesan dakwah.",
+            "Dengan fitur penyimpanan naskah, template favorit, riwayat penggunaan, mode gelap, tampilan responsif, serta dukungan akun pengguna dan admin, DakwahAI menjadi ruang kerja digital yang praktis untuk menyiapkan materi dakwah secara konsisten. Tujuannya sederhana: membantu para penyampai dakwah fokus pada substansi pesan, sementara proses teknis penyusunan naskah menjadi lebih ringan, tertata, dan mudah dikelola."
+          ]}
+        />
       )}
-      {activeTab === "history" && <History user={user} />}
+      {activeTab === "generate" && (
+        <Generate
+          initialJenis={initialGenerateJenis}
+          allowedJenis={[initialGenerateJenis]}
+          template={templateToUse}
+          onTemplateApplied={clearTemplate}
+        />
+      )}
+      {activeTab === "history" && <History user={user} initialQuery={naskahSearch} selectedId={selectedNaskahId} />}
       {activeTab === "templates" && <Templates onUse={useTemplate} />}
       {activeTab === "admin" && user.role === "admin" && <Admin />}
+      {activeTab === "disclaimer" && (
+        <InfoPage
+          title="Disclaimer"
+          body={[
+            "DakwahAI adalah alat bantu penyusunan naskah dakwah berbasis AI. Seluruh teks yang dihasilkan, termasuk khutbah, ceramah, kultum, nasihat pernikahan, doa, dan materi pendukung lainnya, bersifat draf awal yang perlu diperiksa kembali sebelum digunakan atau disampaikan kepada jamaah.",
+            "Pengguna bertanggung jawab penuh untuk memastikan ketepatan dalil, kebenaran terjemahan, kesesuaian penafsiran, adab penyampaian, serta relevansi isi dengan kondisi jamaah dan tempat acara. Periksa kembali ayat Al-Quran, hadis, kutipan ulama, istilah fikih, dan informasi faktual yang muncul dalam naskah.",
+            "DakwahAI tidak menggantikan peran ustaz, khatib, dai, lembaga keagamaan, atau otoritas keilmuan Islam. Aplikasi ini juga tidak dimaksudkan sebagai sumber fatwa, rujukan hukum syar'i final, atau penentu keputusan keagamaan. Untuk persoalan akidah, ibadah, muamalah, keluarga, dan masalah sensitif lainnya, rujuklah kepada ulama atau lembaga yang kompeten.",
+            "Hasil naskah dapat mengandung kekeliruan, kekurangan konteks, pengulangan, pilihan kata yang kurang tepat, atau sudut pandang yang belum sesuai dengan kebutuhan pengguna. Karena itu, lakukan penyuntingan akhir agar pesan dakwah tetap santun, akurat, proporsional, dan membawa maslahat.",
+            "Dengan menggunakan DakwahAI, pengguna memahami bahwa aplikasi ini membantu mempercepat proses penulisan dan pengelolaan naskah, sementara tanggung jawab akhir atas isi, penyampaian, dan dampak materi dakwah tetap berada pada pengguna."
+          ]}
+        />
+      )}
     </MainLayout>
   );
 }
@@ -85,16 +220,22 @@ function ShellLoader() {
 function Login({
   onLogin,
   dark,
-  setDark
+  setDark,
+  variant = "page",
+  onClose
 }: {
   onLogin: (user: User) => void;
   dark: boolean;
   setDark: (value: boolean) => void;
+  variant?: "page" | "modal";
+  onClose?: () => void;
 }) {
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("admin123");
+  const [username, setUsername] = useState(() => (import.meta.env.DEV ? "admin" : ""));
+  const [password, setPassword] = useState(() => (import.meta.env.DEV ? "admin123" : ""));
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [authPanel, setAuthPanel] = useState<"login" | "register" | "terms" | "privacy">("login");
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -113,117 +254,630 @@ function Login({
     }
   }
 
+  const content =
+    authPanel === "login" ? (
+    <div className="relative w-full max-w-[590px] rounded-lg border border-border bg-card px-5 py-8 text-card-foreground shadow-2xl sm:px-9 sm:py-11">
+      {onClose && (
+        <button
+          className="absolute right-5 top-5 inline-flex size-9 items-center justify-center rounded-md text-foreground transition hover:bg-accent"
+          onClick={onClose}
+          type="button"
+          aria-label="Tutup"
+        >
+          <X className="size-6" />
+        </button>
+      )}
+      <div className="mb-7 text-center">
+        <h1 className="text-3xl font-black tracking-normal sm:text-4xl">Masuk</h1>
+        <p className="mt-3 text-base text-foreground sm:text-lg">Akses lebih banyak fitur pembelajaran</p>
+        <p className="mt-5 text-base text-muted-foreground sm:text-lg">
+          Belum punya akun?{" "}
+          <button className="font-bold text-primary" onClick={() => setAuthPanel("register")} type="button">
+            Daftar
+          </button>
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4" aria-label="Pilihan masuk cepat">
+        <SocialLoginButton label="Google">
+          <span className="text-3xl font-black">
+            <span className="text-[#4285f4]">G</span>
+          </span>
+        </SocialLoginButton>
+        <SocialLoginButton label="GitHub">
+          <Github className="size-9 text-foreground" />
+        </SocialLoginButton>
+      </div>
+
+      <div className="my-7 flex items-center gap-5">
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-lg text-foreground">atau</span>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+
+      <form onSubmit={submit} className="grid gap-4">
+        <label className="relative block">
+          <Mail className="pointer-events-none absolute left-5 top-1/2 size-6 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="h-16 rounded-md px-5 pl-16 text-lg"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            placeholder="Email"
+            autoComplete="username"
+          />
+        </label>
+        <label className="relative block">
+          <LockKeyhole className="pointer-events-none absolute left-5 top-1/2 size-6 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="h-16 rounded-md px-5 pl-16 pr-16 text-lg"
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Kata Sandi"
+            autoComplete="current-password"
+          />
+          <button
+            className="absolute right-5 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-foreground transition hover:bg-accent"
+            onClick={() => setShowPassword((value) => !value)}
+            type="button"
+            aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+          >
+            {showPassword ? <EyeOff className="size-6" /> : <Eye className="size-6" />}
+          </button>
+        </label>
+        <button className="w-max text-base font-medium text-blue-600 hover:text-blue-700" type="button">
+          Lupa kata sandi?
+        </button>
+        {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        <Button className="mt-2 h-16 rounded-md text-2xl font-bold" disabled={loading}>
+          {loading ? "Memproses..." : "Masuk"}
+        </Button>
+      </form>
+    </div>
+  ) : authPanel === "register" ? (
+    <RegisterPanel
+      onRegister={onLogin}
+      onShowLogin={() => setAuthPanel("login")}
+      onShowTerms={() => setAuthPanel("terms")}
+      onShowPrivacy={() => setAuthPanel("privacy")}
+    />
+  ) : authPanel === "terms" ? (
+    <LegalPanel
+      title="Syarat Ketentuan"
+      paragraphs={[
+        "Dengan menggunakan DakwahAI, pengguna setuju untuk memakai aplikasi ini sebagai alat bantu penyusunan awal naskah dakwah, bukan sebagai rujukan keagamaan final.",
+        "Pengguna bertanggung jawab penuh untuk meninjau, menyunting, dan memastikan ketepatan isi naskah sebelum disampaikan kepada jamaah atau digunakan dalam kegiatan resmi.",
+        "Pengguna tidak diperkenankan menggunakan layanan untuk membuat konten yang menyesatkan, merugikan pihak lain, melanggar hukum, atau bertentangan dengan adab penyampaian dakwah.",
+        "DakwahAI dapat melakukan pembaruan fitur, perbaikan layanan, atau perubahan ketentuan penggunaan sesuai kebutuhan pengembangan aplikasi."
+      ]}
+      onBack={() => setAuthPanel("register")}
+    />
+  ) : (
+    <LegalPanel
+      title="Kebijakan Privasi"
+      paragraphs={[
+        "DakwahAI menggunakan data akun seperti nama, email, dan informasi autentikasi untuk menyediakan akses pengguna dan menjaga keamanan sesi penggunaan aplikasi.",
+        "Naskah, template, dan riwayat penggunaan yang disimpan di aplikasi digunakan untuk mendukung fitur penyimpanan, pencarian, penggunaan ulang, serta pengelolaan dokumen pengguna.",
+        "Data pengguna tidak ditampilkan kepada pengguna lain kecuali dibutuhkan untuk fitur administrasi, pemeliharaan layanan, atau kewajiban teknis yang relevan.",
+        "Pengguna dapat menghubungi pengelola aplikasi untuk permintaan terkait akun, data tersimpan, atau pertanyaan mengenai penggunaan informasi pribadi."
+      ]}
+      onBack={() => setAuthPanel("register")}
+    />
+  );
+
   return (
-    <main className="grid min-h-screen place-items-center bg-background px-4 py-10 text-foreground">
+    <main
+      className={cn(
+        "grid place-items-center overflow-y-auto px-4 py-6 text-foreground sm:py-10",
+        variant === "page" ? "min-h-screen bg-background" : "fixed inset-0 z-50 bg-slate-950/95"
+      )}
+    >
       <div className="absolute right-4 top-4">
         <IconButton onClick={() => setDark(!dark)} aria-label="Ganti tema">
           {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
         </IconButton>
       </div>
-      <Card className="w-full max-w-md p-6">
-        <div className="mb-6">
-          <p className="text-sm font-medium text-primary">KhutbahAI</p>
-          <h1 className="mt-2 text-2xl font-semibold">Masuk ke aplikasi</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Gunakan akun awal admin/admin123 atau user/user123.</p>
-        </div>
-        <form onSubmit={submit} className="grid gap-4">
-          <Field label="Username">
-            <Input value={username} onChange={(event) => setUsername(event.target.value)} />
-          </Field>
-          <Field label="Password">
-            <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-          </Field>
-          {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
-          <Button disabled={loading}>{loading ? "Memproses..." : "Login"}</Button>
-        </form>
-      </Card>
+      {content}
     </main>
   );
 }
 
+function RegisterPanel({
+  onRegister,
+  onShowLogin,
+  onShowTerms,
+  onShowPrivacy
+}: {
+  onRegister: (user: User) => void;
+  onShowLogin: () => void;
+  onShowTerms: () => void;
+  onShowPrivacy: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [captcha, setCaptcha] = useState(() => createCaptcha());
+  const [captchaAnswer, setCaptchaAnswer] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const captchaIsValid = Number(captchaAnswer) === captcha.answer;
+
+  function refreshCaptcha() {
+    setCaptcha(createCaptcha());
+    setCaptchaAnswer("");
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+
+    if (!captchaIsValid) {
+      setError("Jawaban captcha belum benar.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await api<{ user: User }>("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ email, name, password })
+      });
+      onRegister(data.user);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Registrasi gagal.");
+      refreshCaptcha();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="relative my-auto max-h-[calc(100vh-3rem)] w-full max-w-[390px] overflow-y-auto rounded-2xl border border-border bg-card px-5 py-6 text-card-foreground shadow-2xl sm:max-h-[calc(100vh-5rem)] sm:px-8 sm:py-8">
+      <div className="text-center">
+        <h1 className="text-2xl font-black tracking-normal text-foreground sm:text-3xl">Daftar</h1>
+        <div className="mx-auto mt-5 grid size-14 place-items-center rounded-full bg-muted text-muted-foreground shadow-inner ring-4 ring-border sm:mt-6 sm:size-16">
+          <CircleUserRound className="size-10 sm:size-12" strokeWidth={1.8} />
+        </div>
+      </div>
+
+      <form className="mt-6 grid gap-4 sm:mt-7" onSubmit={submit}>
+        <label className="relative block">
+          <Mail className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
+          <Input
+            className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
+            placeholder="E-mail"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
+            required
+          />
+        </label>
+        <label className="relative block">
+          <UserIcon className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
+          <Input
+            className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
+            placeholder="Nama"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            autoComplete="name"
+            required
+          />
+        </label>
+        <label className="relative block">
+          <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
+          <Input
+            className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 pr-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
+            placeholder="Kata sandi"
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="new-password"
+            minLength={6}
+            required
+          />
+          <button
+            className="absolute right-4 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition hover:bg-accent"
+            onClick={() => setShowPassword((value) => !value)}
+            type="button"
+            aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+          >
+            {showPassword ? <Eye className="size-5" /> : <EyeOff className="size-5" />}
+          </button>
+        </label>
+
+        <div className="grid gap-2 rounded-2xl border border-border bg-muted/30 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">Verifikasi keamanan</p>
+              <div className="relative mt-2 flex h-11 w-44 max-w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-card sm:h-12" aria-label={`Soal captcha ${captcha.question}`}>
+                {captcha.noise.map((line, index) => (
+                  <span
+                    key={`${line.left}-${index}`}
+                    className="pointer-events-none absolute h-px rounded-full bg-muted-foreground/35"
+                    style={{
+                      left: `${line.left}%`,
+                      top: `${line.top}%`,
+                      width: `${line.width}px`,
+                      transform: `rotate(${line.rotate}deg)`
+                    }}
+                  />
+                ))}
+                <span className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--muted-foreground)/0.22)_1px,transparent_0)] bg-[length:8px_8px] opacity-60" />
+                <span className="relative select-none font-mono text-lg font-black tracking-normal text-foreground sm:text-xl">{captcha.question}</span>
+              </div>
+            </div>
+            <button
+              className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition hover:bg-accent"
+              onClick={refreshCaptcha}
+              type="button"
+              aria-label="Ganti captcha"
+              title="Ganti captcha"
+            >
+              <RefreshCw className="size-4" />
+            </button>
+          </div>
+          <Input
+            className="h-10 rounded-full border-border bg-card px-4 text-base text-foreground placeholder:text-muted-foreground sm:h-11"
+            value={captchaAnswer}
+            onChange={(event) => setCaptchaAnswer(event.target.value.replace(/[^0-9-]/g, ""))}
+            placeholder="Masukkan hasil"
+            aria-label="Jawaban captcha"
+            inputMode="numeric"
+          />
+          {captchaAnswer && !captchaIsValid && <p className="text-xs font-medium text-destructive">Jawaban captcha belum benar.</p>}
+        </div>
+
+        {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+
+        <div className="relative mt-1 flex items-center justify-center">
+          <Button className="h-11 min-w-28 rounded-full bg-primary px-5 text-base font-bold hover:bg-primary/90" disabled={!captchaIsValid || loading}>
+            {loading ? "Mendaftar..." : "Daftar"}
+          </Button>
+        </div>
+      </form>
+
+      <p className="mt-4 text-center text-sm text-foreground sm:text-base">
+        Sudah punya akun?{" "}
+        <button className="font-medium text-primary" onClick={onShowLogin} type="button">
+          Masuk sekarang
+        </button>
+      </p>
+      <p className="mx-auto mt-2 max-w-[300px] text-center text-[11px] leading-4 text-muted-foreground">
+        Dengan menekan tombol daftar, Anda menyatakan telah membaca, memahami, dan menyetujui{" "}
+        <button className="underline" onClick={onShowTerms} type="button">
+          Syarat Ketentuan
+        </button>{" "}
+        serta{" "}
+        <button className="underline" onClick={onShowPrivacy} type="button">
+          Kebijakan Privasi
+        </button>{" "}
+        yang berlaku.
+      </p>
+    </div>
+  );
+}
+
+function createCaptcha() {
+  const a = Math.floor(Math.random() * 8) + 3;
+  const b = Math.floor(Math.random() * 6) + 2;
+  const c = Math.floor(Math.random() * 15) + 6;
+  const d = Math.floor(Math.random() * 7) + 3;
+  const variants = [
+    { question: `${a} x ${b} + ${c}`, answer: a * b + c },
+    { question: `${c} + ${a} x ${b}`, answer: c + a * b },
+    { question: `(${a} + ${b}) x ${d}`, answer: (a + b) * d },
+    { question: `${a} x (${b} + ${d})`, answer: a * (b + d) },
+    { question: `${a * b + c} - ${a} x ${b}`, answer: c }
+  ];
+  const selected = variants[Math.floor(Math.random() * variants.length)];
+  const noise = Array.from({ length: 5 }, () => ({
+    left: Math.floor(Math.random() * 78),
+    top: Math.floor(Math.random() * 78) + 10,
+    width: Math.floor(Math.random() * 70) + 45,
+    rotate: Math.floor(Math.random() * 121) - 60
+  }));
+
+  return { ...selected, noise };
+}
+
+function LegalPanel({ title, paragraphs, onBack }: { title: string; paragraphs: string[]; onBack: () => void }) {
+  return (
+    <div className="relative w-full max-w-[520px] rounded-2xl border border-border bg-card px-5 py-8 text-card-foreground shadow-2xl sm:px-8">
+      <h1 className="text-center text-2xl font-black tracking-normal text-foreground">{title}</h1>
+      <div className="mt-6 grid gap-4 text-sm leading-6 text-muted-foreground">
+        {paragraphs.map((paragraph) => (
+          <p key={paragraph}>{paragraph}</p>
+        ))}
+      </div>
+      <Button className="mt-7 h-11 w-full rounded-full bg-primary text-base font-bold hover:bg-primary/90" onClick={onBack} type="button">
+        Kembali ke Daftar
+      </Button>
+    </div>
+  );
+}
+
+function SocialLoginButton({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <button
+      className="flex h-16 items-center justify-center rounded-lg border border-border bg-card transition hover:bg-accent"
+      type="button"
+      aria-label={`Masuk dengan ${label}`}
+      title={label}
+    >
+      {children}
+    </button>
+  );
+}
+
 function MainLayout({
-  user,
   activeTab,
+  activeJenis,
+  user,
   setActiveTab,
+  onOpenGenerate,
   dark,
   setDark,
+  naskahSearch,
+  onNaskahSearchChange,
+  naskahSearchItems,
+  showAccountPanel,
+  onToggleAccountPanel,
+  onCloseAccountPanel,
+  onSelectNaskah,
   onLogout,
   children
 }: {
-  user: User;
   activeTab: string;
-  setActiveTab: (tab: TabId) => void;
+  activeJenis: JenisId;
+  user: User;
+  setActiveTab: (tab: Exclude<TabId, "generate">) => void;
+  onOpenGenerate: (jenis?: JenisId) => void;
   dark: boolean;
   setDark: (value: boolean) => void;
+  naskahSearch: string;
+  onNaskahSearchChange: (value: string) => void;
+  naskahSearchItems: Naskah[];
+  showAccountPanel: boolean;
+  onToggleAccountPanel: () => void;
+  onCloseAccountPanel: () => void;
+  onSelectNaskah: (item: Naskah) => void;
   onLogout: () => void;
   children: React.ReactNode;
 }) {
+  const isKhutbahActive = activeTab === "generate" && khutbahJenis.has(activeJenis);
+  const normalizedNaskahSearch = naskahSearch.trim().toLowerCase();
+  const naskahSearchResults = normalizedNaskahSearch
+    ? naskahSearchItems
+        .filter((item) => {
+          const jenisLabel = jenisLabelById(item.jenis);
+          return [item.title, jenisLabel, item.jenis, item.bahasa, item.duration, item.content, item.user?.name, item.user?.username]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(normalizedNaskahSearch);
+        })
+        .slice(0, 6)
+    : [];
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 border-r border-border bg-card p-4 lg:block">
-        <div className="mb-8">
-          <p className="text-xl font-semibold">KhutbahAI</p>
-          <p className="text-sm text-muted-foreground">Generator naskah dakwah</p>
-        </div>
-        <nav className="grid gap-2">
-          {tabs.map((tab) => (
-            <NavButton key={tab.id} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} icon={tab.icon} label={tab.label} />
-          ))}
-          {user.role === "admin" && (
-            <NavButton active={activeTab === "admin"} onClick={() => setActiveTab("admin")} icon={Shield} label="Admin" />
-          )}
-        </nav>
-      </aside>
-      <div className="lg:pl-64">
-        <header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-            <div>
-              <p className="text-sm text-muted-foreground">Assalamu'alaikum, {user.name}</p>
-              <h1 className="text-lg font-semibold">Ruang kerja naskah</h1>
+      <header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur lg:py-0">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 lg:h-24">
+          <button className="text-left" onClick={() => setActiveTab("home")}>
+            <p className="text-2xl font-black tracking-normal text-primary">DakwahAI</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Naskah Dakwah</p>
+          </button>
+
+          <nav className="hidden items-center gap-6 lg:flex">
+            <DesktopTab active={activeTab === "home"} onClick={() => setActiveTab("home")} label="Home" />
+            <DesktopTab active={activeTab === "about"} onClick={() => setActiveTab("about")} label="About" />
+            <DesktopDropdown label="Khutbah" active={isKhutbahActive}>
+              {khutbahItems.map((item) => (
+                <DropdownItem key={item.jenis} active={activeTab === "generate" && activeJenis === item.jenis} onClick={() => onOpenGenerate(item.jenis)}>
+                  {item.label}
+                </DropdownItem>
+              ))}
+            </DesktopDropdown>
+            <DesktopTab active={activeTab === "generate" && activeJenis === "ceramah"} onClick={() => onOpenGenerate("ceramah")} label="Ceramah" />
+            <DesktopTab active={activeTab === "generate" && activeJenis === "kultum"} onClick={() => onOpenGenerate("kultum")} label="Kultum" />
+            <DesktopTab active={activeTab === "history"} onClick={() => setActiveTab("history")} label="Riwayat" />
+            <DesktopTab active={activeTab === "disclaimer"} onClick={() => setActiveTab("disclaimer")} label="Disclaimer" />
+            <div className="relative w-44 xl:w-56">
+              <Search className="pointer-events-none absolute inset-y-0 left-3 my-auto size-4 text-muted-foreground" />
+              <input
+                className="h-10 w-full rounded-md border border-input bg-background px-3 pl-9 text-sm outline-none ring-offset-background transition placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+                value={naskahSearch}
+                onChange={(event) => {
+                  onNaskahSearchChange(event.target.value);
+                }}
+                placeholder="Cari naskah"
+                aria-label="Cari naskah tersimpan"
+              />
+              {normalizedNaskahSearch && (
+                <div className="absolute right-0 top-full z-20 mt-2 w-80 border border-border bg-card p-2 text-left shadow-lg">
+                  {naskahSearchResults.map((item) => (
+                    <button
+                      key={item.id}
+                      className="block w-full rounded-md px-3 py-2 text-left transition hover:bg-accent"
+                      onClick={() => onSelectNaskah(item)}
+                      type="button"
+                    >
+                      <span className="block truncate text-sm font-medium">{item.title}</span>
+                      <span className="mt-1 block truncate text-xs text-muted-foreground">
+                        {jenisLabelById(item.jenis)} - {new Date(item.createdAt).toLocaleDateString("id-ID")}
+                      </span>
+                    </button>
+                  ))}
+                  {naskahSearchResults.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-muted-foreground">Tidak ada naskah tersimpan yang cocok.</p>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <IconButton onClick={() => setDark(!dark)} aria-label="Ganti tema">
-                {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          </nav>
+
+          <div className="hidden items-center gap-2 lg:flex">
+            <IconButton onClick={() => setDark(!dark)} aria-label="Ganti tema">
+              {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            </IconButton>
+            <div className="relative">
+              <IconButton type="button" onClick={onToggleAccountPanel} aria-label={`Akun ${user.name}`} title={user.name}>
+                <CircleUserRound className="size-5" />
               </IconButton>
-              <IconButton onClick={onLogout} aria-label="Logout">
-                <LogOut className="size-4" />
-              </IconButton>
+              {showAccountPanel && <AccountPanel user={user} setActiveTab={setActiveTab} onClose={onCloseAccountPanel} onLogout={onLogout} />}
             </div>
           </div>
-          <nav className="mx-auto mt-3 flex max-w-7xl gap-2 overflow-x-auto lg:hidden">
-            {tabs.map((tab) => (
-              <MobileTab key={tab.id} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} label={tab.label} />
-            ))}
-            {user.role === "admin" && <MobileTab active={activeTab === "admin"} onClick={() => setActiveTab("admin")} label="Admin" />}
-          </nav>
-        </header>
-        <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
+
+          <div className="flex items-center gap-2 lg:hidden">
+            <IconButton onClick={() => setDark(!dark)} aria-label="Ganti tema">
+              {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            </IconButton>
+            <div className="relative">
+              <IconButton type="button" onClick={onToggleAccountPanel} aria-label={`Akun ${user.name}`} title={user.name}>
+                <CircleUserRound className="size-4" />
+              </IconButton>
+              {showAccountPanel && <AccountPanel user={user} setActiveTab={setActiveTab} onClose={onCloseAccountPanel} onLogout={onLogout} />}
+            </div>
+          </div>
+        </div>
+        <nav className="mx-auto mt-3 flex max-w-7xl gap-2 overflow-x-auto lg:hidden">
+          <MobileTab active={activeTab === "home"} onClick={() => setActiveTab("home")} label="Home" />
+          <MobileTab active={activeTab === "about"} onClick={() => setActiveTab("about")} label="About" />
+          {khutbahItems.map((item) => (
+            <MobileTab
+              key={item.jenis}
+              active={activeTab === "generate" && activeJenis === item.jenis}
+              onClick={() => onOpenGenerate(item.jenis)}
+              label={item.label}
+            />
+          ))}
+          <MobileTab active={activeTab === "generate" && activeJenis === "ceramah"} onClick={() => onOpenGenerate("ceramah")} label="Ceramah" />
+          <MobileTab active={activeTab === "generate" && activeJenis === "kultum"} onClick={() => onOpenGenerate("kultum")} label="Kultum" />
+          <MobileTab active={activeTab === "history"} onClick={() => setActiveTab("history")} label="Riwayat" />
+          <MobileTab active={activeTab === "disclaimer"} onClick={() => setActiveTab("disclaimer")} label="Disclaimer" />
+        </nav>
+      </header>
+      <main className="mx-auto max-w-7xl px-4 py-6 lg:py-0">{children}</main>
+    </div>
+  );
+}
+
+function AccountPanel({
+  user,
+  setActiveTab,
+  onClose,
+  onLogout
+}: {
+  user: User;
+  setActiveTab: (tab: Exclude<TabId, "generate">) => void;
+  onClose: () => void;
+  onLogout: () => void;
+}) {
+  return (
+    <div className="absolute right-0 top-full z-30 mt-2 w-72 rounded-lg border border-border bg-card p-4 text-left text-card-foreground shadow-xl">
+      <div className="flex items-start gap-3">
+        <div className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+          <CircleUserRound className="size-7" />
+        </div>
+        <div className="min-w-0">
+          <p className="truncate font-semibold">{user.name}</p>
+          <p className="mt-1 truncate text-sm text-muted-foreground">{user.username}</p>
+          <Badge className={cn("mt-2", user.role === "admin" && "border-primary/30 bg-primary/10 text-primary")}>{user.role}</Badge>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2">
+        {user.role === "admin" && (
+          <Button
+            className="h-10 justify-start"
+            onClick={() => {
+              setActiveTab("admin");
+              onClose();
+            }}
+            type="button"
+          >
+            Buka Admin
+          </Button>
+        )}
+        <Button className="h-10 justify-start bg-secondary text-secondary-foreground" onClick={onLogout} type="button">
+          <LogOut className="size-4" />
+          Keluar
+        </Button>
       </div>
     </div>
   );
 }
 
-function NavButton({
+function DesktopTab({
   active,
   onClick,
-  icon: Icon,
   label
 }: {
   active: boolean;
   onClick: () => void;
-  icon: React.ComponentType<{ className?: string }>;
   label: string;
 }) {
   return (
     <button
       className={cn(
-        "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition hover:bg-accent hover:text-foreground",
-        active && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
+        "inline-flex h-10 items-center gap-1 text-xs font-extrabold uppercase text-foreground transition hover:text-primary",
+        active && "text-primary"
       )}
       onClick={onClick}
     >
-      <Icon className="size-4" />
       {label}
+    </button>
+  );
+}
+
+function DesktopDropdown({
+  active,
+  label,
+  children
+}: {
+  active: boolean;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="group relative">
+      <button
+        className={cn(
+          "inline-flex h-10 items-center gap-1 text-xs font-extrabold uppercase text-foreground transition hover:text-primary",
+          active && "text-primary"
+        )}
+        type="button"
+      >
+        {label}
+        <ChevronDown className="size-3" />
+      </button>
+      <div className="invisible absolute left-0 top-full w-44 translate-y-2 border border-border bg-card p-1 opacity-0 shadow-lg transition group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function DropdownItem({
+  active,
+  onClick,
+  children
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      className={cn(
+        "flex h-10 w-full items-center px-3 text-left text-sm font-medium text-foreground transition hover:bg-accent hover:text-accent-foreground",
+        active && "bg-accent text-accent-foreground"
+      )}
+      onClick={onClick}
+      type="button"
+    >
+      {children}
     </button>
   );
 }
@@ -242,3 +896,20 @@ function MobileTab({ active, onClick, label }: { active: boolean; onClick: () =>
   );
 }
 
+function InfoPage({ title, body }: { title: string; body: string | string[] }) {
+  const paragraphs = Array.isArray(body) ? body : [body];
+
+  return (
+    <section className="grid min-h-[420px] place-items-center py-12">
+      <Card className="w-full max-w-2xl p-6">
+        <p className="text-sm font-medium uppercase text-primary">{title}</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-normal">{title}</h1>
+        <div className="mt-4 space-y-4 text-base leading-7 text-muted-foreground">
+          {paragraphs.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+        </div>
+      </Card>
+    </section>
+  );
+}

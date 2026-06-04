@@ -26,6 +26,7 @@ services:
       S3_SECRET_ACCESS_KEY: khutbahai-secret
       S3_BUCKET: khutbahai
       S3_PUBLIC_URL: http://localhost:9000/khutbahai
+      S3_REQUIRED: "true"
     volumes:
       - app-data:/app/data
     depends_on:

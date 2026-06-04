@@ -1,5 +1,5 @@
 import PDFDocument from "pdfkit";
-import { Document, Packer, Paragraph, TextRun } from "docx";
+import { AlignmentType, Document, Packer, Paragraph, TextRun } from "docx";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,7 +7,10 @@ import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
 
-const arabicPattern = /[\u0600-\u06FF]/;
+const arabicPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+const latinLetterPattern = /[A-Za-z]/;
+const latinLikePattern = /[A-Za-z0-9]/;
+const arabicFont = "Amiri";
 const unicodeFontCandidates = [
   process.env.EXPORT_UNICODE_FONT_PATH,
   "/usr/share/fonts/truetype/amiri/Amiri-Regular.ttf",
@@ -26,6 +29,63 @@ const browserCandidates = [
 
 function containsArabic(text: string) {
   return arabicPattern.test(text);
+}
+
+function containsLatinLetter(text: string) {
+  return latinLetterPattern.test(text);
+}
+
+function isArabicParagraph(text: string) {
+  return containsArabic(text) && !containsLatinLetter(text);
+}
+
+function splitByScript(text: string) {
+  const segments: Array<{ text: string; arabic: boolean }> = [];
+  let current = "";
+  let currentArabic = false;
+  let hasMode = false;
+
+  const flush = () => {
+    if (!current) return;
+    segments.push({ text: current, arabic: currentArabic });
+    current = "";
+  };
+
+  for (const char of text) {
+    const charIsArabic = containsArabic(char);
+    const charIsLatinLike = latinLikePattern.test(char);
+    let nextArabic: boolean;
+    if (charIsArabic) {
+      nextArabic = true;
+    } else if (charIsLatinLike) {
+      nextArabic = false;
+    } else {
+      nextArabic = currentArabic;
+    }
+
+    if (hasMode && nextArabic !== currentArabic) flush();
+    currentArabic = nextArabic;
+    hasMode = true;
+    current += char;
+  }
+
+  flush();
+  return segments;
+}
+
+function createScriptAwareRuns(text: string, options: { bold?: boolean; size?: number } = {}) {
+  return splitByScript(text).map(
+    (segment) =>
+      new TextRun({
+        text: segment.text,
+        bold: options.bold,
+        size: options.size,
+        rightToLeft: segment.arabic,
+        font: segment.arabic ? { ascii: arabicFont, hAnsi: arabicFont, cs: arabicFont } : undefined,
+        sizeComplexScript: segment.arabic ? options.size : undefined,
+        language: segment.arabic ? { bidirectional: "ar-SA" } : { value: "id-ID" }
+      })
+  );
 }
 
 function resolveUnicodeFontPath() {
@@ -190,28 +250,31 @@ export async function createPdf(title: string, content: string) {
 }
 
 export async function createDocx(title: string, content: string) {
-  const docxParagraphs = content.split(/\n{2,}/).map((paragraph) => {
-    const normalized = paragraph.replace(/\n/g, " ").trim();
-    const hasArabic = containsArabic(normalized);
+  const docxParagraphs = content.split(/\r?\n/).map((line) => {
+    const normalized = line.trim();
+    const arabicOnly = isArabicParagraph(normalized);
+
+    if (!normalized) {
+      return new Paragraph({ spacing: { after: 120 } });
+    }
+
     return new Paragraph({
-      bidirectional: hasArabic,
-      children: [
-        new TextRun({
-          text: normalized,
-          rightToLeft: hasArabic,
-          font: hasArabic ? "Amiri" : undefined
-        })
-      ],
+      bidirectional: arabicOnly,
+      alignment: arabicOnly ? AlignmentType.RIGHT : AlignmentType.LEFT,
+      children: createScriptAwareRuns(normalized),
       spacing: { after: 180 }
     });
   });
+  const titleArabicOnly = isArabicParagraph(title);
 
   const doc = new Document({
     sections: [
       {
         children: [
           new Paragraph({
-            children: [new TextRun({ text: title, bold: true, size: 32 })],
+            bidirectional: titleArabicOnly,
+            alignment: titleArabicOnly ? AlignmentType.RIGHT : AlignmentType.CENTER,
+            children: createScriptAwareRuns(title, { bold: true, size: 32 }),
             spacing: { after: 320 }
           }),
           ...docxParagraphs

@@ -13,6 +13,9 @@ let createdNaskahId = "";
 beforeAll(async () => {
   process.env.DATABASE_URL = databaseUrl;
   process.env.AI_PROVIDER = "openai";
+  process.env.S3_ENDPOINT = "http://127.0.0.1:65534";
+  process.env.S3_PUBLIC_URL = "http://127.0.0.1:65534/khutbahai";
+  delete process.env.S3_REQUIRED;
   delete process.env.OPENAI_API_KEY;
   delete process.env.GEMINI_API_KEY;
 
@@ -53,6 +56,24 @@ async function login(username: string, password: string) {
 }
 
 describe("API auth and roles", () => {
+  test("health and public config expose storage readiness mode", async () => {
+    const health = await request("/api/health");
+    const healthBody = await health.json();
+    expect(health.status).toBe(200);
+    expect(healthBody.storageRequired).toBe(false);
+
+    const storage = await request("/api/health/storage");
+    const storageBody = await storage.json();
+    expect(storage.status).toBe(200);
+    expect(storageBody.ok).toBe(false);
+    expect(storageBody.required).toBe(false);
+
+    const config = await request("/api/config");
+    const configBody = await config.json();
+    expect(config.status).toBe(200);
+    expect(configBody.data.storageRequired).toBe(false);
+  });
+
   test("login, me, and logout", async () => {
     const loginResult = await login("admin", "admin123");
     adminCookie = loginResult.cookie;
@@ -73,6 +94,44 @@ describe("API auth and roles", () => {
 
     const loginAgain = await login("admin", "admin123");
     adminCookie = loginAgain.cookie;
+  });
+
+  test("register creates a user, starts a session, and allows login", async () => {
+    const email = `jamaah-${Date.now()}@example.com`;
+    const register = await request("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        email,
+        name: "Jamaah Baru",
+        password: "password123"
+      })
+    });
+    const registerCookie = cookieFrom(register);
+    const registered = await register.json();
+
+    expect(register.status).toBe(201);
+    expect(registered.user).toMatchObject({ username: email, name: "Jamaah Baru", role: "user" });
+    expect(registerCookie).toStartWith("khutbah_session=");
+
+    const me = await request("/api/auth/me", {}, registerCookie);
+    expect(me.status).toBe(200);
+    expect((await me.json()).user.username).toBe(email);
+
+    await request("/api/auth/logout", { method: "POST", body: "{}" }, registerCookie);
+    const loginResult = await login(email, "password123");
+    expect(loginResult.response.status).toBe(200);
+    expect(loginResult.body.user.name).toBe("Jamaah Baru");
+
+    const duplicate = await request("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        email,
+        name: "Jamaah Baru",
+        password: "password123"
+      })
+    });
+    expect(duplicate.status).toBe(409);
+    expect((await duplicate.json()).message).toBe("Email sudah digunakan.");
   });
 
   test("admin endpoints reject user role and allow admin role", async () => {
@@ -181,6 +240,41 @@ describe("API auth and roles", () => {
 });
 
 describe("API naskah, template, generate, and export", () => {
+  test("anonymous users cannot use generate, naskah, template, or export features", async () => {
+    const generateBody = {
+      jenis: "ceramah",
+      parameters: { bahasa: "Indonesia", topik: "Menjaga amanah" }
+    };
+    const saveBody = {
+      title: "Ceramah Amanah",
+      jenis: "ceramah",
+      bahasa: "Indonesia",
+      duration: "sedang",
+      parameters: { bahasa: "Indonesia", topik: "Menjaga amanah" },
+      content: "Naskah ceramah tentang menjaga amanah dengan isi yang cukup panjang."
+    };
+    const templateBody = {
+      name: "Ceramah amanah",
+      jenis: "ceramah",
+      parameters: { bahasa: "Indonesia", topik: "Menjaga amanah" }
+    };
+
+    const responses = await Promise.all([
+      request("/api/generate", { method: "POST", body: JSON.stringify(generateBody) }),
+      request("/api/generate/stream", { method: "POST", body: JSON.stringify(generateBody) }),
+      request("/api/naskah"),
+      request("/api/naskah", { method: "POST", body: JSON.stringify(saveBody) }),
+      request("/api/templates"),
+      request("/api/templates", { method: "POST", body: JSON.stringify(templateBody) }),
+      request("/api/export/anonymous-id/pdf", { method: "POST" })
+    ]);
+
+    for (const response of responses) {
+      expect(response.status).toBe(401);
+      expect((await response.json()).message).toBe("Belum login.");
+    }
+  });
+
   test("generate uses fallback without OpenAI key and validates required fields", async () => {
     const invalid = await request(
       "/api/generate",
@@ -376,6 +470,7 @@ describe("API naskah, template, generate, and export", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("application/pdf");
     expect(response.headers.has("x-storage-url")).toBe(true);
+    expect(response.headers.has("x-storage-error")).toBe(true);
     expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(100);
   });
 

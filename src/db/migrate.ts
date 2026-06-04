@@ -60,8 +60,15 @@ export async function migrate() {
     CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions(expires_at);
   `);
 
-  await seedUser("admin", "Administrator", "admin", process.env.SEED_ADMIN_PASSWORD ?? "admin123");
-  await seedUser("user", "Pengguna", "user", process.env.SEED_USER_PASSWORD ?? "user123");
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "admin123";
+  const userPassword = process.env.SEED_USER_PASSWORD ?? "user123";
+
+  if (process.env.NODE_ENV === "production" && (adminPassword === "admin123" || userPassword === "user123")) {
+    console.warn("[security] SEED_ADMIN_PASSWORD dan SEED_USER_PASSWORD masih memakai default. Ganti sebelum database production pertama dibuat.");
+  }
+
+  await seedUser("admin", "Administrator", "admin", adminPassword);
+  await seedUser("user", "Pengguna", "user", userPassword);
 }
 
 async function seedUser(username: string, name: string, role: "admin" | "user", password: string) {

@@ -75,6 +75,25 @@ bunx vite --host 0.0.0.0
 
 Mode production adalah cara paling sederhana untuk memakai frontend dan backend dari satu port `3000`.
 
+## QA Browser
+
+Setelah aplikasi berjalan, jalankan smoke test UI:
+
+```bash
+bun run qa:ui
+```
+
+Default test memakai `http://localhost:3000`, akun `admin/admin123`, dan menyimpan screenshot di `/tmp/khutbahai-ui-smoke`.
+Override jika perlu:
+
+```bash
+UI_SMOKE_URL=http://localhost:3000 \
+UI_SMOKE_USERNAME=admin \
+UI_SMOKE_PASSWORD=password-admin \
+UI_SMOKE_SCREENSHOT_DIR=/tmp/khutbahai-ui-smoke \
+bun run qa:ui
+```
+
 ## Konfigurasi Environment
 
 Variabel penting:
@@ -101,6 +120,7 @@ Variabel penting:
 | `S3_BUCKET` | `khutbahai` | Bucket export |
 | `S3_PUBLIC_URL` | `http://localhost:9000/khutbahai` | URL publik file export |
 | `S3_SIGNED_URL_EXPIRES` | `604800` | Masa berlaku signed link export dalam detik |
+| `S3_REQUIRED` | `false` | Jika `true`, export gagal dengan error jelas saat upload ke RustFS/S3 gagal. Docker Compose mengaktifkan ini. |
 
 Contoh `.env` lokal:
 
@@ -131,6 +151,7 @@ Semua endpoint berada di bawah `/api`.
 | Method | Endpoint | Keterangan |
 |---|---|---|
 | `GET` | `/api/health` | Health check |
+| `GET` | `/api/health/storage` | Health check RustFS/S3 dan bucket export |
 | `POST` | `/api/auth/login` | Login |
 | `POST` | `/api/auth/logout` | Logout |
 | `GET` | `/api/auth/me` | User aktif |
@@ -176,4 +197,13 @@ Semua endpoint berada di bawah `/api`.
 - Untuk OpenRouter/provider kompatibel OpenAI, set juga `OPENAI_BASE_URL` dan gunakan nama model dari provider tersebut.
 - Aplikasi tidak memakai satu `max_tokens` besar untuk semua generate. Batas efektif mengikuti durasi: kultum sekitar 1200-2000 token, ceramah 2500-4000 token, dan khutbah Jumat/Id 2500-4500 token, lalu tetap dipotong oleh `OPENAI_MAX_TOKENS`.
 - Set `SEED_ADMIN_PASSWORD` dan `SEED_USER_PASSWORD` sebelum database pertama dibuat.
-- Pastikan RustFS/S3 bisa diakses dari container `app`.
+- Pastikan RustFS/S3 bisa diakses dari container `app`. Cek dengan `GET /api/health/storage`.
+- Untuk production, set `S3_REQUIRED=true` agar kegagalan upload export tidak diam-diam menghasilkan URL kosong.
+
+Checklist sebelum production:
+
+- Ganti `SEED_ADMIN_PASSWORD` dan `SEED_USER_PASSWORD` sebelum database pertama dibuat.
+- Set `S3_REQUIRED=true` dan cek `GET /api/health/storage`.
+- Set provider AI dan API key yang benar.
+- Jalankan `bun run lint`, `bun test`, `bun run build`, dan `bun run qa:ui`.
+- Pastikan file `.env` tidak ikut dipublish.

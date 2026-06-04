@@ -11,6 +11,7 @@ const bucket = process.env.S3_BUCKET ?? "khutbahai";
 const endpoint = process.env.S3_ENDPOINT ?? "http://localhost:9000";
 const publicUrl = process.env.S3_PUBLIC_URL ?? `${endpoint}/${bucket}`;
 const signedUrlExpires = Number(process.env.S3_SIGNED_URL_EXPIRES ?? 60 * 60 * 24 * 7);
+const required = process.env.S3_REQUIRED === "true";
 
 const client = new S3Client({
   region: process.env.S3_REGION ?? "us-east-1",
@@ -65,10 +66,42 @@ export async function uploadFile(key: string, body: Uint8Array, contentType: str
       key,
       url
     };
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Storage tidak dapat diakses.";
+    if (required) {
+      throw new Error(`Upload storage gagal: ${message}`);
+    }
+
     return {
       key,
-      url: ""
+      url: "",
+      error: message
+    };
+  }
+}
+
+export function isStorageRequired() {
+  return required;
+}
+
+export async function checkStorageHealth() {
+  try {
+    await ensureBucket();
+    return {
+      ok: true,
+      required,
+      bucket,
+      endpoint,
+      publicUrl
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      required,
+      bucket,
+      endpoint,
+      publicUrl,
+      message: error instanceof Error ? error.message : "Storage tidak dapat diakses."
     };
   }
 }

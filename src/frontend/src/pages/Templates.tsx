@@ -1,13 +1,14 @@
-import { SendToBack, Trash2 } from "lucide-react";
+import { Search, SendToBack, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { EmptyState } from "../components/EmptyState";
-import { Button, Card, IconButton } from "../components/ui";
+import { Badge, Button, Card, IconButton, Input, Notice } from "../components/ui";
 import { api, jenisOptions } from "../lib/utils";
 import type { Template } from "../types";
 
 export function Templates({ onUse }: { onUse: (template: Template) => void }) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [message, setMessage] = useState("");
+  const [query, setQuery] = useState("");
 
   async function load() {
     try {
@@ -33,16 +34,39 @@ export function Templates({ onUse }: { onUse: (template: Template) => void }) {
     }
   }
 
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredTemplates = templates.filter((item) => {
+    const label = jenisOptions.find((jenis) => jenis.id === item.jenis)?.label ?? item.jenis;
+    const searchable = [item.name, label, ...Object.values(item.parameters)].join(" ").toLowerCase();
+    return !normalizedQuery || searchable.includes(normalizedQuery);
+  });
+
   return (
-    <section className="grid gap-3">
-      {message && <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">{message}</p>}
+    <section className="grid gap-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <Badge>Template</Badge>
+          <h2 className="mt-3 text-2xl font-semibold">Parameter favorit</h2>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            Pakai ulang kombinasi tema, bahasa, durasi, dan konteks yang sering digunakan.
+          </p>
+        </div>
+        <div className="relative w-full md:w-80">
+          <Search className="pointer-events-none absolute inset-y-0 left-3 my-auto size-4 text-muted-foreground" />
+          <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari template" />
+        </div>
+      </div>
+      {message && <Notice>{message}</Notice>}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {templates.map((item) => (
+        {filteredTemplates.map((item) => (
           <Card key={item.id} className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-medium">{item.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{jenisOptions.find((jenis) => jenis.id === item.jenis)?.label}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Badge>{jenisOptions.find((jenis) => jenis.id === item.jenis)?.label}</Badge>
+                  {item.parameters.bahasa && <Badge>{item.parameters.bahasa}</Badge>}
+                </div>
               </div>
               <IconButton onClick={() => remove(item.id)} aria-label="Hapus template">
                 <Trash2 className="size-4" />
@@ -63,6 +87,7 @@ export function Templates({ onUse }: { onUse: (template: Template) => void }) {
           </Card>
         ))}
         {templates.length === 0 && <EmptyState text="Template favorit belum disimpan." />}
+        {templates.length > 0 && filteredTemplates.length === 0 && <EmptyState text="Tidak ada template yang cocok." />}
       </div>
     </section>
   );

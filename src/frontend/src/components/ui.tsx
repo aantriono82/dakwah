@@ -74,3 +74,34 @@ export function Field({ label, children }: { label: string; children: React.Reac
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("rounded-lg border border-border bg-card text-card-foreground shadow-sm", className)} {...props} />;
 }
+
+export function Badge({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-7 items-center rounded-md border border-border bg-muted px-2.5 text-xs font-medium text-muted-foreground",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+export function Notice({
+  tone = "neutral",
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLParagraphElement> & { tone?: "neutral" | "success" | "error" }) {
+  return (
+    <p
+      className={cn(
+        "rounded-md border px-3 py-2 text-sm",
+        tone === "neutral" && "border-border bg-muted text-muted-foreground",
+        tone === "success" && "border-primary/25 bg-primary/10 text-primary",
+        tone === "error" && "border-destructive/25 bg-destructive/10 text-destructive",
+        className
+      )}
+      {...props}
+    />
+  );
+}
