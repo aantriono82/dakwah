@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { IconAlertTriangle, IconCheckCircle } from "./icons";
 import type { QualityCheck, QualityReport } from "../types";
 import { Badge, Button } from "./ui";
 
@@ -61,7 +61,7 @@ export function QualityPanel({
     <div className="grid gap-3 rounded-md border border-border bg-muted/20 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          {report.reviewRequired ? <AlertTriangle className="size-4 text-amber-600" /> : <CheckCircle2 className="size-4 text-primary" />}
+          {report.reviewRequired ? <IconAlertTriangle className="size-4 text-amber-600" /> : <IconCheckCircle className="size-4 text-primary" />}
           <p className="text-sm font-medium">Quality guard</p>
         </div>
         <Badge>Skor {report.score}/100</Badge>

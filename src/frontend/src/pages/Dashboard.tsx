@@ -1,6 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
-import { BookOpen, FileText, Mail, MapPin, Megaphone, MoonStar, Phone } from "lucide-react";
+import { IconQuran, IconMicrophone, IconCrescent, IconFileText, IconPhone, IconMail, IconMapPin, IconDakwahLogo, IconCrescentStar } from "../components/icons";
 import { Badge, Button } from "../components/ui";
 import { api, jenisOptions, type JenisId } from "../lib/utils";
 import type { Template, User } from "../types";
@@ -20,7 +20,7 @@ const featureCards: Array<{
     body: "Naskah Jumat, Idul Fitri, Idul Adha, dan nikah dengan struktur yang tertata.",
     cta: "Mulai Khutbah",
     jenis: "khutbah-jumat",
-    icon: BookOpen,
+    icon: IconQuran,
     overlay: "from-zinc-950/70 via-zinc-900/60 to-zinc-950/55",
     position: "object-left-bottom"
   },
@@ -29,7 +29,7 @@ const featureCards: Array<{
     body: "Materi ceramah lengkap untuk masjid, majelis, kajian, dan kegiatan komunitas.",
     cta: "Buat Ceramah",
     jenis: "ceramah",
-    icon: Megaphone,
+    icon: IconMicrophone,
     overlay: "from-primary/85 via-primary/70 to-emerald-500/65",
     position: "object-center"
   },
@@ -38,7 +38,7 @@ const featureCards: Array<{
     body: "Draft singkat, padat, dan mudah disampaikan untuk pengingat harian.",
     cta: "Buat Kultum",
     jenis: "kultum",
-    icon: MoonStar,
+    icon: IconCrescent,
     overlay: "from-zinc-950/75 via-zinc-900/60 to-primary/45",
     position: "object-right-bottom"
   }
@@ -142,7 +142,7 @@ function HomeFooter({
         <div>
           <div className="flex items-center gap-3">
             <span className="inline-flex size-11 items-center justify-center rounded-md bg-primary text-white">
-              <MoonStar className="size-6" />
+              <IconDakwahLogo className="size-7" />
             </span>
             <div>
               <p className="text-xl font-black tracking-normal">Dakwah</p>
@@ -160,7 +160,7 @@ function HomeFooter({
             {featured.map((item) => (
               <div key={item.id} className="flex gap-3">
                 <span className="inline-flex size-11 shrink-0 items-center justify-center bg-white/10 text-primary">
-                  <FileText className="size-5" />
+                  <IconFileText className="size-5" />
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{item.name}</p>
@@ -188,15 +188,15 @@ function HomeFooter({
           <h3 className="text-lg font-semibold">Kontak</h3>
           <div className="mt-6 grid gap-4 text-sm text-white/75">
             <p className="flex gap-3">
-              <Phone className="mt-0.5 size-4 shrink-0 text-primary" />
+              <IconPhone className="mt-0.5 size-4 shrink-0 text-primary" />
               085789786635
             </p>
             <p className="flex gap-3">
-              <Mail className="mt-0.5 size-4 shrink-0 text-primary" />
+              <IconMail className="mt-0.5 size-4 shrink-0 text-primary" />
               aantriono57@guru.smp.belajar.id
             </p>
             <p className="flex gap-3">
-              <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
+              <IconMapPin className="mt-0.5 size-4 shrink-0 text-primary" />
               Sidoluhur Kec. Bangunrejo
             </p>
           </div>

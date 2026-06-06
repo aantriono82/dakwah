@@ -3,42 +3,42 @@
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 98%;
+  --background: 152 45% 97%;       /* emerald-50 inspired: #F0FAF6 */
   --foreground: 220 18% 14%;
   --card: 0 0% 100%;
   --card-foreground: 220 18% 14%;
   --primary: 164 76% 25%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 43 82% 92%;
-  --secondary-foreground: 38 56% 24%;
-  --muted: 210 20% 94%;
+  --secondary: 152 55% 91%;        /* emerald-100 inspired: #D4F5E5 */
+  --secondary-foreground: 152 50% 18%;
+  --muted: 152 25% 93%;            /* subtle green-gray */
   --muted-foreground: 215 14% 42%;
-  --accent: 188 48% 91%;
-  --accent-foreground: 197 69% 22%;
+  --accent: 152 48% 88%;           /* emerald-100 accent */
+  --accent-foreground: 164 76% 18%;
   --destructive: 0 72% 48%;
   --destructive-foreground: 0 0% 100%;
-  --border: 214 20% 87%;
-  --input: 214 20% 84%;
+  --border: 152 30% 87%;           /* green-tinted border */
+  --input: 152 25% 84%;
   --ring: 164 76% 34%;
 }
 
 .dark {
-  --background: 222 22% 10%;
+  --background: 160 22% 9%;        /* very dark emerald */
   --foreground: 210 20% 96%;
-  --card: 222 20% 13%;
+  --card: 160 20% 12%;
   --card-foreground: 210 20% 96%;
   --primary: 166 72% 38%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 41 40% 20%;
-  --secondary-foreground: 43 70% 86%;
-  --muted: 220 16% 20%;
+  --secondary: 152 28% 18%;        /* dark emerald secondary */
+  --secondary-foreground: 152 55% 82%;
+  --muted: 160 16% 19%;
   --muted-foreground: 215 13% 70%;
-  --accent: 197 42% 22%;
-  --accent-foreground: 188 63% 88%;
+  --accent: 160 38% 20%;
+  --accent-foreground: 152 60% 88%;
   --destructive: 0 70% 45%;
   --destructive-foreground: 0 0% 100%;
-  --border: 220 16% 24%;
-  --input: 220 16% 26%;
+  --border: 160 16% 23%;
+  --input: 160 16% 25%;
   --ring: 166 72% 44%;
 }
 

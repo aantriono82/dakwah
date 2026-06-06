@@ -8,12 +8,26 @@ import { authRequired, type AppEnv } from "../utils/http";
 import { CONTENT_TYPES, titleFromParameters, validateContentParameters } from "../utils/content";
 import { qualityReportFor } from "../utils/quality";
 import { rateLimit } from "../utils/rate-limit";
-import { generateText, streamGeneratedText } from "../services/openai";
+import { generateText, reviseNaskahContent, streamGeneratedText } from "../services/openai";
 import { retrieveDalilContext } from "../services/myquran";
 
 const generateSchema = z.object({
   jenis: z.enum(CONTENT_TYPES),
   parameters: z.record(z.unknown())
+});
+
+const reviewSchema = z.object({
+  jenis: z.enum(CONTENT_TYPES),
+  parameters: z.record(z.unknown()),
+  content: z.string().min(20)
+});
+
+const refineDraftSchema = z.object({
+  jenis: z.enum(CONTENT_TYPES),
+  parameters: z.record(z.unknown()),
+  content: z.string().min(20),
+  instruction: z.string().trim().min(5, "Instruksi revisi minimal 5 karakter."),
+  targetSection: z.string().trim().max(120).optional()
 });
 
 export const generateRoutes = new Hono<AppEnv>();
@@ -101,4 +115,57 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
       }
     });
   });
+});
+
+generateRoutes.post("/review", zValidator("json", reviewSchema), async (c) => {
+  const { jenis, parameters, content } = c.req.valid("json");
+  const validationMessage = validateContentParameters(jenis, parameters);
+  if (validationMessage) return c.json({ message: validationMessage }, 400);
+
+  const dalilContext = await retrieveDalilContext(jenis, parameters);
+  const quality = qualityReportFor(jenis, content, parameters, dalilContext);
+  return c.json({ quality });
+});
+
+generateRoutes.post("/refine", zValidator("json", refineDraftSchema), async (c) => {
+  const user = c.get("user");
+  const { jenis, parameters, content, instruction, targetSection } = c.req.valid("json");
+  const validationMessage = validateContentParameters(jenis, parameters);
+  if (validationMessage) return c.json({ message: validationMessage }, 400);
+
+  const quota = await assertGenerateQuota(user.id);
+  if (!quota.allowed) {
+    await recordUsageEvent({ userId: user.id, eventType: "generate", status: "blocked", jenis, route: "/api/generate/refine", metadata: { reason: "quota" } });
+    return c.json({ message: quota.message }, 429);
+  }
+
+  const startedAt = Date.now();
+  const dalilContext = await retrieveDalilContext(jenis, parameters);
+  const revisedContent = await reviseNaskahContent({
+    jenis,
+    parameters,
+    currentContent: content,
+    instruction,
+    targetSection,
+    dalilContext
+  });
+  const quality = qualityReportFor(jenis, revisedContent, parameters, dalilContext);
+
+  await recordUsageEvent({
+    userId: user.id,
+    eventType: "generate",
+    status: "ok",
+    jenis,
+    route: "/api/generate/refine",
+    durationMs: Date.now() - startedAt,
+    metadata: {
+      mode: "refine_draft",
+      qualityScore: quality.score,
+      wordCount: quality.wordCount,
+      quotaUsed: quota.used + 1,
+      quotaLimit: quota.limit
+    }
+  });
+
+  return c.json({ content: revisedContent, quality });
 });

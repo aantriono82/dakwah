@@ -1,8 +1,8 @@
-# Ringkasan Aplikasi: KhutbahAI 🕌
+# Ringkasan Aplikasi: Dakwah
 
 ## Gambaran Umum
 
-Aplikasi web full-stack yang membantu ustaz, khatib, dan dai dalam membuat naskah khutbah, ceramah, dan kultum secara otomatis menggunakan AI. Dilengkapi penyimpanan file menggunakan RustFS (kompatibel S3) dan database SQLite via Drizzle ORM, serta dapat dijalankan sepenuhnya dengan Docker.
+Aplikasi web full-stack yang membantu ustaz, khatib, dan dai membuat naskah khutbah, ceramah, kultum, dan materi dakwah dengan bantuan AI. Aplikasi ini memakai backend Hono, frontend React + Tailwind, database SQLite via Drizzle ORM, export PDF/DOCX, quality guard, retrieval dalil, snapshot versi naskah, dan storage RustFS/S3-compatible.
 
 ---
 
@@ -17,7 +17,7 @@ Aplikasi web full-stack yang membantu ustaz, khatib, dan dai dalam membuat naska
 | Database           | **SQLite**                 |
 | File Storage       | **RustFS** (S3-compatible) |
 | Containerisasi     | **Docker + Docker Compose** |
-| AI Engine          | **OpenAI API**             |
+| AI Engine          | **OpenAI-compatible / Gemini + fallback lokal** |
 
 ---
 
@@ -36,15 +36,18 @@ Pengguna → Pilih Jenis → Isi Form → Generate AI → Pratinjau → Simpan/E
 - Pengguna mengisi parameter yang relevan sesuai jenis konten yang dipilih
 - Validasi input sebelum dikirim ke AI
 
-### 3. Generate & Pratinjau
-- Streaming output secara real-time dari Claude API
-- Pratinjau naskah langsung saat teks dihasilkan
-- Opsi regenerate jika hasil kurang sesuai
+### 3. Generate, Quality Guard, & Pratinjau
+- Streaming output secara real-time dari provider AI
+- Prompt memakai retrieval dalil, kerangka internal, dan repair otomatis bila struktur/dalil bermasalah
+- Quality guard menilai struktur, bahasa, dalil, panjang, konteks, dan harakat Arab
+- Pratinjau naskah tampil langsung saat teks dihasilkan
+- Quick fix editorial tersedia untuk fokus tema, bahasa, dan dalil
 
 ### 4. Simpan & Export
 - Simpan naskah ke database SQLite via Drizzle ORM
 - Upload dokumen PDF/DOCX ke RustFS
 - Bagikan link atau unduh file
+- Snapshot versi tersimpan untuk restore dan audit revisi
 
 ---
 
@@ -54,7 +57,7 @@ Pengguna → Pilih Jenis → Isi Form → Generate AI → Pratinjau → Simpan/E
 - Tema utama & sub-tema
 - Ayat Al-Quran referensi
 - Durasi (pendek / sedang / panjang)
-- Bahasa (Indonesia / Jawa / Sunda / Arab)
+- Bahasa (Indonesia / Jawa / Sunda / Ogan (Baturaja) / Arab)
 - **Output:** Khutbah 1 + Khutbah 2 + doa penutup
 
 ### 🌙 Khutbah Idul Fitri
@@ -94,21 +97,26 @@ Pengguna → Pilih Jenis → Isi Form → Generate AI → Pratinjau → Simpan/E
 ### ✨ Core Features
 | Fitur | Deskripsi |
 |---|---|
-| **AI Generate** | Streaming real-time naskah via Claude API |
+| **AI Generate** | Streaming real-time naskah via provider AI dengan fallback lokal |
 | **Template System** | Simpan parameter favorit sebagai template yang bisa dipakai ulang |
 | **Riwayat** | Semua naskah tersimpan di database dan bisa diakses kembali kapan saja |
 | **Export** | Unduh naskah dalam format PDF atau DOCX |
 | **File Storage** | Naskah & dokumen disimpan di RustFS (S3-compatible) |
+| **Quick Fix** | Perbaiki fokus tema, bahasa, atau dalil langsung dari quality panel |
 
 ### 🛠️ Technical Features
 | Fitur | Deskripsi |
 |---|---|
 | **Autentikasi** | Login dengan username & password (session-based) |
 | **Multi-role** | 2 role: Admin dan User (lihat tabel di bawah) |
-| **Multi-bahasa** | Dukungan output dalam Bahasa Indonesia, Jawa, dan Sunda |
+| **Multi-bahasa** | Dukungan output dalam Bahasa Indonesia, Jawa, Sunda, Ogan (Baturaja), dan Arab |
 | **Responsive UI** | Tampilan mobile-friendly, nyaman dibaca langsung di mimbar |
 | **Dark Mode** | Mode gelap untuk kemudahan membaca di malam hari |
 | **Docker Ready** | Satu perintah `docker compose up` untuk menjalankan seluruh stack |
+| **Quality Guard** | Laporan kualitas dengan metrik struktur, bahasa, dalil, konteks, dan editorial |
+| **Dalil Retrieval** | Prioritas: curated dalil admin → myQuran → fallback tematik lokal |
+| **Versioning** | Snapshot versi otomatis saat simpan manual, refine AI, restore, dan quick fix |
+| **QA Browser** | Smoke test UI untuk flow dashboard, riwayat, admin, dan quick fix |
 
 ---
 
@@ -154,12 +162,15 @@ khutbahAI/
 │   │   └── migrate.ts
 │   ├── routes/
 │   │   ├── auth.ts
-│   │   ├── generate.ts       # Endpoint AI generate (streaming)
-│   │   ├── naskah.ts         # CRUD naskah
+│   │   ├── generate.ts       # Generate, review draft, refine draft
+│   │   ├── naskah.ts         # CRUD naskah, versioning, refine tersimpan
 │   │   └── export.ts         # PDF/DOCX export & RustFS upload
 │   ├── services/
-│   │   ├── openai.ts         # OpenAI API client
+│   │   ├── openai.ts         # Provider AI, rewrite, repair, refine
 │   │   └── storage.ts        # RustFS S3 client
+│   ├── utils/
+│   │   ├── content.ts        # Prompt builder, fallback naskah, dalil tematik
+│   │   └── quality.ts        # Quality report dan validasi editorial
 │   └── frontend/
 │       ├── pages/
 │       │   ├── Dashboard.tsx
@@ -168,20 +179,22 @@ khutbahAI/
 │       └── components/
 │           ├── JenisCard.tsx
 │           ├── FormKhutbah.tsx
-│           └── NaskahPreview.tsx
-└── public/
+│           ├── NaskahPreview.tsx
+│           └── QualityPanel.tsx
+├── scripts/
+│   └── ui-smoke.ts           # Smoke test browser untuk flow utama dan quick fix
+└── README.md
 ```
 
 ---
 
-## Roadmap Pengembangan
+## Status Fitur
 
-- [ ] Setup project & Docker Compose
-- [ ] Konfigurasi Drizzle + SQLite schema
-- [ ] Integrasi RustFS (S3 client)
-- [ ] Backend Hono: auth, generate (streaming), CRUD naskah
-- [ ] Frontend ShadcnUI: dashboard, form per jenis, pratinjau, riwayat
-- [ ] Fitur export PDF/DOCX
-- [ ] Template system
-- [ ] Dark mode & responsive polish
-- [ ] Testing & deployment
+- [x] Generate 6 jenis naskah dengan streaming
+- [x] Retrieval dalil dan fallback tematik lokal
+- [x] Quality guard + quick fix editorial
+- [x] CRUD naskah, versioning, restore, dan refine AI
+- [x] Export PDF/DOCX + upload storage
+- [x] Template system
+- [x] Admin panel, user management, dan kurasi dalil
+- [x] API test dan smoke test UI

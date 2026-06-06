@@ -7,6 +7,7 @@ import {
   minimumWordCountFor,
   missingRequiredArabicSections,
   normalizeLanguage,
+  topicFromParameters,
   type PromptDalilContext,
   wordCount
 } from "./content";
@@ -118,6 +119,97 @@ function gradeNeedsDisplay(grade?: string) {
   return !/perlu cek|tidak diketahui|unknown/i.test(grade);
 }
 
+const templateLanguagePatterns = [
+  /tema ini mengingatkan kita/gi,
+  /pada kesempatan (?:kali ini|yang berbahagia) /gi,
+  /hadirin (?:sekalian|yang dirahmati allah), tema/gi,
+  /nasihat pertama/gi,
+  /nasihat kedua/gi,
+  /nasihat ketiga/gi
+];
+
+function templateLanguageHits(content: string) {
+  return templateLanguagePatterns.flatMap((pattern) => content.match(pattern) ?? []);
+}
+
+function normalizeTopicText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const themeStopwords = new Set([
+  "agar",
+  "akan",
+  "atau",
+  "bagi",
+  "dan",
+  "dari",
+  "dengan",
+  "dalam",
+  "demi",
+  "itu",
+  "karena",
+  "kepada",
+  "kita",
+  "maka",
+  "pada",
+  "para",
+  "saat",
+  "sebagai",
+  "serta",
+  "tentang",
+  "tema",
+  "untuk",
+  "yang"
+]);
+
+function themeKeywords(value: string) {
+  return [
+    ...new Set(
+      normalizeTopicText(value)
+        .split(/\s+/)
+        .filter((token) => token.length >= 4 && !themeStopwords.has(token))
+    )
+  ];
+}
+
+function countKeywordMentions(content: string, keywords: string[]) {
+  const normalizedContent = normalizeTopicText(content);
+  return keywords.filter((keyword) => normalizedContent.includes(keyword)).length;
+}
+
+function themeFocusChecks(content: string, parameters: Record<string, unknown>) {
+  const targetLanguage = normalizeLanguage(parameters.bahasa);
+  if (targetLanguage !== "Indonesia") return [];
+
+  const theme = topicFromParameters(parameters).trim();
+  if (!theme || /^tanpa tema$/i.test(theme)) return [];
+
+  const keywords = themeKeywords(theme);
+  if (keywords.length === 0) return [];
+
+  const matchedKeywords = countKeywordMentions(content, keywords);
+  const enoughMatches = matchedKeywords >= Math.min(2, keywords.length);
+  const repeatedThemeMention = normalizeTopicText(content).includes(normalizeTopicText(theme));
+
+  return [
+    check(
+      "theme_focus_keywords",
+      "Keterikatan tema",
+      enoughMatches || repeatedThemeMention,
+      enoughMatches || repeatedThemeMention
+        ? `Tema "${theme}" cukup tercermin dalam isi naskah.`
+        : `Isi masih terlalu umum. Kata kunci tema "${theme}" belum cukup muncul dalam uraian utama.`,
+      "warning"
+    )
+  ];
+}
+
 function metric(id: string, label: string, checks: QualityCheck[]): QualityMetric {
   const relevant = checks.filter((item) => item.id === id || item.id.startsWith(`${id}_`));
   return metricFromChecks(id, label, relevant);
@@ -221,6 +313,7 @@ export function qualityReportFor(
   const minimum = minimumWordCountFor(jenis, parameters);
   const missingSections = missingRequiredArabicSections(jenis, content);
   const targetLanguage = normalizeLanguage(parameters.bahasa);
+  const templateHits = templateLanguageHits(content);
   const checks: QualityCheck[] = [
     check(
       "length",
@@ -264,6 +357,16 @@ export function qualityReportFor(
       "Ayat dan hadits sebaiknya berada pada heading standar agar mudah ditinjau.",
       "warning"
     ),
+    check(
+      "template_language",
+      "Bahasa terlalu template",
+      templateHits.length === 0,
+      templateHits.length === 0
+        ? "Tidak ada pola bahasa template yang dominan."
+        : `Terdeteksi pola bahasa yang terasa template: ${[...new Set(templateHits)].join(", ")}.`,
+      "warning"
+    ),
+    ...themeFocusChecks(content, parameters),
     ...dalilValidationChecks(content, dalilContext),
     check(
       "human_review",
@@ -279,7 +382,8 @@ export function qualityReportFor(
     metric("target", "Bahasa", checks),
     metricFromChecks("dalil", "Dalil", checks.filter((item) => item.id.includes("dalil") || item.id.includes("quran") || item.id.includes("hadith"))),
     metric("length", "Kelengkapan", checks),
-    metric("context", "Konteks", checks)
+    metric("context", "Konteks", checks),
+    metricFromChecks("editorial", "Editorial", checks.filter((item) => item.id === "template_language" || item.id === "theme_focus_keywords"))
   ];
 
   return {

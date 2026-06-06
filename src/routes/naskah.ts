@@ -6,6 +6,7 @@ import { zValidator } from "@hono/zod-validator";
 import { db } from "../db/client";
 import { naskah, naskahVersions, type Naskah, type QualityReport, type User } from "../db/schema";
 import { reviseNaskahContent } from "../services/openai";
+import { retrieveDalilContext } from "../services/myquran";
 import { assertGenerateQuota, recordUsageEvent } from "../services/usage";
 import { authRequired, canAccessOwner, publicUser, type AppEnv } from "../utils/http";
 import { CONTENT_TYPES, titleFromParameters, validateContentParameters } from "../utils/content";
@@ -25,7 +26,8 @@ const saveSchema = z.object({
 
 const refineSchema = z.object({
   instruction: z.string().trim().min(5, "Instruksi revisi minimal 5 karakter."),
-  targetSection: z.string().trim().max(120).optional()
+  targetSection: z.string().trim().max(120).optional(),
+  changeSummary: z.string().trim().min(3).max(160).optional()
 });
 
 export const naskahRoutes = new Hono<AppEnv>();
@@ -239,14 +241,16 @@ naskahRoutes.post("/:id/refine", zValidator("json", refineSchema), async (c) => 
   }
 
   const startedAt = Date.now();
+  const dalilContext = await retrieveDalilContext(existing.jenis, existing.parameters);
   const content = await reviseNaskahContent({
     jenis: existing.jenis,
     parameters: existing.parameters,
     currentContent: existing.content,
     instruction: body.instruction,
-    targetSection: body.targetSection
+    targetSection: body.targetSection,
+    dalilContext
   });
-  const qualityReport = qualityReportFor(existing.jenis, content, existing.parameters);
+  const qualityReport = qualityReportFor(existing.jenis, content, existing.parameters, dalilContext);
   const nextVersion = existing.version + 1;
 
   await db
@@ -266,7 +270,7 @@ naskahRoutes.post("/:id/refine", zValidator("json", refineSchema), async (c) => 
       row,
       versionNumber: nextVersion,
       qualityReport,
-      changeSummary: body.targetSection ? `Revisi ${body.targetSection}` : "Revisi AI"
+      changeSummary: body.changeSummary ?? (body.targetSection ? `Revisi ${body.targetSection}` : "Revisi AI")
     });
   }
 

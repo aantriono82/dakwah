@@ -5,9 +5,34 @@ type Parameters = Record<string, string>;
 
 const bahasaOptions = ["Indonesia", "Jawa", "Sunda", "Ogan (Baturaja)", "Arab"];
 const durasiOptions = ["pendek", "sedang", "panjang"];
+const fokusAkurasiOptions = [
+  { value: "ketat", label: "Ketat" },
+  { value: "maksimal", label: "Maksimal" }
+];
+const gayaBahasaOptions = [
+  { value: "natural-jelas", label: "Natural dan jelas" },
+  { value: "sangat-natural", label: "Sangat natural" }
+];
+const gayaRetorikaOptions = [
+  { value: "standar", label: "Standar / Netral" },
+  { value: "quraish-shihab", label: "Teduh & Akademik" },
+  { value: "zainuddin-mz", label: "Komunikatif & Praktis" },
+  { value: "buya-hamka", label: "Sastra & Filosofis" }
+];
+const strategiDalilOptions = [
+  { value: "relevan", label: "Relevan" },
+  { value: "sangat-relevan", label: "Sangat relevan" }
+];
 
 export function defaultParameters(jenis: JenisId): Parameters {
-  const common = { bahasa: "Indonesia" };
+  const common = {
+    bahasa: "Indonesia",
+    fokusAkurasi: "maksimal",
+    gayaBahasaNaskah: "natural-jelas",
+    gayaRetorika: "standar",
+    strategiDalil: "sangat-relevan",
+    catatanEditor: ""
+  };
   if (jenis === "khutbah-jumat") return { ...common, temaUtama: "", subTema: "", ayatReferensi: "", durasi: "sedang" };
   if (jenis === "idul-fitri") return { ...common, tema: "", nuansa: "reflektif", momenSpesifik: "" };
   if (jenis === "idul-adha") return { ...common, tema: "", kisahNabi: "Nabi Ibrahim dan Nabi Ismail" };
@@ -36,6 +61,53 @@ export function FormKhutbah({
             <option key={item}>{item}</option>
           ))}
         </Select>
+      </Field>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Fokus akurasi">
+          <Select value={values.fokusAkurasi ?? "maksimal"} onChange={(event) => set("fokusAkurasi", event.target.value)}>
+            {fokusAkurasiOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Gaya bahasa">
+          <Select value={values.gayaBahasaNaskah ?? "natural-jelas"} onChange={(event) => set("gayaBahasaNaskah", event.target.value)}>
+            {gayaBahasaOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Gaya retorika">
+          <Select value={values.gayaRetorika ?? "standar"} onChange={(event) => set("gayaRetorika", event.target.value)}>
+            {gayaRetorikaOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Strategi dalil">
+          <Select value={values.strategiDalil ?? "sangat-relevan"} onChange={(event) => set("strategiDalil", event.target.value)}>
+            {strategiDalilOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+
+      <Field label="Catatan editor">
+        <Textarea
+          value={values.catatanEditor ?? ""}
+          onChange={(event) => set("catatanEditor", event.target.value)}
+          placeholder="Contoh: hindari bahasa terlalu puitis, jelaskan makna dalil dengan sederhana, fokus untuk jamaah remaja."
+        />
       </Field>
 
       {jenis === "khutbah-jumat" && (

@@ -6,6 +6,7 @@ import {
   hasContextLeak,
   hasSubstantialArabicClosingPrayer,
   hasSubstantialArabicOpening,
+  injectRetrievedDalil,
   isGeneratedTextAcceptable,
   isKhutbahSecondSectionArabicOnly,
   isKhutbahJumatSecondSectionArabicOnly,
@@ -17,7 +18,8 @@ import {
   sanitizeGeneratedText,
   titleFromParameters,
   validateContentParameters,
-  wordCount
+  wordCount,
+  type PromptDalilContext
 } from "./content";
 
 describe("content utilities", () => {
@@ -42,6 +44,9 @@ describe("content utilities", () => {
     const prompt = buildPrompt("ceramah", {
       bahasa: "Indonesia",
       topik: "Menjaga lisan",
+      fokusAkurasi: "maksimal",
+      gayaBahasaNaskah: "natural-jelas",
+      strategiDalil: "sangat-relevan",
       kosong: " ",
       nihil: null
     });
@@ -57,6 +62,11 @@ describe("content utilities", () => {
     expect(prompt).toContain("Isi utama minimal 8 paragraf narasi");
     expect(prompt).toContain("Jangan tampilkan analisis");
     expect(prompt).toContain("Naskah harus terdiri dari");
+    expect(prompt).toContain("Standar editorial:");
+    expect(prompt).toContain("Akurasi isi wajib sangat ketat");
+    expect(prompt).toContain("Bahasa harus natural, jelas, dan enak dibacakan");
+    expect(prompt).toContain("Dalil wajib benar-benar melayani tema yang dipilih");
+    expect(prompt).toContain("- Fokus akurasi: maksimal");
   });
 
   test("buildPrompt aligns kultum and khutbah nikah length guidance with quality floor", () => {
@@ -106,6 +116,26 @@ describe("content utilities", () => {
     expect(nafkah).toContain("amanah dan kejujuran");
     expect(sabar).toContain("sabar dan keteguhan");
     expect(sakinah).toContain("keluarga dan pernikahan");
+  });
+
+  test("buildPrompt chooses specific dalil for istri shalihah instead of generic marriage package", () => {
+    const kultumPrompt = buildPrompt("kultum", {
+      bahasa: "Indonesia",
+      topikSingkat: "Istri shalihah"
+    });
+    const ceramahPrompt = buildPrompt("ceramah", {
+      bahasa: "Indonesia",
+      topik: "Menjadi istri shalihah yang menenangkan rumah"
+    });
+
+    for (const prompt of [kultumPrompt, ceramahPrompt]) {
+      expect(prompt).toContain("istri shalihah dan pasangan yang meneguhkan iman");
+      expect(prompt).toContain("QS. An-Nisa: 34");
+      expect(prompt).toContain("QS. Al-Furqan: 74");
+      expect(prompt).toContain("sebaik-baik perhiasan dunia adalah wanita yang salehah");
+      expect(prompt).not.toContain("QS. At-Taghabun: 16");
+      expect(prompt).not.toContain("hendaklah ia berkata baik atau diam");
+    }
   });
 
   test("buildPrompt strongly instructs selected local language", () => {
@@ -178,6 +208,44 @@ describe("content utilities", () => {
     expect(shalatSunahPrompt).toContain("Fokus pembahasan utama: shalat - shalat sunah");
     expect(shalatSunahPrompt).toContain("QS. Al-'Ankabut: 45");
     expect(shalatSunahPrompt).toContain("dua belas rakaat sunah selain shalat wajib");
+  });
+
+  test("buildPrompt prioritizes specific dalil for pergaulan bebas across content types", () => {
+    const cases = [
+      buildPrompt("khutbah-jumat", {
+        bahasa: "Indonesia",
+        temaUtama: "Perisai iman di tengah badai pergaulan bebas",
+        subTema: "Pesan untuk pemuda kampus"
+      }),
+      buildPrompt("idul-fitri", {
+        bahasa: "Indonesia",
+        tema: "Menjaga kehormatan diri setelah Ramadhan dari pergaulan bebas"
+      }),
+      buildPrompt("idul-adha", {
+        bahasa: "Indonesia",
+        tema: "Pengorbanan ego untuk menjauhi seks bebas"
+      }),
+      buildPrompt("nikah", {
+        bahasa: "Indonesia",
+        temaPesan: "Menjaga kehormatan dan batas pergaulan sebelum menikah"
+      }),
+      buildPrompt("ceramah", {
+        bahasa: "Indonesia",
+        topik: "Bahaya seks bebas bagi pemuda kampus"
+      }),
+      buildPrompt("kultum", {
+        bahasa: "Indonesia",
+        topikSingkat: "Menjauhi zina dan pergaulan bebas"
+      })
+    ];
+
+    for (const prompt of cases) {
+      expect(prompt).toContain("menjauhi zina, pergaulan bebas, dan menjaga kehormatan");
+      expect(prompt).toContain("QS. Al-Isra: 32");
+      expect(prompt).toContain("Janganlah kamu mendekati zina");
+      expect(prompt).toContain("Janganlah seorang laki-laki berduaan");
+      expect(prompt).not.toContain("QS. Al-Kahf: 13");
+    }
   });
 
   test("sanitizeGeneratedText removes leaked reasoning and markdown wrappers", () => {
@@ -598,7 +666,7 @@ Isi khutbah.`);
       {
         params: { temaUtama: "menjaga pandangan", subTema: "kehormatan diri pemuda" },
         ayat: "QS. An-Nur: 30",
-        hadith: "lebih menundukkan pandangan"
+        hadith: "Janganlah seorang laki-laki berduaan"
       },
       {
         params: { temaUtama: "tilawah Al-Quran", subTema: "belajar dan mengajarkan Quran" },
@@ -651,5 +719,74 @@ Amin.`;
 
     expect(missingRequiredArabicSections("idul-fitri", draft).length).toBeGreaterThan(0);
     expect(isGeneratedTextAcceptable("idul-fitri", draft)).toBe(false);
+  });
+
+  test("validate khutbah nikah rukun and injectRetrievedDalil", () => {
+    const draft = fallbackNaskah("nikah", {
+      bahasa: "Indonesia",
+      mempelaiPria: "Ahmad",
+      mempelaiWanita: "Fatimah",
+      temaPesan: "Sakinah mawaddah rahmah",
+      durasi: "sedang"
+    });
+
+    expect(missingRequiredArabicSections("nikah", draft)).toEqual([]);
+    expect(isGeneratedTextAcceptable("nikah", draft, { bahasa: "Indonesia" })).toBe(true);
+
+    const incompleteDraft = draft.replace(/اَشْهَدُ أَنْ لَا إِلٰهَ إِلَّا اللهُ، وَأَشْهَدُ أَنَّ مُحَمَّدًا رَسُوْلُ اللهِ\./g, "");
+    expect(missingRequiredArabicSections("nikah", incompleteDraft)).toContain("syahadat_pembukaan");
+
+    const dalilContext: PromptDalilContext = {
+      theme: "Sakinah mawaddah rahmah",
+      source: "local-curated",
+      quran: [
+        {
+          kind: "quran",
+          reference: "QS. Ar-Rum: 21",
+          arab: "وَمِنْ آيَاتِهِ أَنْ خَلَقَ لَكُمْ مِنْ أَنْفُسِكُمْ أَزْوَاجًا",
+          translation: "Dan di antara tanda-tanda kekuasaan-Nya...",
+          source: "curated"
+        }
+      ],
+      hadith: [
+        {
+          kind: "hadith",
+          reference: "HR. Tirmidzi",
+          arab: "أَكْمَلُ الْمُؤْمِنِينَ إِيمَانًا أَحْسَنُهُمْ خُلُقًا",
+          translation: "Orang mukmin yang paling sempurna imannya...",
+          grade: "Hasan Sahih",
+          takhrij: "Tirmidzi no. 1162",
+          source: "curated"
+        }
+      ]
+    };
+
+    const injected = injectRetrievedDalil(draft, dalilContext);
+    expect(injected).toContain("وَمِنْ آيَاتِهِ أَنْ خَلَقَ لَكُمْ مِنْ أَنْفُسِكُمْ أَزْوَاجًا");
+    expect(injected).toContain("أَكْمَلُ الْمُؤْمِنِينَ إِيمَانًا أَحْسَنُهُمْ خُلُقًا");
+    expect(injected).toContain("[Derajat: Hasan Sahih]");
+  });
+
+  test("buildPrompt includes preacher style profiles instructions when requested", () => {
+    const promptTeduh = buildPrompt("ceramah", {
+      bahasa: "Indonesia",
+      topik: "Sabar",
+      gayaRetorika: "teduh"
+    });
+    expect(promptTeduh).toContain("Teduh & Akademik (seperti Prof. Quraish Shihab)");
+
+    const promptZainuddin = buildPrompt("ceramah", {
+      bahasa: "Indonesia",
+      topik: "Sabar",
+      gayaRetorika: "zainuddin-mz"
+    });
+    expect(promptZainuddin).toContain("Praktis & Komunikatif (seperti KH. Zainuddin MZ)");
+
+    const promptHamka = buildPrompt("ceramah", {
+      bahasa: "Indonesia",
+      topik: "Sabar",
+      gayaRetorika: "buya-hamka"
+    });
+    expect(promptHamka).toContain("Sastra & Filosofis (seperti Buya Hamka)");
   });
 });

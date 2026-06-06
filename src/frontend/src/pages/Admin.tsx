@@ -1,6 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
-import { BookOpen, Pencil, Save, Trash2, Users, X } from "lucide-react";
+import { IconBookOpen, IconPencil, IconSave, IconTrash, IconUsers, IconX } from "../components/icons";
 import { Badge, Button, Card, Field, IconButton, Input, Notice, Select, Textarea } from "../components/ui";
 import { api } from "../lib/utils";
 import type { CuratedDalil, User } from "../types";
@@ -201,7 +201,7 @@ export function Admin() {
               />
             </Field>
             <Button>
-              <Users className="size-4" />
+              <IconUsers className="size-4" />
               Simpan user
             </Button>
           </form>
@@ -249,11 +249,11 @@ export function Admin() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button>
-                        <Save className="size-4" />
+                        <IconSave className="size-4" />
                         Simpan
                       </Button>
                       <Button type="button" className="bg-secondary text-secondary-foreground" onClick={cancelEdit}>
-                        <X className="size-4" />
+                        <IconX className="size-4" />
                         Batal
                       </Button>
                     </div>
@@ -273,10 +273,10 @@ export function Admin() {
                     </div>
                     <div className="flex gap-2">
                       <IconButton onClick={() => startEdit(item)} aria-label="Edit user">
-                        <Pencil className="size-4" />
+                        <IconPencil className="size-4" />
                       </IconButton>
                       <IconButton onClick={() => removeUser(item.id)} aria-label="Hapus user">
-                        <Trash2 className="size-4" />
+                        <IconTrash className="size-4" />
                       </IconButton>
                     </div>
                   </>
@@ -366,7 +366,7 @@ function DalilManagement() {
     <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
       <Card className="p-4">
         <div className="mb-4 flex items-center gap-2">
-          <BookOpen className="size-5 text-primary" />
+          <IconBookOpen className="size-5 text-primary" />
           <h2 className="text-lg font-semibold">Database dalil terkurasi</h2>
         </div>
         {message && <Notice className="mb-4">{message}</Notice>}
@@ -420,10 +420,10 @@ function DalilManagement() {
                     </div>
                     <div className="flex gap-2">
                       <IconButton onClick={() => startEdit(item)} aria-label="Edit dalil">
-                        <Pencil className="size-4" />
+                        <IconPencil className="size-4" />
                       </IconButton>
                       <IconButton onClick={() => removeDalil(item.id)} aria-label="Hapus dalil">
-                        <Trash2 className="size-4" />
+                        <IconTrash className="size-4" />
                       </IconButton>
                     </div>
                   </div>
@@ -500,12 +500,12 @@ function DalilForm({
       </label>
       <div className="flex flex-wrap gap-2">
         <Button>
-          <Save className="size-4" />
+          <IconSave className="size-4" />
           {submitLabel}
         </Button>
         {onCancel ? (
           <Button type="button" className="bg-secondary text-secondary-foreground" onClick={onCancel}>
-            <X className="size-4" />
+            <IconX className="size-4" />
             Batal
           </Button>
         ) : null}

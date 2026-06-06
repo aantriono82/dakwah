@@ -20,6 +20,14 @@ export const contentTypeLabels: Record<ContentType, string> = {
 
 export type SupportedLanguage = "Indonesia" | "Jawa" | "Sunda" | "Ogan (Baturaja)" | "Arab";
 
+const editorialParameterLabels: Record<string, string> = {
+  fokusAkurasi: "Fokus akurasi",
+  gayaBahasaNaskah: "Gaya bahasa naskah",
+  gayaRetorika: "Gaya retorika",
+  strategiDalil: "Strategi dalil",
+  catatanEditor: "Catatan editor"
+};
+
 const QURAN_HEADING = "Allah SWT berfirman dalam AlQuran";
 const HADITH_HEADING = "Rasulullah SAW bersabda";
 
@@ -254,6 +262,42 @@ function languageGuidanceFor(parameters: Record<string, unknown>) {
 ${specific[language]}`;
 }
 
+function normalizedEditorialMode(parameters: Record<string, unknown>, key: string, fallback: string) {
+  return String(parameters[key] ?? fallback).trim().toLowerCase();
+}
+
+function editorialGuidanceFor(parameters: Record<string, unknown>) {
+  const accuracyFocus = normalizedEditorialMode(parameters, "fokusAkurasi", "ketat");
+  const languageStyle = normalizedEditorialMode(parameters, "gayaBahasaNaskah", "natural-jelas");
+  const dalilStrategy = normalizedEditorialMode(parameters, "strategiDalil", "sangat-relevan");
+  const editorNote = String(parameters.catatanEditor ?? "").trim();
+
+  const accuracyRule =
+    accuracyFocus === "maksimal"
+      ? "- Akurasi isi wajib sangat ketat. Jangan menambah kisah, data sejarah, sebab nuzul, faedah fiqih, atau klaim keutamaan yang tidak benar-benar aman dari dalil yang tersedia.\n- Jika detail tertentu tidak tersedia atau tidak pasti, jangan berspekulasi. Pilih redaksi yang jujur, aman, dan tetap enak didengar."
+      : "- Akurasi isi wajib dijaga. Hindari klaim yang terlalu rinci jika dalil atau konteksnya tidak benar-benar mendukung.\n- Jangan menisbatkan ayat, hadits, makna, atau hukum secara serampangan.";
+
+  const languageRule =
+    languageStyle === "sangat-natural"
+      ? "- Bahasa harus terdengar seperti dai yang matang: natural, hangat, lisan, dan mengalir, tanpa kesan template atau kalimat mesin.\n- Gunakan transisi yang halus, variasi panjang kalimat, dan penjelasan yang mudah dicerna jamaah."
+      : "- Bahasa harus natural, jelas, dan enak dibacakan.\n- Utamakan kalimat yang jernih, langsung, tidak bertele-tele, dan tidak kaku.";
+
+  const dalilRule =
+    dalilStrategy === "sangat-relevan"
+      ? '- Dalil wajib benar-benar melayani tema yang dipilih. Jangan sekadar menempelkan ayat atau hadits umum.\n- Setelah mengutip dalil, jelaskan kaitannya langsung dengan tema utama agar jamaah paham mengapa dalil itu dipakai.'
+      : "- Pilih dan jelaskan dalil yang paling dekat dengan tema.\n- Hindari dalil yang terlalu umum bila ada dalil yang lebih tepat.";
+
+  const editorNoteRule = editorNote ? `- Catatan editor yang wajib diikuti: ${editorNote}` : "";
+
+  return `Standar editorial:
+${accuracyRule}
+${languageRule}
+${dalilRule}
+- Penjelasan harus runtut: pernyataan, dalil, makna, contoh dekat, lalu ajakan amal.
+- Jika menyebut hadits, jangan menaikkan derajat hadits melebihi data retrieval.
+${editorNoteRule}`.trim();
+}
+
 function normalizedDuration(value: unknown) {
   const duration = String(value ?? "sedang").trim().toLowerCase();
   if (duration.includes("pendek")) return "pendek";
@@ -353,13 +397,36 @@ function arabicOnlySecondKhutbahGuidanceFor(jenis: string) {
 - Isi Khutbah Kedua harus memuat hamdalah, shalawat Nabi, wasiat takwa, doa untuk kaum mukminin, dan doa penutup dalam bahasa Arab berharakat.${idulTakbir}`;
 }
 
+export function rhetoricStyleGuidanceFor(parameters: Record<string, unknown>): string {
+  const style = String(parameters.gayaRetorika ?? "").trim().toLowerCase();
+  if (style === "quraish-shihab" || style === "teduh") {
+    return `GAYA RETORIKA: Teduh & Akademik (seperti Prof. Quraish Shihab)
+- Gunakan bahasa yang tenang, mendalam, santun, dan menyejukkan.
+- Fokus pada penjelasan tafsir ayat secara logis, pemaknaan kosakata dalil yang kaya, dan menghindari nada menghakimi/keras.
+- Uraikan pesan dengan penjelasan yang berbobot secara intelektual, mengedepankan kasih sayang (rahmah), toleransi, dan kedamaian batin.`;
+  }
+  if (style === "zainuddin-mz" || style === "komunikatif") {
+    return `GAYA RETORIKA: Praktis & Komunikatif (seperti KH. Zainuddin MZ)
+- Gunakan bahasa yang dinamis, akrab, komunikatif, dan diselingi analogi kehidupan sehari-hari yang sederhana dan mengena.
+- Sampaikan nasihat secara lugas, sesekali gunakan gaya interaksi verbal yang hangat (seperti menyapa jamaah dengan sapaan akrab "hadirin rahimakumullah" atau "saudara-saudaraku yang dirahmati Allah" di tengah naskah untuk menarik perhatian).
+- Berikan pesan praktis yang langsung relevan dengan kehidupan sosial nyata, hubungan suami-istri/anak, dan tetangga.`;
+  }
+  if (style === "buya-hamka" || style === "sastra") {
+    return `GAYA RETORIKA: Sastra & Filosofis (seperti Buya Hamka)
+- Gunakan diksi yang puitis, kaya akan perenungan mendalam (tasawuf ringan), narasi sejarah/hikmah yang mengunggah batin, dan susunan kalimat yang indah serta santun.
+- Hadirkan analogi filosofis tentang kebersihan jiwa, makna hidup, waktu, alam semesta, dan kemuliaan akhlak.
+- Tulis kalimat-kalimat yang mengalir indah, menyentuh batin pembaca/pendengar, dan membangkitkan keinsyafan moral.`;
+  }
+  return "";
+}
+
 export function buildPrompt(jenis: string, parameters: Record<string, unknown>, retrievedDalil?: PromptDalilContext) {
   const label = contentTypeLabels[jenis as ContentType] ?? jenis;
   const tema = topicFromParameters(parameters);
   const thematicDalil = dalilGuidanceFor(jenis, tema);
   const parameterList = Object.entries(parameters)
     .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== "")
-    .map(([key, value]) => `- ${key}: ${String(value)}`)
+    .map(([key, value]) => `- ${editorialParameterLabels[key] ?? key}: ${String(value)}`)
     .join("\n");
 
   return `Tulis ${label} FINAL yang siap dibacakan oleh dai/khatib.
@@ -369,6 +436,10 @@ ${languageGuidanceFor(parameters)}
 ${lengthGuidanceFor(jenis, parameters)}
 
 ${themeAlignmentGuidanceFor(jenis, tema, parameters)}
+
+${rhetoricStyleGuidanceFor(parameters)}
+
+${editorialGuidanceFor(parameters)}
 
 ${retrievedDalilGuidanceFor(retrievedDalil)}
 
@@ -530,7 +601,7 @@ export function matchesTargetLanguage(text: string, languageValue: unknown) {
 }
 
 const hamdalahPattern = /(?:اَلْحَمْدُ|الْحَمْدُ|حَمْدًا|نَحْمَدُ)/;
-const syahadatPattern = /(?:أَشْهَدُ|نَشْهَدُ)[\s\S]{0,160}(?:لَا إِلٰهَ إِلَّا اللهُ|لَا إِلَهَ إِلَّا اللهُ)[\s\S]{0,220}(?:مُحَمَّدًا|مُحَمَّدٌ|مُحَمَّد)/;
+const syahadatPattern = /(?:أَشْهَدُ|اَشْهَدُ|نَشْهَدُ)[\s\S]{0,160}(?:لَا إِلٰهَ إِلَّا اللهُ|لَا إِلَهَ إِلَّا اللهُ)[\s\S]{0,220}(?:مُحَمَّدًا|مُحَمَّدٌ|مُحَمَّد)/;
 const shalawatPattern = /(?:الصَّلَاةُ|الصَّلَاةُ|صَلِّ|صَلِّ|صَلَّى|صَلَّى|صَلُّوا|صَلُّوا|مُحَم|النَّبِي|النَّبِي)/;
 const wasiatTakwaPattern = /(?:أُوْصِي|أُوصِي|اُوْصِي|اِتَّقُوا|اتَّقُوا|اتَّقُوا|فَاتَّقُوا|تَقْو|تَّقْو|بِتَقْو|التَّقْوَى|التَّقْوَى|الْمُتَّق|الْمُتَّق)/;
 const mukmininDoaPattern = /(?:الْمُسْلِمِيْنَ|الْمُسْلِمِينَ|الْمُؤْمِنِيْنَ|الْمُؤْمِنِينَ|الْمُسْلِمَاتِ|الْمُؤْمِنَاتِ)/;
@@ -567,8 +638,26 @@ function collectSections(text: string) {
 }
 
 export function missingRequiredArabicSections(jenis: string, text: string) {
+  if (jenis === "nikah") return missingRequiredNikahRukun(text);
   if (!isKhutbahRukunType(jenis)) return [];
   return missingRequiredKhutbahRukun(jenis, text);
+}
+
+function missingRequiredNikahRukun(text: string) {
+  const pembukaan = sectionText(text, /^\s*(?:Pembukaan|Pembuka|Khutbah Nikah)\s*:?/im, ayatHeaderPattern) || text;
+  const checks: Array<[string, boolean]> = [
+    ["hamdalah_pembukaan", hamdalahPattern.test(pembukaan)],
+    ["syahadat_pembukaan", syahadatPattern.test(pembukaan)],
+    ["shalawat_pembukaan", shalawatPattern.test(pembukaan)],
+    ["wasiat_takwa_pembukaan", wasiatTakwaPattern.test(pembukaan)],
+    ["ayat_al_quran", ayatHeaderPattern.test(text) && arabicPattern.test(sectionText(text, ayatHeaderPattern))],
+    ["hadits", hadithHeaderPattern.test(text) && arabicPattern.test(sectionText(text, hadithHeaderPattern))],
+    ["doa_penutup", doaPenutupHeaderPattern.test(text) || arabicDoaHeaderPattern.test(text) || /^\s*(?:Doa\s+Penutup|Doa)\s*:?\s*$/im.test(text)]
+  ];
+
+  return checks
+    .map(([name, passed]) => (passed ? "" : name))
+    .filter(Boolean);
 }
 
 function isKhutbahRukunType(jenis: string) {
@@ -627,6 +716,11 @@ export function meetsMinimumLength(jenis: string, text: string, parameters: Reco
 }
 
 export function hasSubstantialArabicOpening(jenis: string, text: string) {
+  if (jenis === "nikah") {
+    const opening = sectionText(text, /^\s*(?:Pembukaan|Pembuka|Khutbah Nikah)\s*:?/im, ayatHeaderPattern);
+    const arabicChars = (opening.match(/[\u0600-\u06FF]/g) ?? []).length;
+    return arabicChars >= 120;
+  }
   if (!isKhutbahRukunType(jenis)) return true;
   const khutbahOpening = sectionText(text, khutbahPertamaHeaderPattern, ayatHeaderPattern);
   const arabicChars = (khutbahOpening.match(/[\u0600-\u06FF]/g) ?? []).length;
@@ -634,6 +728,11 @@ export function hasSubstantialArabicOpening(jenis: string, text: string) {
 }
 
 export function hasSubstantialArabicClosingPrayer(jenis: string, text: string) {
+  if (jenis === "nikah") {
+    const closingPrayer = sectionText(text, doaPenutupHeaderPattern) || sectionText(text, /Doa/i);
+    const arabicChars = (closingPrayer.match(/[\u0600-\u06FF]/g) ?? []).length;
+    return arabicChars >= 60;
+  }
   if (!isKhutbahRukunType(jenis)) return true;
   const closingPrayer = sectionText(text, doaPenutupHeaderPattern) || sectionText(text, khutbahKeduaHeaderPattern);
   const arabicChars = (closingPrayer.match(/[\u0600-\u06FF]/g) ?? []).length;
@@ -690,6 +789,7 @@ function hasRequiredIdulArabicSections(jenis: string, text: string) {
 
 export function isGeneratedTextAcceptable(jenis: string, text: string, parameters: Record<string, unknown> = {}) {
   if (!text) return false;
+  if (jenis === "nikah" && missingRequiredNikahRukun(text).length > 0) return false;
   return (
     hasRequiredIdulArabicSections(jenis, text) &&
     hasRequiredKhutbahRukun(jenis, text) &&
@@ -923,7 +1023,7 @@ type ThematicDalilSet = {
   hadith: DalilText[];
 };
 
-const thematicDalilSets: ThematicDalilSet[] = [
+export const thematicDalilSets: ThematicDalilSet[] = [
   {
     label: "shalat, shalat sunah, dan kedekatan kepada Allah",
     keywords: [
@@ -1160,7 +1260,7 @@ const thematicDalilSets: ThematicDalilSet[] = [
   },
   {
     label: "pemuda, masa muda, dan penjagaan diri",
-    keywords: ["pemuda", "remaja", "anak muda", "gen z", "mahasiswa", "pelajar", "masa muda", "pergaulan bebas"],
+    keywords: ["pemuda", "remaja", "anak muda", "gen z", "mahasiswa", "pelajar", "masa muda"],
     ayat: [
       {
         arab: "إِنَّهُمْ فِتْيَةٌ آمَنُوْا بِرَبِّهِمْ وَزِدْنَاهُمْ هُدًى.",
@@ -1173,6 +1273,48 @@ const thematicDalilSets: ThematicDalilSet[] = [
         arab: "سَبْعَةٌ يُظِلُّهُمُ اللهُ فِيْ ظِلِّهِ، وَشَابٌّ نَشَأَ فِيْ عِبَادَةِ رَبِّهِ.",
         arti: "Ada tujuh golongan yang Allah naungi dalam naungan-Nya, di antaranya pemuda yang tumbuh dalam ibadah kepada Rabbnya.",
         rujukan: "HR. Bukhari dan Muslim"
+      }
+    ]
+  },
+  {
+    label: "menjauhi zina, pergaulan bebas, dan menjaga kehormatan",
+    keywords: [
+      "zina",
+      "mendekati zina",
+      "pergaulan bebas",
+      "seks bebas",
+      "sex bebas",
+      "pacaran bebas",
+      "khalwat",
+      "ikhtilat",
+      "pornografi",
+      "syahwat",
+      "menjaga kehormatan",
+      "menjaga kemaluan",
+      "menjaga pandangan"
+    ],
+    ayat: [
+      {
+        arab: "وَلَا تَقْرَبُوا الزِّنٰى إِنَّهُ كَانَ فَاحِشَةً وَسَاءَ سَبِيْلًا.",
+        arti: "Janganlah kamu mendekati zina; sesungguhnya zina itu adalah perbuatan keji dan jalan yang buruk.",
+        rujukan: "QS. Al-Isra: 32"
+      },
+      {
+        arab: "قُلْ لِلْمُؤْمِنِيْنَ يَغُضُّوا مِنْ أَبْصَارِهِمْ وَيَحْفَظُوا فُرُوْجَهُمْ ذٰلِكَ أَزْكَى لَهُمْ.",
+        arti: "Katakanlah kepada laki-laki beriman agar mereka menundukkan pandangan dan menjaga kemaluan mereka; yang demikian itu lebih suci bagi mereka.",
+        rujukan: "QS. An-Nur: 30"
+      }
+    ],
+    hadith: [
+      {
+        arab: "لَا يَخْلُوَنَّ رَجُلٌ بِامْرَأَةٍ إِلَّا وَمَعَهَا ذُوْ مَحْرَمٍ.",
+        arti: "Janganlah seorang laki-laki berduaan dengan seorang perempuan kecuali perempuan itu bersama mahramnya.",
+        rujukan: "HR. Bukhari dan Muslim"
+      },
+      {
+        arab: "مَنْ يَضْمَنْ لِيْ مَا بَيْنَ لَحْيَيْهِ وَمَا بَيْنَ رِجْلَيْهِ أَضْمَنْ لَهُ الْجَنَّةَ.",
+        arti: "Siapa yang menjamin untukku apa yang ada di antara dua rahangnya dan apa yang ada di antara dua kakinya, aku menjamin surga baginya.",
+        rujukan: "HR. Bukhari"
       }
     ]
   },
@@ -1607,6 +1749,45 @@ const thematicDalilSets: ThematicDalilSet[] = [
     ]
   },
   {
+    label: "istri shalihah dan pasangan yang meneguhkan iman",
+    keywords: [
+      "istri",
+      "istri shalihah",
+      "istri solehah",
+      "wanita shalihah",
+      "wanita solehah",
+      "perempuan shalihah",
+      "perempuan solehah",
+      "pasangan saleh",
+      "pasangan shalih",
+      "suami istri saleh"
+    ],
+    ayat: [
+      {
+        arab: "فَالصَّالِحَاتُ قَانِتَاتٌ حَافِظَاتٌ لِلْغَيْبِ بِمَا حَفِظَ اللهُ.",
+        arti: "Maka perempuan-perempuan yang saleh adalah yang taat dan menjaga diri ketika tidak ada suaminya karena Allah telah menjaga mereka.",
+        rujukan: "QS. An-Nisa: 34"
+      },
+      {
+        arab: "رَبَّنَا هَبْ لَنَا مِنْ أَزْوَاجِنَا وَذُرِّيَّاتِنَا قُرَّةَ أَعْيُنٍ وَاجْعَلْنَا لِلْمُتَّقِيْنَ إِمَامًا.",
+        arti: "Wahai Tuhan kami, anugerahkanlah kepada kami pasangan-pasangan kami dan keturunan kami sebagai penyejuk mata, dan jadikanlah kami pemimpin bagi orang-orang yang bertakwa.",
+        rujukan: "QS. Al-Furqan: 74"
+      }
+    ],
+    hadith: [
+      {
+        arab: "اَلدُّنْيَا مَتَاعٌ، وَخَيْرُ مَتَاعِ الدُّنْيَا الْمَرْأَةُ الصَّالِحَةُ.",
+        arti: "Dunia adalah perhiasan, dan sebaik-baik perhiasan dunia adalah wanita yang salehah.",
+        rujukan: "HR. Muslim"
+      },
+      {
+        arab: "خَيْرُكُمْ خَيْرُكُمْ لِأَهْلِهِ، وَأَنَا خَيْرُكُمْ لِأَهْلِيْ.",
+        arti: "Sebaik-baik kalian adalah yang paling baik kepada keluarganya, dan aku adalah yang paling baik kepada keluargaku.",
+        rujukan: "HR. Tirmidzi"
+      }
+    ]
+  },
+  {
     label: "menjaga lisan dan akhlak sosial",
     keywords: ["lisan", "bicara", "komunikasi", "musyawarah", "ucapan", "ghibah", "fitnah", "akhlak", "sosial", "tetangga"],
     ayat: [
@@ -1684,20 +1865,33 @@ function isPrayerTheme(tema: string) {
   );
 }
 
+function thematicKeywordScore(normalized: string, tokens: string[], keyword: string) {
+  const normalizedKeyword = normalizedTopic(keyword);
+  const isPhrase = normalizedKeyword.includes(" ");
+
+  if (normalized === normalizedKeyword) return 30;
+  if (normalized.startsWith(`${normalizedKeyword} `) || normalized.startsWith(`${normalizedKeyword} -`)) return 18;
+  if (isPhrase && normalized.includes(normalizedKeyword)) return 14 + normalizedKeyword.split(/\s+/).length;
+  if (!isPhrase && tokens.some((token) => keywordMatchesToken(normalizedKeyword, token))) return 4;
+  return 0;
+}
+
 function matchingThematicDalilSet(jenis: string, tema: string) {
   const normalized = normalizedTopic(tema);
   const tokens = normalized.split(/[^a-z0-9]+/).filter(Boolean);
+  const explicitSexualEthicsTheme =
+    /\b(zina|khalwat|ikhtilat|pornografi|syahwat)\b/i.test(normalized) ||
+    /\b(pergaulan|seks|sex|pacaran)\s+bebas\b/i.test(normalized) ||
+    /\b(menjaga\s+kehormatan|menjaga\s+kemaluan|menjaga\s+pandangan)\b/i.test(normalized);
+  if (explicitSexualEthicsTheme) {
+    const set = thematicDalilSets.find((item) => item.label === "menjauhi zina, pergaulan bebas, dan menjaga kehormatan");
+    if (set) return set;
+  }
 
   let bestMatch: { set: ThematicDalilSet; score: number } | null = null;
 
   for (const set of thematicDalilSets) {
-    const score = set.keywords.reduce((total, keyword) => {
-      const normalizedKeyword = normalizedTopic(keyword);
-      if (normalized === normalizedKeyword) return total + 12;
-      if (normalized.startsWith(`${normalizedKeyword} `) || normalized.startsWith(`${normalizedKeyword} -`)) return total + 8;
-      if (normalizedKeyword.includes(" ")) return normalized.includes(normalizedKeyword) ? total + 6 : total;
-      return tokens.some((token) => keywordMatchesToken(normalizedKeyword, token)) ? total + 4 : total;
-    }, 0);
+    const score = set.keywords.reduce((total, keyword) => total + thematicKeywordScore(normalized, tokens, keyword), 0);
 
     if (score > 0 && (!bestMatch || score > bestMatch.score)) {
       bestMatch = { set, score };
@@ -3905,12 +4099,12 @@ function fallbackGeneralNaskah(
   const ayat = selectedDalil.ayat;
   const hadith = selectedDalil.hadith;
   const doa = pick(khutbahArabicVariants.doaPenutup, seed, 24);
-
   if (jenis === "nikah") {
     const names = coupleNameText(parameters);
     const wedding = weddingCopyFor(language, tema, names);
     const weddingAyat = selectedDalil.ayat;
     const weddingHadith = selectedDalil.hadith;
+    const wasiatTakwa = pick(khutbahArabicVariants.wasiat, seed, 22);
 
     return `${label}
 
@@ -3922,6 +4116,8 @@ ${pembuka}
 ${shalawat}
 
 اَشْهَدُ أَنْ لَا إِلٰهَ إِلَّا اللهُ، وَأَشْهَدُ أَنَّ مُحَمَّدًا رَسُوْلُ اللهِ.
+
+${wasiatTakwa}
 
 ${labels.weddingIntro}
 ${wedding.intro}
@@ -4001,4 +4197,77 @@ export function fallbackNaskah(jenis: string, parameters: Record<string, unknown
   }
 
   return localizeFallback(fallbackGeneralNaskah(jenis, label, bahasa, tema, variationSeed, parameters));
+}
+
+export function injectRetrievedDalil(text: string, retrievedDalil?: PromptDalilContext): string {
+  if (!retrievedDalil) return text;
+
+  const lines = text.split("\n");
+  const resultLines: string[] = [];
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+
+    if (ayatHeaderPattern.test(line)) {
+      resultLines.push(line);
+      i++;
+
+      while (i < lines.length) {
+        const nextLine = lines[i];
+        if (
+          nextLine.trim() === "" ||
+          ayatHeaderPattern.test(nextLine) ||
+          hadithHeaderPattern.test(nextLine) ||
+          /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9'’`: -]{1,80}:?$/.test(nextLine.trim())
+        ) {
+          break;
+        }
+        i++;
+      }
+
+      if (retrievedDalil.quran && retrievedDalil.quran.length > 0) {
+        const quran = retrievedDalil.quran[0];
+        if (quran.arab && quran.translation) {
+          resultLines.push(quran.arab);
+          resultLines.push(`Arti: ${quran.translation} (${quran.reference})`);
+        }
+      }
+      continue;
+    }
+
+    if (hadithHeaderPattern.test(line)) {
+      resultLines.push(line);
+      i++;
+
+      while (i < lines.length) {
+        const nextLine = lines[i];
+        if (
+          nextLine.trim() === "" ||
+          ayatHeaderPattern.test(nextLine) ||
+          hadithHeaderPattern.test(nextLine) ||
+          /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9'’`: -]{1,80}:?$/.test(nextLine.trim())
+        ) {
+          break;
+        }
+        i++;
+      }
+
+      if (retrievedDalil.hadith && retrievedDalil.hadith.length > 0) {
+        const hadith = retrievedDalil.hadith[0];
+        if (hadith.arab && hadith.translation) {
+          resultLines.push(hadith.arab);
+          const gradeInfo = hadith.grade ? ` [Derajat: ${hadith.grade}]` : "";
+          const takhrijInfo = hadith.takhrij ? ` - ${hadith.takhrij}` : "";
+          resultLines.push(`Arti: ${hadith.translation} (${hadith.reference}${gradeInfo}${takhrijInfo})`);
+        }
+      }
+      continue;
+    }
+
+    resultLines.push(line);
+    i++;
+  }
+
+  return resultLines.join("\n");
 }

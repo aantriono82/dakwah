@@ -6,6 +6,7 @@ import {
   type PromptDalilContext,
   type PromptDalilItem
 } from "../utils/content";
+import { classifyThemeSemantically } from "../utils/themeClassifier";
 
 type MyQuranApiEnvelope<T> = {
   status?: boolean;
@@ -495,6 +496,15 @@ function hadithSearchTerms(theme: string, fallback: DalilText) {
 }
 
 function scoreHadithResult(hadith: MyQuranHadith, theme: string, fallback: DalilText) {
+  const grade = (hadith.grade ?? "").toLowerCase();
+  const takhrij = (hadith.takhrij ?? "").toLowerCase();
+  if (
+    /dhaif|dhoif|dha'if|lemah|maudhu|mawdhu|palsu|munkar/i.test(grade) ||
+    /dhaif|dhoif|dha'if|lemah|maudhu|mawdhu|palsu|munkar/i.test(takhrij)
+  ) {
+    return -100;
+  }
+
   const haystack = normalizeSearchText(`${hadith.text?.id ?? ""} ${hadith.hikmah ?? ""} ${hadith.takhrij ?? ""}`);
   const tokens = normalizeSearchText(`${theme} ${fallback.arti}`)
     .split(/\s+/)
@@ -519,6 +529,7 @@ async function fetchHadithItem(theme: string, fallback: DalilText, label: string
     for (const hadith of results) {
       if (!hadith.text?.id && !hadith.text?.ar) continue;
       const score = scoreHadithResult(hadith, theme, fallback);
+      if (score < 0) continue;
       if (!best || score > best.score) best = { hadith, score };
     }
 
@@ -542,9 +553,17 @@ async function fetchHadithItem(theme: string, fallback: DalilText, label: string
 
 export async function retrieveDalilContext(jenis: string, parameters: Record<string, unknown>): Promise<PromptDalilContext> {
   const theme = topicFromParameters(parameters);
-  const selected = selectedDalilFor(jenis, theme, `${jenis}:${theme}`);
-  const curated = findCuratedDalil(theme);
   const warnings: string[] = [];
+
+  let queryTheme = theme;
+  const semanticLabel = await classifyThemeSemantically(theme);
+  if (semanticLabel) {
+    console.info(`[retrieveDalilContext] Tema "${theme}" dipetakan secara semantik ke kategori: "${semanticLabel}"`);
+    queryTheme = semanticLabel;
+  }
+
+  const selected = selectedDalilFor(jenis, queryTheme, `${jenis}:${queryTheme}`);
+  const curated = findCuratedDalil(queryTheme);
 
   if (!isMyQuranEnabled()) {
     const quran = curated.quran ?? localQuranItem(selected.ayat, selected.label);
@@ -562,7 +581,7 @@ export async function retrieveDalilContext(jenis: string, parameters: Record<str
 
   const [quran, hadith] = await Promise.all([
     curated.quran ? Promise.resolve(curated.quran) : fetchQuranItem(selected.ayat.rujukan, selected.ayat, selected.label),
-    curated.hadith ? Promise.resolve(curated.hadith) : fetchHadithItem(theme, selected.hadith, selected.label)
+    curated.hadith ? Promise.resolve(curated.hadith) : fetchHadithItem(queryTheme, selected.hadith, selected.label)
   ]);
 
   if (quran.fallback) warnings.push("Ayat memakai fallback lokal karena rujukan tidak bisa diverifikasi dari myQuran.");

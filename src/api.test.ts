@@ -473,6 +473,33 @@ describe("API naskah, template, generate, and export", () => {
     expect(body.quality.score).toBeGreaterThan(0);
   });
 
+  test("generate refine returns revised draft content with quality payload", async () => {
+    const originalContent =
+      "Ceramah Umum\n\nTema: Menjaga amanah\n\nPembukaan\nJamaah yang dirahmati Allah, amanah adalah titipan yang harus dijaga dalam keluarga, pekerjaan, dan masyarakat.\n\nAllah SWT berfirman dalam AlQuran\nQS. An-Nisa: 58\n\nRasulullah SAW bersabda\nHR. Bukhari dan Muslim\n\nIsi Utama\nAmanah harus dijaga dalam perkataan dan perbuatan agar kehidupan tetap lurus dan membawa keberkahan.";
+
+    const response = await request(
+      "/api/generate/refine",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          jenis: "ceramah",
+          parameters: { bahasa: "Indonesia", topik: "Menjaga amanah", durasi: "pendek" },
+          content: originalContent,
+          instruction: "Perhalus bahasa agar lebih natural dan kuat untuk jamaah."
+        })
+      },
+      userCookie
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.content).toContain("Ceramah Umum");
+    expect(body.content).toContain("Menjaga amanah");
+    expect(body.quality.score).toBeGreaterThan(0);
+    expect(body.quality.wordCount).toBeGreaterThan(0);
+    expect(Array.isArray(body.quality.checks)).toBe(true);
+  });
+
   test("dalil search returns themed quran and hadith context", async () => {
     const response = await request(
       "/api/dalil/search",
@@ -689,6 +716,47 @@ describe("API naskah, template, generate, and export", () => {
     expect(adminDetail.status).toBe(200);
     expect(adminDetailBody.data.user).toMatchObject({ username: "user", role: "user" });
     expect(adminDetailBody.data.user).not.toHaveProperty("passwordHash");
+  });
+
+  test("refine stores custom quick-fix change summary in versions", async () => {
+    const create = await request(
+      "/api/naskah",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Ceramah Fokus Tema",
+          jenis: "ceramah",
+          bahasa: "Indonesia",
+          duration: "sedang",
+          parameters: { bahasa: "Indonesia", topik: "Bahaya judi online pada keluarga muda" },
+          content: "Naskah ceramah tentang bahaya judi online pada keluarga muda dengan isi yang cukup panjang untuk diproses revisi."
+        })
+      },
+      userCookie
+    );
+    const created = await create.json();
+    const naskahId = created.data.id as string;
+
+    const refine = await request(
+      `/api/naskah/${naskahId}/refine`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          instruction: "Perkuat fokus tema agar isi tidak terlalu umum.",
+          changeSummary: "Quick fix: fokus tema"
+        })
+      },
+      userCookie
+    );
+    expect(refine.status).toBe(200);
+
+    const versions = await request(`/api/naskah/${naskahId}/versions`, {}, userCookie);
+    const versionsBody = await versions.json();
+    expect(versions.status).toBe(200);
+    expect(versionsBody.data[0].changeSummary).toBe("Quick fix: fokus tema");
+
+    const cleanup = await request(`/api/naskah/${naskahId}`, { method: "DELETE" }, userCookie);
+    expect(cleanup.status).toBe(200);
   });
 
   test("export returns a document response", async () => {

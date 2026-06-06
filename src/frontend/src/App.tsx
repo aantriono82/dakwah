@@ -1,22 +1,30 @@
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 import {
-  ChevronDown,
-  CircleUserRound,
-  Eye,
-  EyeOff,
-  Github,
-  Heart,
-  LockKeyhole,
-  LogOut,
-  Mail,
-  Moon,
-  RefreshCw,
-  Search,
-  Sun,
-  User as UserIcon,
-  X
-} from "lucide-react";
+  IconChevronDown,
+  IconUser,
+  IconEye,
+  IconEyeOff,
+  IconGithub,
+  IconHeart,
+  IconLock,
+  IconLogout,
+  IconMail,
+  IconMoon,
+  IconRefresh,
+  IconSearch,
+  IconSun,
+  IconX,
+  IconMosque,
+  IconScroll,
+  IconHistory,
+  IconBookmark,
+  IconInfo,
+  IconShield,
+  IconCrescentStar,
+  IconAdmin,
+  IconDakwahLogo,
+} from "./components/icons";
 import { Badge, Button, Card, IconButton, Input } from "./components/ui";
 import { Admin } from "./pages/Admin";
 import { Dashboard } from "./pages/Dashboard";
@@ -26,7 +34,7 @@ import { Templates } from "./pages/Templates";
 import { api, cn, jenisOptions, type JenisId } from "./lib/utils";
 import type { Naskah, Template, User } from "./types";
 
-type TabId = "home" | "about" | "generate" | "history" | "templates" | "admin" | "disclaimer";
+type TabId = "home" | "about" | "generate" | "history" | "templates" | "admin" | "disclaimer" | "more";
 type CaptchaChallenge = { token: string; question: string; noise: Array<{ left: number; top: number; width: number; rotate: number }> };
 
 const authCardClass =
@@ -55,7 +63,8 @@ const tabPathById: Record<Exclude<TabId, "generate">, string> = {
   history: "/riwayat",
   templates: "/templates",
   admin: "/admin",
-  disclaimer: "/disclaimer"
+  disclaimer: "/disclaimer",
+  more: "/lainnya"
 };
 
 function routeFromPath(pathname: string): { tab: TabId; jenis?: JenisId } {
@@ -69,6 +78,7 @@ function routeFromPath(pathname: string): { tab: TabId; jenis?: JenisId } {
   if (normalizedPath === "/templates") return { tab: "templates" };
   if (normalizedPath === "/admin") return { tab: "admin" };
   if (normalizedPath === "/disclaimer") return { tab: "disclaimer" };
+  if (normalizedPath === "/lainnya" || normalizedPath === "/more") return { tab: "more" };
 
   return { tab: "home" };
 }
@@ -150,6 +160,12 @@ export function App() {
 
   const clearTemplate = useCallback(() => setTemplateToUse(null), []);
 
+  const handleLogout = useCallback(async () => {
+    await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => null);
+    setShowAccountPanel(false);
+    setUser(null);
+  }, []);
+
   if (authLoading) return <ShellLoader />;
   if (!user) return <Login onLogin={setUser} dark={dark} setDark={setDark} />;
 
@@ -173,11 +189,7 @@ export function App() {
         setNaskahSearch(item.title);
         openTab("history");
       }}
-      onLogout={async () => {
-        await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => null);
-        setShowAccountPanel(false);
-        setUser(null);
-      }}
+      onLogout={handleLogout}
     >
       {activeTab === "home" && <Dashboard user={user} onCreate={openGenerate} />}
       {activeTab === "about" && (
@@ -214,7 +226,119 @@ export function App() {
           ]}
         />
       )}
+      {activeTab === "more" && (
+        <MoreMenuPanel
+          user={user}
+          setActiveTab={setActiveTab}
+          onLogout={handleLogout}
+        />
+      )}
     </MainLayout>
+  );
+}
+
+function MoreMenuPanel({
+  user,
+  setActiveTab,
+  onLogout
+}: {
+  user: User;
+  setActiveTab: (tab: TabId) => void;
+  onLogout: () => void;
+}) {
+  return (
+    <div className="mx-auto w-full max-w-md py-6">
+      <Card className="p-4">
+        {/* User Info header */}
+        <div className="flex items-center gap-3 border-b border-border pb-4 mb-4">
+          <div className="grid size-12 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
+            <IconUser className="size-8" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold text-lg">{user.name}</p>
+            <p className="truncate text-sm text-muted-foreground">{user.username}</p>
+          </div>
+          <Badge className={cn(user.role === "admin" && "border-primary/30 bg-primary/10 text-primary")}>
+            {user.role}
+          </Badge>
+        </div>
+
+        {/* Menu Items */}
+        <div className="grid gap-2">
+          <button
+            onClick={() => setActiveTab("templates")}
+            className="flex items-center gap-4 w-full rounded-lg p-3 text-left transition hover:bg-accent text-foreground"
+            type="button"
+          >
+            <div className="grid size-10 place-items-center rounded-full bg-indigo-500/10 text-indigo-500">
+              <IconBookmark className="size-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">Template Naskah</p>
+              <p className="text-xs text-muted-foreground truncate font-normal">Kelola dan gunakan template favorit Anda</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("about")}
+            className="flex items-center gap-4 w-full rounded-lg p-3 text-left transition hover:bg-accent text-foreground"
+            type="button"
+          >
+            <div className="grid size-10 place-items-center rounded-full bg-emerald-500/10 text-emerald-500">
+              <IconInfo className="size-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">Tentang Aplikasi</p>
+              <p className="text-xs text-muted-foreground truncate font-normal">Informasi umum mengenai platform Dakwah</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("disclaimer")}
+            className="flex items-center gap-4 w-full rounded-lg p-3 text-left transition hover:bg-accent text-foreground"
+            type="button"
+          >
+            <div className="grid size-10 place-items-center rounded-full bg-amber-500/10 text-amber-500">
+              <IconShield className="size-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">Disclaimer</p>
+              <p className="text-xs text-muted-foreground truncate font-normal">Batasan tanggung jawab penggunaan AI</p>
+            </div>
+          </button>
+
+          {user.role === "admin" && (
+            <button
+              onClick={() => setActiveTab("admin")}
+              className="flex items-center gap-4 w-full rounded-lg p-3 text-left transition hover:bg-accent text-foreground"
+              type="button"
+            >
+              <div className="grid size-10 place-items-center rounded-full bg-blue-500/10 text-blue-500">
+                <IconAdmin className="size-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm">Buka Admin</p>
+                <p className="text-xs text-muted-foreground truncate font-normal">Panel kelola pengguna dan statistik</p>
+              </div>
+            </button>
+          )}
+
+          <button
+            onClick={onLogout}
+            className="flex items-center gap-4 w-full rounded-lg p-3 text-left transition hover:bg-accent text-destructive"
+            type="button"
+          >
+            <div className="grid size-10 place-items-center rounded-full bg-destructive/10 text-destructive">
+              <IconLogout className="size-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">Keluar</p>
+              <p className="text-xs text-destructive/80 truncate font-normal">Keluar dari sesi akun saat ini</p>
+            </div>
+          </button>
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -281,7 +405,7 @@ function Login({
           type="button"
           aria-label="Tutup"
         >
-          <X className="size-6" />
+          <IconX className="size-6" />
         </button>
       )}
       <div className="mb-7 text-center">
@@ -310,7 +434,7 @@ function Login({
           </span>
         </SocialLoginButton>
         <SocialLoginButton label="GitHub" onClick={() => showSocialLoginNotice("GitHub")}>
-          <Github className="size-9 text-foreground" />
+          <IconGithub className="size-9 text-foreground" />
         </SocialLoginButton>
       </div>
 
@@ -324,7 +448,7 @@ function Login({
 
       <form onSubmit={submit} className="grid gap-4">
         <label className="relative block">
-          <Mail className="pointer-events-none absolute left-5 top-1/2 size-6 -translate-y-1/2 text-muted-foreground" />
+          <IconMail className="pointer-events-none absolute left-5 top-1/2 size-6 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="h-16 rounded-md px-5 pl-16 text-lg"
             value={username}
@@ -334,7 +458,7 @@ function Login({
           />
         </label>
         <label className="relative block">
-          <LockKeyhole className="pointer-events-none absolute left-5 top-1/2 size-6 -translate-y-1/2 text-muted-foreground" />
+          <IconLock className="pointer-events-none absolute left-5 top-1/2 size-6 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="h-16 rounded-md px-5 pl-16 pr-16 text-lg"
             type={showPassword ? "text" : "password"}
@@ -349,7 +473,7 @@ function Login({
             type="button"
             aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
           >
-            {showPassword ? <EyeOff className="size-6" /> : <Eye className="size-6" />}
+            {showPassword ? <IconEyeOff className="size-6" /> : <IconEye className="size-6" />}
           </button>
         </label>
         <button
@@ -423,7 +547,7 @@ function Login({
     >
       <div className="absolute right-4 top-4">
         <IconButton onClick={() => setDark(!dark)} aria-label="Ganti tema">
-          {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          {dark ? <IconSun className="size-4" /> : <IconMoon className="size-4" />}
         </IconButton>
       </div>
       {content}
@@ -464,7 +588,7 @@ function ForgotPasswordPanel({ onBack }: { onBack: () => void }) {
 
       <form className="mt-7 grid gap-4" onSubmit={submit}>
         <label className="relative block">
-          <Mail className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
+          <IconMail className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
             placeholder="E-mail"
@@ -534,7 +658,7 @@ function ResetPasswordPanel({ token, onBack, onSuccess }: { token: string; onBac
 
       <form className="mt-7 grid gap-4" onSubmit={submit}>
         <label className="relative block">
-          <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
+          <IconLock className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 pr-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
             placeholder="Kata sandi baru"
@@ -551,11 +675,11 @@ function ResetPasswordPanel({ token, onBack, onSuccess }: { token: string; onBac
             type="button"
             aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
           >
-            {showPassword ? <Eye className="size-5" /> : <EyeOff className="size-5" />}
+            {showPassword ? <IconEye className="size-5" /> : <IconEyeOff className="size-5" />}
           </button>
         </label>
         <label className="relative block">
-          <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
+          <IconLock className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
             placeholder="Ulangi kata sandi baru"
@@ -645,13 +769,13 @@ function RegisterPanel({
       <div className="text-center">
         <h1 className="text-2xl font-black tracking-normal text-foreground sm:text-3xl">Daftar</h1>
         <div className="mx-auto mt-5 grid size-14 place-items-center rounded-full bg-muted text-muted-foreground shadow-inner ring-4 ring-border sm:mt-6 sm:size-16">
-          <CircleUserRound className="size-10 sm:size-12" strokeWidth={1.8} />
+          <IconUser className="size-10 sm:size-12" />
         </div>
       </div>
 
       <form className="mt-6 grid gap-4 sm:mt-7" onSubmit={submit}>
         <label className="relative block">
-          <UserIcon className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
+          <IconUser className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
             placeholder="Nama"
@@ -662,7 +786,7 @@ function RegisterPanel({
           />
         </label>
         <label className="relative block">
-          <Mail className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
+          <IconMail className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
             placeholder="E-mail"
@@ -674,7 +798,7 @@ function RegisterPanel({
           />
         </label>
         <label className="relative block">
-          <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
+          <IconLock className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 pr-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
             placeholder="Kata sandi"
@@ -691,7 +815,7 @@ function RegisterPanel({
             type="button"
             aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
           >
-            {showPassword ? <Eye className="size-5" /> : <EyeOff className="size-5" />}
+            {showPassword ? <IconEye className="size-5" /> : <IconEyeOff className="size-5" />}
           </button>
         </label>
 
@@ -725,7 +849,7 @@ function RegisterPanel({
               aria-label="Ganti captcha"
               title="Ganti captcha"
             >
-              <RefreshCw className="size-4" />
+              <IconRefresh className="size-4" />
             </button>
           </div>
           <Input
@@ -868,12 +992,17 @@ function MainLayout({
     : [];
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
+    <div className="flex min-h-screen flex-col bg-background text-foreground pb-20 lg:pb-0">
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur lg:py-0">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 lg:h-24">
-          <button className="text-left" onClick={() => setActiveTab("home")}>
-            <p className="text-2xl font-black tracking-normal text-primary">Dakwah</p>
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Naskah Dakwah</p>
+          <button className="flex items-center gap-2.5 text-left" onClick={() => setActiveTab("home")}>
+            <span className="inline-flex size-9 items-center justify-center rounded-lg bg-primary text-white shadow-sm">
+              <IconDakwahLogo className="size-5" />
+            </span>
+            <div>
+              <p className="text-2xl font-black tracking-normal text-primary">Dakwah</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Naskah Dakwah</p>
+            </div>
           </button>
 
           <nav className="hidden items-center gap-6 lg:flex">
@@ -892,7 +1021,7 @@ function MainLayout({
             <DesktopTab active={activeTab === "templates"} onClick={() => setActiveTab("templates")} label="Template" />
             <DesktopTab active={activeTab === "disclaimer"} onClick={() => setActiveTab("disclaimer")} label="Disclaimer" />
             <div className="relative w-44 xl:w-56">
-              <Search className="pointer-events-none absolute inset-y-0 left-3 my-auto size-4 text-muted-foreground" />
+              <IconSearch className="pointer-events-none absolute inset-y-0 left-3 my-auto size-4 text-muted-foreground" />
               <input
                 className="h-10 w-full rounded-md border border-input bg-background px-3 pl-9 text-sm outline-none ring-offset-background transition placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
                 value={naskahSearch}
@@ -927,11 +1056,11 @@ function MainLayout({
 
           <div className="hidden items-center gap-2 lg:flex">
             <IconButton onClick={() => setDark(!dark)} aria-label="Ganti tema">
-              {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+              {dark ? <IconSun className="size-4" /> : <IconMoon className="size-4" />}
             </IconButton>
             <div className="relative">
               <IconButton type="button" onClick={onToggleAccountPanel} aria-label={`Akun ${user.name}`} title={user.name}>
-                <CircleUserRound className="size-5" />
+                <IconUser className="size-5" />
               </IconButton>
               {showAccountPanel && <AccountPanel user={user} setActiveTab={setActiveTab} onClose={onCloseAccountPanel} onLogout={onLogout} />}
             </div>
@@ -939,36 +1068,92 @@ function MainLayout({
 
           <div className="flex items-center gap-2 lg:hidden">
             <IconButton onClick={() => setDark(!dark)} aria-label="Ganti tema">
-              {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+              {dark ? <IconSun className="size-4" /> : <IconMoon className="size-4" />}
             </IconButton>
             <div className="relative">
               <IconButton type="button" onClick={onToggleAccountPanel} aria-label={`Akun ${user.name}`} title={user.name}>
-                <CircleUserRound className="size-4" />
+                <IconUser className="size-4" />
               </IconButton>
               {showAccountPanel && <AccountPanel user={user} setActiveTab={setActiveTab} onClose={onCloseAccountPanel} onLogout={onLogout} />}
             </div>
           </div>
         </div>
-        <nav className="mx-auto mt-3 flex max-w-7xl gap-2 overflow-x-auto lg:hidden">
-          <MobileTab active={activeTab === "home"} onClick={() => setActiveTab("home")} label="Home" />
-          <MobileTab active={activeTab === "about"} onClick={() => setActiveTab("about")} label="About" />
-          {khutbahItems.map((item) => (
-            <MobileTab
-              key={item.jenis}
-              active={activeTab === "generate" && activeJenis === item.jenis}
-              onClick={() => onOpenGenerate(item.jenis)}
-              label={item.label}
-            />
-          ))}
-          <MobileTab active={activeTab === "generate" && activeJenis === "ceramah"} onClick={() => onOpenGenerate("ceramah")} label="Ceramah" />
-          <MobileTab active={activeTab === "generate" && activeJenis === "kultum"} onClick={() => onOpenGenerate("kultum")} label="Kultum" />
-          <MobileTab active={activeTab === "history"} onClick={() => setActiveTab("history")} label="Riwayat" />
-          <MobileTab active={activeTab === "templates"} onClick={() => setActiveTab("templates")} label="Template" />
-          <MobileTab active={activeTab === "disclaimer"} onClick={() => setActiveTab("disclaimer")} label="Disclaimer" />
-        </nav>
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 lg:py-0">{children}</main>
       <FooterCredit />
+
+      {/* Bottom Navigation for Mobile */}
+      <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/90 pb-safe backdrop-blur-md lg:hidden">
+        <div className="flex h-16 items-center justify-around">
+          {/* Beranda - Emerald */}
+          <button
+            onClick={() => setActiveTab("home")}
+            className="flex flex-col items-center justify-center flex-1 py-1 gap-1 text-[10px] font-medium transition-all duration-200"
+            type="button"
+          >
+            <div className={cn(
+              "flex items-center justify-center size-10 rounded-full transition-all duration-200",
+              activeTab === "home"
+                ? "bg-emerald-500/10 text-emerald-600 scale-105"
+                : "bg-transparent text-muted-foreground"
+            )}>
+              <IconMosque className="size-5" />
+            </div>
+            <span className={activeTab === "home" ? "font-semibold text-emerald-600" : "text-muted-foreground"}>Beranda</span>
+          </button>
+
+          {/* Buat - Indigo */}
+          <button
+            onClick={() => onOpenGenerate(activeJenis)}
+            className="flex flex-col items-center justify-center flex-1 py-1 gap-1 text-[10px] font-medium transition-all duration-200"
+            type="button"
+          >
+            <div className={cn(
+              "flex items-center justify-center size-10 rounded-full transition-all duration-200",
+              activeTab === "generate"
+                ? "bg-indigo-500/10 text-indigo-500 scale-105"
+                : "bg-transparent text-muted-foreground"
+            )}>
+              <IconScroll className="size-5" />
+            </div>
+            <span className={activeTab === "generate" ? "font-semibold text-indigo-500" : "text-muted-foreground"}>Buat</span>
+          </button>
+
+          {/* Riwayat - Amber */}
+          <button
+            onClick={() => setActiveTab("history")}
+            className="flex flex-col items-center justify-center flex-1 py-1 gap-1 text-[10px] font-medium transition-all duration-200"
+            type="button"
+          >
+            <div className={cn(
+              "flex items-center justify-center size-10 rounded-full transition-all duration-200",
+              activeTab === "history"
+                ? "bg-amber-500/10 text-amber-500 scale-105"
+                : "bg-transparent text-muted-foreground"
+            )}>
+              <IconHistory className="size-5" />
+            </div>
+            <span className={activeTab === "history" ? "font-semibold text-amber-500" : "text-muted-foreground"}>Riwayat</span>
+          </button>
+
+          {/* Lainnya - Blue */}
+          <button
+            onClick={() => setActiveTab("more")}
+            className="flex flex-col items-center justify-center flex-1 py-1 gap-1 text-[10px] font-medium transition-all duration-200"
+            type="button"
+          >
+            <div className={cn(
+              "flex items-center justify-center size-10 rounded-full transition-all duration-200",
+              activeTab === "more"
+                ? "bg-blue-500/10 text-blue-500 scale-105"
+                : "bg-transparent text-muted-foreground"
+            )}>
+              <IconCrescentStar className="size-5" />
+            </div>
+            <span className={activeTab === "more" ? "font-semibold text-blue-500" : "text-muted-foreground"}>Lainnya</span>
+          </button>
+        </div>
+      </nav>
     </div>
   );
 }
@@ -977,7 +1162,7 @@ function FooterCredit() {
   return (
     <footer className="flex flex-wrap items-center justify-center gap-1.5 border-t border-border bg-muted/30 px-6 py-6 text-center text-xs text-muted-foreground">
       <span>Dakwah &copy; 2026. Dibuat dengan</span>
-      <Heart className="size-3.5 fill-[#800020] text-[#800020]" aria-label="cinta" />
+      <IconHeart className="size-3.5 fill-[#800020] text-[#800020]" aria-label="cinta" />
       <span>oleh Aan Triono.</span>
     </footer>
   );
@@ -998,7 +1183,7 @@ function AccountPanel({
     <div className="absolute right-0 top-full z-30 mt-2 w-72 rounded-lg border border-border bg-card p-4 text-left text-card-foreground shadow-xl">
       <div className="flex items-start gap-3">
         <div className="grid size-11 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
-          <CircleUserRound className="size-7" />
+          <IconUser className="size-7" />
         </div>
         <div className="min-w-0">
           <p className="truncate font-semibold">{user.name}</p>
@@ -1019,8 +1204,30 @@ function AccountPanel({
             Buka Admin
           </Button>
         )}
-        <Button className="h-10 justify-start bg-secondary text-secondary-foreground" onClick={onLogout} type="button">
-          <LogOut className="size-4" />
+        <Button
+          className="h-10 justify-start bg-secondary text-secondary-foreground"
+          onClick={() => {
+            setActiveTab("about");
+            onClose();
+          }}
+          type="button"
+        >
+          <IconInfo className="size-4 mr-2" />
+          Tentang Aplikasi
+        </Button>
+        <Button
+          className="h-10 justify-start bg-secondary text-secondary-foreground"
+          onClick={() => {
+            setActiveTab("disclaimer");
+            onClose();
+          }}
+          type="button"
+        >
+          <IconShield className="size-4 mr-2" />
+          Disclaimer
+        </Button>
+        <Button className="h-10 justify-start bg-secondary/80 text-secondary-foreground" onClick={onLogout} type="button">
+          <IconLogout className="size-4 mr-2" />
           Keluar
         </Button>
       </div>
@@ -1069,7 +1276,7 @@ function DesktopDropdown({
         type="button"
       >
         {label}
-        <ChevronDown className="size-3" />
+        <IconChevronDown className="size-3" />
       </button>
       <div className="invisible absolute left-0 top-full w-44 translate-y-2 border border-border bg-card p-1 opacity-0 shadow-lg transition group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
         {children}

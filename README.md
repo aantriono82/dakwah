@@ -107,6 +107,32 @@ UI_SMOKE_SCREENSHOT_DIR=/tmp/dakwah-ui-smoke \
 bun run qa:ui
 ```
 
+Smoke test UI saat ini juga memverifikasi flow quick fix:
+- `Riwayat` menampilkan tombol quick fix saat quality guard mendeteksi masalah editorial.
+- Klik `Perbaiki fokus tema` membuat versi baru dengan label `Quick fix: fokus tema`.
+- Halaman `Generate` dapat menjalankan quick fix draft tanpa harus menyimpan naskah terlebih dahulu.
+
+Screenshot utama yang perlu dicek:
+- `history-quick-fix-before.png`
+- `history-quick-fix-after.png`
+- `generate-quick-fix-before.png`
+- `generate-quick-fix-after.png`
+
+Jika ingin menjalankan smoke test pada build production lokal yang terpisah:
+
+```bash
+bun run build
+PORT=3021 bun dist/server/index.js
+UI_SMOKE_URL=http://localhost:3021 bun run qa:ui
+```
+
+Troubleshooting QA:
+- Jika provider AI seperti Gemini/OpenAI kena quota, smoke test quick fix masih bisa lolos karena backend akan fallback ke konten saat ini. Dalam kondisi itu, yang divalidasi adalah wiring UI, request API, status loading, pesan sukses/error, snapshot versi, dan panel quality.
+- Jika `PORT=3021` sudah dipakai proses lain, gunakan port lain lalu samakan nilai `UI_SMOKE_URL`.
+- Jika screenshot tidak muncul, cek apakah Chrome headless tersedia di `google-chrome`. Override dengan `UI_SMOKE_CHROME_PATH` jika binary ada di lokasi lain.
+- Jika login smoke test gagal, pastikan akun seed masih sesuai atau override `UI_SMOKE_USERNAME` dan `UI_SMOKE_PASSWORD`.
+- Jika flow quick fix gagal muncul di UI, cek kembali data smoke: quick fix hanya tampil bila `qualityReport` memang memiliki warning editorial/dalil/bahasa yang relevan.
+
 ## Konfigurasi Environment
 
 Variabel penting:
@@ -195,6 +221,8 @@ Semua endpoint berada di bawah `/api`.
 | `GET` | `/api/auth/me` | User aktif |
 | `POST` | `/api/generate` | Generate non-streaming |
 | `POST` | `/api/generate/stream` | Generate streaming |
+| `POST` | `/api/generate/review` | Hitung quality report untuk draft hasil generate |
+| `POST` | `/api/generate/refine` | Revisi draft hasil generate tanpa menyimpan ke riwayat |
 | `GET` | `/api/dalil/search?jenis=ceramah&tema=Sabar` | Cek retrieval dalil tematik |
 | `POST` | `/api/dalil/search` | Cek retrieval dalil dengan body `{ jenis, parameters }` |
 | `GET` | `/api/naskah` | Riwayat naskah |

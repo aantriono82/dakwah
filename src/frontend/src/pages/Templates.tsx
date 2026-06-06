@@ -1,4 +1,4 @@
-import { Search, SendToBack, Trash2 } from "lucide-react";
+import { IconSearch, IconSendToBack, IconTrash } from "../components/icons";
 import { useEffect, useState } from "react";
 import { EmptyState } from "../components/EmptyState";
 import { Badge, Button, Card, IconButton, Input, Notice } from "../components/ui";
@@ -52,7 +52,7 @@ export function Templates({ onUse }: { onUse: (template: Template) => void }) {
           </p>
         </div>
         <div className="relative w-full md:w-80">
-          <Search className="pointer-events-none absolute inset-y-0 left-3 my-auto size-4 text-muted-foreground" />
+          <IconSearch className="pointer-events-none absolute inset-y-0 left-3 my-auto size-4 text-muted-foreground" />
           <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari template" />
         </div>
       </div>
@@ -69,7 +69,7 @@ export function Templates({ onUse }: { onUse: (template: Template) => void }) {
                 </div>
               </div>
               <IconButton onClick={() => remove(item.id)} aria-label="Hapus template">
-                <Trash2 className="size-4" />
+                <IconTrash className="size-4" />
               </IconButton>
             </div>
             <dl className="mt-4 grid gap-2 text-sm">
@@ -81,7 +81,7 @@ export function Templates({ onUse }: { onUse: (template: Template) => void }) {
               ))}
             </dl>
             <Button className="mt-4 w-full bg-secondary text-secondary-foreground" onClick={() => onUse(item)}>
-              <SendToBack className="size-4" />
+              <IconSendToBack className="size-4" />
               Pakai template
             </Button>
           </Card>

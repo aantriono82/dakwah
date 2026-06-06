@@ -6,6 +6,7 @@ import {
   hasContextLeak,
   hasSubstantialArabicClosingPrayer,
   hasSubstantialArabicOpening,
+  injectRetrievedDalil,
   isGeneratedTextAcceptable,
   matchesTargetLanguage,
   meetsMinimumLength,
@@ -13,10 +14,13 @@ import {
   missingRequiredArabicSections,
   normalizeLanguage,
   type PromptDalilContext,
-  sanitizeGeneratedText
+  rhetoricStyleGuidanceFor,
+  sanitizeGeneratedText,
+  thematicDalilSets
 } from "../utils/content";
 import { qualityReportFor } from "../utils/quality";
 import { retrieveDalilContext } from "./myquran";
+import { registerThemeClassifier } from "../utils/themeClassifier";
 
 const apiKey = process.env.OPENAI_API_KEY;
 const aiProvider = String(process.env.AI_PROVIDER ?? "openai").trim().toLowerCase();
@@ -38,7 +42,7 @@ const client = apiKey ? new OpenAI({ apiKey, baseURL, timeout: requestTimeout })
 const configuredMaxTokens = Number(process.env.OPENAI_MAX_TOKENS ?? 5500);
 const maxTokens = Number.isFinite(configuredMaxTokens) && configuredMaxTokens > 0 ? Math.floor(configuredMaxTokens) : 5500;
 const systemPrompt =
-  "Anda adalah penulis naskah dakwah Islam yang natural, hangat, peka konteks jamaah, dan menulis naskah mimbar yang utuh, bukan ringkasan. Tampilkan hanya naskah final yang siap dibacakan. Ikuti bahasa target dari user untuk semua narasi non-heading. Dilarang menampilkan reasoning, analisis, rencana, komentar proses, catatan model, atau bahasa Inggris. Jangan gunakan Markdown. Gunakan rujukan ayat/hadits secara hati-hati dan jangan mengarang sumber. Semua teks Arab wajib berharakat, khususnya pada mukadimah, syahadat, ayat Al-Qur'an, hadits, penutup khutbah pertama, pembuka khutbah kedua, dan doa.";
+  "Anda adalah penulis naskah dakwah Islam yang natural, hangat, peka konteks jamaah, dan menulis naskah mimbar yang utuh, bukan ringkasan. Tampilkan hanya naskah final yang siap dibacakan. Ikuti bahasa target dari user untuk semua narasi non-heading. Dilarang menampilkan reasoning, analisis, rencana, komentar proses, catatan model, atau bahasa Inggris. Jangan gunakan Markdown. Gunakan rujukan ayat/hadits secara hati-hati dan jangan mengarang sumber. Jangan menambah klaim sejarah, faedah, atau hukum bila tidak benar-benar didukung konteks dan dalil yang tersedia. Semua teks Arab wajib berharakat, khususnya pada mukadimah, syahadat, ayat Al-Qur'an, hadits, penutup khutbah pertama, pembuka khutbah kedua, dan doa.";
 const baseGenerationSettings = {
   temperature: 0.9,
   top_p: 0.95,
@@ -234,7 +238,10 @@ function retryInstruction(jenis: string, parameters: Record<string, unknown>, re
   const arabicOnlySecondInstruction = jenis === "khutbah-jumat" || jenis === "idul-fitri" || jenis === "idul-adha"
     ? ' Setelah heading "Khutbah Kedua" seluruh isi harus hanya teks Arab berharakat sampai akhir naskah; jangan tulis Pesan Praktis, Doa Penutup, Takbir Pembuka Kedua, terjemah, transliterasi, sapaan Indonesia, atau narasi Indonesia di bagian itu. Jika perlu heading doa, gunakan heading Arab "الدُّعَاءُ". Untuk khutbah Idul Fitri/Idul Adha, awali isi Khutbah Kedua langsung dengan takbir Arab 7 kali.'
     : "";
-  return `Ulangi naskah final dari awal. Bahasa target wajib ${targetLanguage}; semua sapaan, transisi, isi, renungan, terjemah/penjelasan ayat-hadits, pesan praktis, dan penutup harus memakai bahasa target tersebut, bukan bahasa Indonesia, kecuali heading struktur standar. Naskah sebelumnya bermasalah: ${reason}. Jangan ringkas; penuhi minimal ${minimumWordCountFor(jenis, parameters)} kata dan buat uraian utama mengalir dalam banyak paragraf. ${retryLengthInstructionFor(jenis)} Wajib ikuti rukun khutbah: hamdalah, shalawat Nabi, dan wasiat takwa harus ada di khutbah pertama dan kedua; syahadat Arab berharakat harus ada di mukadimah khutbah pertama; ayat Al-Qur'an Arab harus ada minimal di salah satu khutbah; doa untuk kaum mukminin harus ada di khutbah kedua.${arabicOnlySecondInstruction} Untuk khutbah Idul Fitri/Idul Adha, khutbah pertama diawali takbir Arab 9 kali dan khutbah kedua diawali takbir Arab 7 kali. Terapkan STYLE PROFILE: dakwah.id sesuai jenis naskah agar pembuka, isi, penutup, dan doa bervariasi, humanis, dan tidak terasa template. Pembuka Arab harus utuh, bukan satu baris pendek. Doa penutup Arab minimal 4-6 kalimat doa berharakat, memuat doa untuk kaum mukminin, dan jangan hanya satu doa pendek. Jangan tampilkan label teknis seperti Rukun 1/2/3/4/5 pada naskah final. Semua teks Arab wajib diberi harakat lengkap (tasykil), tanpa Arab gundul.`;
+  const styleGuidance = rhetoricStyleGuidanceFor(parameters);
+  const styleInstruction = styleGuidance ? `\nIkuti instruksi gaya retorika berikut secara ketat:\n${styleGuidance}` : "";
+
+  return `Ulangi naskah final dari awal. Bahasa target wajib ${targetLanguage}; semua sapaan, transisi, isi, renungan, terjemah/penjelasan ayat-hadits, pesan praktis, dan penutup harus memakai bahasa target tersebut, bukan bahasa Indonesia, kecuali heading struktur standar. Naskah sebelumnya bermasalah: ${reason}. Jangan ringkas; penuhi minimal ${minimumWordCountFor(jenis, parameters)} kata dan buat uraian utama mengalir dalam banyak paragraf. ${retryLengthInstructionFor(jenis)} Wajib ikuti rukun khutbah: hamdalah, shalawat Nabi, dan wasiat takwa harus ada di khutbah pertama dan kedua; syahadat Arab berharakat harus ada di mukadimah khutbah pertama; ayat Al-Qur'an Arab harus ada minimal di salah satu khutbah; doa untuk kaum mukminin harus ada di khutbah kedua.${arabicOnlySecondInstruction} Untuk khutbah Idul Fitri/Idul Adha, khutbah pertama diawali takbir Arab 9 kali dan khutbah kedua diawali takbir Arab 7 kali. Terapkan STYLE PROFILE: dakwah.id sesuai jenis naskah agar pembuka, isi, penutup, dan doa bervariasi, humanis, dan tidak terasa template. Pembuka Arab harus utuh, bukan satu baris pendek. Doa penutup Arab minimal 4-6 kalimat doa berharakat, memuat doa untuk kaum mukminin, dan jangan hanya satu doa pendek. Jangan tampilkan label teknis seperti Rukun 1/2/3/4/5 pada naskah final. Semua teks Arab wajib diberi harakat lengkap (tasykil), tanpa Arab gundul.${styleInstruction}`;
 }
 
 function outlineInstruction(jenis: string, parameters: Record<string, unknown>) {
@@ -296,6 +303,11 @@ function needsDalilRepair(jenis: string, text: string, parameters: Record<string
   );
 }
 
+function needsEditorialRepair(jenis: string, text: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
+  const report = qualityReportFor(jenis, text, parameters, dalilContext);
+  return report.checks.some((item) => !item.passed && (item.id === "template_language" || item.id === "theme_focus_keywords"));
+}
+
 function repairInstructionFor(jenis: string, parameters: Record<string, unknown>, text: string, dalilContext?: PromptDalilContext) {
   const failures = failedQualityDetails(jenis, text, parameters, dalilContext) || "Validasi quality report belum memadai.";
   return `Perbaiki naskah final berikut agar lolos validasi. Kembalikan naskah final lengkap saja.
@@ -311,6 +323,33 @@ Aturan repair:
 - Jangan tampilkan catatan proses, ringkasan, atau Markdown.
 
 Naskah yang perlu diperbaiki:
+${text}`;
+}
+
+function editorialRewriteInstructionFor(jenis: string, parameters: Record<string, unknown>, text: string, dalilContext?: PromptDalilContext) {
+  const report = qualityReportFor(jenis, text, parameters, dalilContext);
+  const editorialFailures =
+    report.checks
+      .filter((item) => !item.passed && (item.id === "template_language" || item.id === "theme_focus_keywords"))
+      .map((item) => `${item.label}: ${item.detail}`)
+      .join("\n") || "Bahasa dan fokus tema belum cukup kuat.";
+  const styleGuidance = rhetoricStyleGuidanceFor(parameters);
+  const styleInstruction = styleGuidance ? `\n- Terapkan gaya retorika berikut:\n${styleGuidance}` : "";
+
+  return `Tulis ulang naskah final berikut agar lebih kuat secara editorial. Kembalikan naskah final lengkap saja.
+
+Masalah editorial:
+${editorialFailures}
+
+Aturan rewrite:
+- Jangan mengganti tema, jenis naskah, struktur wajib, ayat, hadits, referensi, teks Arab, terjemah inti, grade, atau takhrij.
+- Bahasa harus natural, lisan, jelas, dan tidak terasa template.
+- Isi utama harus lebih spesifik melayani tema yang dipilih, bukan nasihat umum yang bisa dipakai untuk tema apa saja.
+- Setelah dalil disebut, jelaskan kaitannya langsung dengan tema dan kondisi jamaah.
+- Pertahankan semua bagian Arab penting tetap berharakat.${styleInstruction}
+- Jangan tampilkan catatan proses, ringkasan perubahan, atau Markdown.
+
+Naskah:
 ${text}`;
 }
 
@@ -457,7 +496,7 @@ async function finalizeOpenAIText(
   dalilContext: PromptDalilContext | undefined,
   traceId: string
 ) {
-  let output = normalizeProviderText(jenis, text, parameters);
+  let output = injectRetrievedDalil(normalizeProviderText(jenis, text, parameters), dalilContext);
 
   if (needsDalilRepair(jenis, output, parameters, dalilContext)) {
     try {
@@ -469,10 +508,33 @@ async function finalizeOpenAIText(
         traceId,
         "quality_repair"
       );
-      const cleanRepair = normalizeProviderText(jenis, repaired, parameters);
+      const cleanRepair = injectRetrievedDalil(normalizeProviderText(jenis, repaired, parameters), dalilContext);
       if (providerTextIsClean(jenis, cleanRepair, parameters)) output = cleanRepair;
     } catch (error) {
       console.warn(`[generateText:${traceId}] model=${modelName} pass=quality_repair_failed message=${providerMessage(error)}`);
+    }
+  }
+
+  if (needsEditorialRepair(jenis, output, parameters, dalilContext)) {
+    try {
+      const editorialRewrite = await createOpenAITextPass(
+        modelName,
+        [...messagesWithOutline(prompt, traceId, outline), { role: "user", content: editorialRewriteInstructionFor(jenis, parameters, output, dalilContext) }],
+        jenis,
+        parameters,
+        traceId,
+        "editorial_rewrite"
+      );
+      const cleanEditorialRewrite = injectRetrievedDalil(normalizeProviderText(jenis, editorialRewrite, parameters), dalilContext);
+      if (
+        providerTextIsClean(jenis, cleanEditorialRewrite, parameters) &&
+        !needsDalilRepair(jenis, cleanEditorialRewrite, parameters, dalilContext) &&
+        !needsEditorialRepair(jenis, cleanEditorialRewrite, parameters, dalilContext)
+      ) {
+        output = cleanEditorialRewrite;
+      }
+    } catch (error) {
+      console.warn(`[generateText:${traceId}] model=${modelName} pass=editorial_rewrite_failed message=${providerMessage(error)}`);
     }
   }
 
@@ -485,8 +547,12 @@ async function finalizeOpenAIText(
       traceId,
       "natural_rewrite"
     );
-    const cleanRewrite = normalizeProviderText(jenis, rewritten, parameters);
-    if (providerTextIsClean(jenis, cleanRewrite, parameters) && !needsDalilRepair(jenis, cleanRewrite, parameters, dalilContext)) {
+    const cleanRewrite = injectRetrievedDalil(normalizeProviderText(jenis, rewritten, parameters), dalilContext);
+    if (
+      providerTextIsClean(jenis, cleanRewrite, parameters) &&
+      !needsDalilRepair(jenis, cleanRewrite, parameters, dalilContext) &&
+      !needsEditorialRepair(jenis, cleanRewrite, parameters, dalilContext)
+    ) {
       output = cleanRewrite;
     }
   } catch (error) {
@@ -516,7 +582,7 @@ async function finalizeGeminiText(
   dalilContext: PromptDalilContext | undefined,
   traceId: string
 ) {
-  let output = normalizeProviderText(jenis, text, parameters);
+  let output = injectRetrievedDalil(normalizeProviderText(jenis, text, parameters), dalilContext);
   const contextualPrompt = `${prompt}\n\nKerangka internal yang wajib diikuti tetapi jangan ditampilkan:\n${outline}`;
 
   if (needsDalilRepair(jenis, output, parameters, dalilContext)) {
@@ -527,17 +593,42 @@ async function finalizeGeminiText(
         jenis,
         parameters
       );
-      const cleanRepair = normalizeProviderText(jenis, geminiTextFromResponse(response), parameters);
+      const cleanRepair = injectRetrievedDalil(normalizeProviderText(jenis, geminiTextFromResponse(response), parameters), dalilContext);
       if (providerTextIsClean(jenis, cleanRepair, parameters)) output = cleanRepair;
     } catch (error) {
       console.warn(`[generateText:${traceId}] provider=gemini model=${modelName} pass=quality_repair_failed message=${providerMessage(error)}`);
     }
   }
 
+  if (needsEditorialRepair(jenis, output, parameters, dalilContext)) {
+    try {
+      const response = await createGeminiCompletion(
+        modelName,
+        `${contextualPrompt}\n\n${editorialRewriteInstructionFor(jenis, parameters, output, dalilContext)}`,
+        jenis,
+        parameters
+      );
+      const cleanEditorialRewrite = injectRetrievedDalil(normalizeProviderText(jenis, geminiTextFromResponse(response), parameters), dalilContext);
+      if (
+        providerTextIsClean(jenis, cleanEditorialRewrite, parameters) &&
+        !needsDalilRepair(jenis, cleanEditorialRewrite, parameters, dalilContext) &&
+        !needsEditorialRepair(jenis, cleanEditorialRewrite, parameters, dalilContext)
+      ) {
+        output = cleanEditorialRewrite;
+      }
+    } catch (error) {
+      console.warn(`[generateText:${traceId}] provider=gemini model=${modelName} pass=editorial_rewrite_failed message=${providerMessage(error)}`);
+    }
+  }
+
   try {
     const response = await createGeminiCompletion(modelName, `${contextualPrompt}\n\n${naturalRewriteInstructionFor(output)}`, jenis, parameters);
-    const cleanRewrite = normalizeProviderText(jenis, geminiTextFromResponse(response), parameters);
-    if (providerTextIsClean(jenis, cleanRewrite, parameters) && !needsDalilRepair(jenis, cleanRewrite, parameters, dalilContext)) output = cleanRewrite;
+    const cleanRewrite = injectRetrievedDalil(normalizeProviderText(jenis, geminiTextFromResponse(response), parameters), dalilContext);
+    if (
+      providerTextIsClean(jenis, cleanRewrite, parameters) &&
+      !needsDalilRepair(jenis, cleanRewrite, parameters, dalilContext) &&
+      !needsEditorialRepair(jenis, cleanRewrite, parameters, dalilContext)
+    ) output = cleanRewrite;
   } catch (error) {
     console.warn(`[generateText:${traceId}] provider=gemini model=${modelName} pass=natural_rewrite_failed message=${providerMessage(error)}`);
   }
@@ -741,19 +832,30 @@ function revisionPrompt(input: {
   currentContent: string;
   instruction: string;
   targetSection?: string;
+  dalilContext?: PromptDalilContext;
 }) {
   const target = input.targetSection ? `\nBagian yang difokuskan: ${input.targetSection}` : "";
+  const dalilLock = input.dalilContext
+    ? `\nDalil yang wajib tetap dipakai dan tidak boleh diganti:
+- Tema dalil: ${input.dalilContext.theme}
+- Ayat: ${input.dalilContext.quran.map((item) => `${item.reference} | ${item.translation}`).join("; ") || "Tidak ada"}
+- Hadits: ${input.dalilContext.hadith.map((item) => `${item.reference} | ${item.translation}`).join("; ") || "Tidak ada"}
+`
+    : "";
   return `Revisi naskah dakwah berikut sesuai instruksi pengguna.
 
 Aturan:
 - Kembalikan naskah final lengkap, bukan catatan perubahan.
 - Pertahankan struktur utama naskah, heading standar, rukun khutbah, ayat, hadits, dan doa yang sudah benar.
 - Jika hanya satu bagian diminta, perbaiki bagian itu tanpa merusak bagian lain.
+- Jangan mengganti tema, jenis naskah, ayat, hadits, referensi, teks Arab, atau terjemah inti kecuali instruksi pengguna secara eksplisit meminta koreksi dalil.
+- Isi hasil revisi harus tetap sesuai parameter dan tema awal.
 - Jangan tampilkan analisis, reasoning, ringkasan perubahan, atau Markdown.
 - Semua teks Arab di bagian penting tetap berharakat.
 
 Jenis naskah: ${input.jenis}${target}
 Instruksi revisi: ${input.instruction}
+${dalilLock}
 
 Parameter:
 ${Object.entries(input.parameters)
@@ -765,12 +867,8 @@ ${input.currentContent}`;
 }
 
 function localRevisionFallback(currentContent: string, instruction: string) {
-  return sanitizeGeneratedText(
-    `${currentContent.trim()}
-
-Catatan penyuntingan:
-Instruksi revisi belum dapat diproses oleh provider AI saat ini. Tinjau naskah di atas dengan arahan berikut sebelum disampaikan: ${instruction.trim()}`
-  );
+  console.warn(`[reviseNaskahContent] provider_failed_all keeping_current_content instruction=${instruction.trim().slice(0, 120)}`);
+  return sanitizeGeneratedText(currentContent);
 }
 
 export async function reviseNaskahContent(input: {
@@ -779,6 +877,7 @@ export async function reviseNaskahContent(input: {
   currentContent: string;
   instruction: string;
   targetSection?: string;
+  dalilContext?: PromptDalilContext;
 }) {
   const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const prompt = revisionPrompt(input);
@@ -788,7 +887,27 @@ export async function reviseNaskahContent(input: {
       try {
         const response = await createGeminiCompletion(modelName, prompt, input.jenis, input.parameters);
         const text = normalizeProviderText(input.jenis, geminiTextFromResponse(response), input.parameters);
-        if (text) return text;
+        if (
+          providerTextIsClean(input.jenis, text, input.parameters) &&
+          !needsDalilRepair(input.jenis, text, input.parameters, input.dalilContext) &&
+          !needsEditorialRepair(input.jenis, text, input.parameters, input.dalilContext)
+        ) return text;
+
+        const retryResponse = await createGeminiCompletion(
+          modelName,
+          `${prompt}\n\n${repairInstructionFor(input.jenis, input.parameters, text, input.dalilContext)}\n\n${editorialRewriteInstructionFor(input.jenis, input.parameters, text, input.dalilContext)}`,
+          input.jenis,
+          input.parameters
+        );
+        const retryText = normalizeProviderText(input.jenis, geminiTextFromResponse(retryResponse), input.parameters);
+        if (
+          providerTextIsClean(input.jenis, retryText, input.parameters) &&
+          !needsDalilRepair(input.jenis, retryText, input.parameters, input.dalilContext) &&
+          !needsEditorialRepair(input.jenis, retryText, input.parameters, input.dalilContext)
+        ) return retryText;
+        console.warn(
+          `[reviseNaskahContent:${traceId}] provider=gemini model=${modelName} invalid_revision reason=${providerTextFailureReason(input.jenis, retryText, input.parameters)}`
+        );
       } catch (error) {
         console.warn(`[reviseNaskahContent:${traceId}] provider=gemini model=${modelName} provider_failed message=${providerMessage(error)}`);
       }
@@ -813,7 +932,36 @@ export async function reviseNaskahContent(input: {
           "revision"
         );
         const text = normalizeProviderText(input.jenis, response.choices[0]?.message.content ?? "", input.parameters);
-        if (text) return text;
+        if (
+          providerTextIsClean(input.jenis, text, input.parameters) &&
+          !needsDalilRepair(input.jenis, text, input.parameters, input.dalilContext) &&
+          !needsEditorialRepair(input.jenis, text, input.parameters, input.dalilContext)
+        ) return text;
+
+        const retryResponse = await createCompletionWithCreditRetry(
+          {
+            model: modelName,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt },
+              { role: "user", content: repairInstructionFor(input.jenis, input.parameters, text, input.dalilContext) },
+              { role: "user", content: editorialRewriteInstructionFor(input.jenis, input.parameters, text, input.dalilContext) },
+              { role: "user", content: variationInstruction(traceId) }
+            ],
+            ...settings
+          },
+          traceId,
+          "revision_repair"
+        );
+        const retryText = normalizeProviderText(input.jenis, retryResponse.choices[0]?.message.content ?? "", input.parameters);
+        if (
+          providerTextIsClean(input.jenis, retryText, input.parameters) &&
+          !needsDalilRepair(input.jenis, retryText, input.parameters, input.dalilContext) &&
+          !needsEditorialRepair(input.jenis, retryText, input.parameters, input.dalilContext)
+        ) return retryText;
+        console.warn(
+          `[reviseNaskahContent:${traceId}] model=${modelName} invalid_revision reason=${providerTextFailureReason(input.jenis, retryText, input.parameters)}`
+        );
       } catch (error) {
         console.warn(`[reviseNaskahContent:${traceId}] model=${modelName} provider_failed message=${providerMessage(error)}`);
       }
@@ -822,3 +970,64 @@ export async function reviseNaskahContent(input: {
 
   return localRevisionFallback(input.currentContent, input.instruction);
 }
+
+async function classifyThemeWithAI(theme: string): Promise<string | null> {
+  const labels = thematicDalilSets.map((set) => set.label);
+  const prompt = `Klasifikasikan tema ceramah/khutbah berikut ke dalam salah satu kategori yang paling relevan dari daftar di bawah ini.
+Tema dari user: "${theme}"
+
+Daftar kategori yang tersedia:
+${labels.map((l) => `- ${l}`).join("\n")}
+
+Aturan:
+- Balas HANYA dengan nama kategori yang tepat dari daftar di atas, persis seperti yang tertulis (case-sensitive).
+- Jangan berikan penjelasan, tanda kutip, atau teks tambahan apa pun.
+- Jika tidak ada kategori yang relevan sama sekali, balas dengan: "tidak-ada"`;
+
+  try {
+    if (aiProvider === "gemini") {
+      if (!geminiApiKey) return null;
+      const modelName = geminiModels[0] || geminiModel;
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 60
+            }
+          })
+        }
+      );
+      if (!response.ok) return null;
+      const data = (await response.json().catch(() => ({}))) as any;
+      const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      if (resultText && labels.includes(resultText)) {
+        return resultText;
+      }
+      return null;
+    } else {
+      if (!client) return null;
+      const modelName = models[0] || model;
+      const response = await client.chat.completions.create({
+        model: modelName,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.1,
+        max_tokens: 60
+      });
+      const resultText = response.choices[0]?.message.content?.trim();
+      if (resultText && labels.includes(resultText)) {
+        return resultText;
+      }
+      return null;
+    }
+  } catch (error) {
+    console.warn("[classifyThemeWithAI] Error classifying theme:", error);
+    return null;
+  }
+}
+
+registerThemeClassifier(classifyThemeWithAI);

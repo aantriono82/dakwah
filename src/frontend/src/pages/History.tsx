@@ -1,10 +1,11 @@
-import { AlertTriangle, CheckCircle2, Copy, Download, FileDown, History as HistoryIcon, Pencil, RotateCcw, Save, Sparkles, Trash2, X } from "lucide-react";
+import { IconCopy, IconDocx, IconDownload, IconFileDown, IconHistory, IconPdf, IconPencil, IconRotateCcw, IconSave, IconSparkles, IconTrash, IconX } from "../components/icons";
 import { useEffect, useState } from "react";
 import { EmptyState } from "../components/EmptyState";
 import { NaskahPreview } from "../components/NaskahPreview";
+import { QualityPanel } from "../components/QualityPanel";
 import { Badge, Button, Card, Field, IconButton, Input, Notice, Select, Textarea } from "../components/ui";
 import { api, cn, downloadBlob, jenisOptions, type JenisId } from "../lib/utils";
-import type { Naskah, NaskahVersion, QualityReport, User } from "../types";
+import type { Naskah, NaskahVersion, User } from "../types";
 
 export function History({ user, initialQuery = "", selectedId = "" }: { user: User; initialQuery?: string; selectedId?: string }) {
   const [items, setItems] = useState<Naskah[]>([]);
@@ -25,6 +26,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
   const [autosaveStatus, setAutosaveStatus] = useState("");
   const [refineInstruction, setRefineInstruction] = useState("");
   const [refining, setRefining] = useState(false);
+  const [quickFixLoading, setQuickFixLoading] = useState<"" | "theme_focus" | "language_flow" | "dalil_alignment">("");
 
   async function load() {
     setLoading(true);
@@ -251,6 +253,42 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
     }
   }
 
+  function quickFixInstruction(fixId: "theme_focus" | "language_flow" | "dalil_alignment") {
+    if (fixId === "theme_focus") {
+      return "Perkuat fokus tema. Buat isi utama lebih spesifik terhadap tema yang dipilih, kurangi nasihat yang terlalu umum, dan jelaskan kaitan dalil dengan realitas jamaah secara lebih langsung.";
+    }
+    if (fixId === "language_flow") {
+      return "Perhalus bahasa naskah. Hilangkan kalimat yang terasa template atau generik, rapikan transisi, dan buat redaksi lebih natural untuk dibacakan.";
+    }
+    return "Rapikan penggunaan dalil. Pertahankan dalil yang ada, pastikan penjelasannya lebih akurat, relevan dengan tema, dan tidak terasa sekadar tempelan.";
+  }
+
+  function quickFixSummary(fixId: "theme_focus" | "language_flow" | "dalil_alignment") {
+    if (fixId === "theme_focus") return "Quick fix: fokus tema";
+    if (fixId === "language_flow") return "Quick fix: bahasa";
+    return "Quick fix: dalil";
+  }
+
+  async function applyQuickFix(fixId: "theme_focus" | "language_flow" | "dalil_alignment") {
+    if (!selected) return;
+    setQuickFixLoading(fixId);
+    setMessage("");
+    try {
+      const data = await api<{ data: Naskah }>(`/api/naskah/${selected.id}/refine`, {
+        method: "POST",
+        body: JSON.stringify({ instruction: quickFixInstruction(fixId), changeSummary: quickFixSummary(fixId) })
+      });
+      setSelected(data.data);
+      setItems((current) => current.map((item) => (item.id === selected.id ? { ...item, ...data.data } : item)));
+      await loadVersions(selected.id);
+      setMessage("Naskah berhasil diperbaiki dan disimpan sebagai versi baru.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Perbaikan naskah gagal.");
+    } finally {
+      setQuickFixLoading("");
+    }
+  }
+
   const selectedLink = selected ? exportLinks[selected.id] || selected.fileUrl || "" : "";
   const normalizedQuery = query.trim().toLowerCase();
   const filteredItems = items.filter((item) => {
@@ -260,7 +298,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
   });
 
   return (
-    <div className="grid gap-6">
+    <div className="grid min-w-0 gap-6">
       <section className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <Badge>Riwayat</Badge>
@@ -271,50 +309,50 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
-      <section className="grid gap-3">
-        <Card className="grid gap-3 p-3">
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Cari judul, isi, bahasa, atau user"
-            aria-label="Cari riwayat"
-          />
-          <Select value={jenisFilter} onChange={(event) => setJenisFilter(event.target.value as "all" | JenisId)} aria-label="Filter jenis naskah">
-            <option value="all">Semua jenis</option>
-            {jenisOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-              </option>
-            ))}
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            {filteredItems.length} dari {items.length} naskah
-          </p>
-        </Card>
-        {loading && <EmptyState text="Memuat riwayat..." />}
-        {filteredItems.map((item) => (
-          <button key={item.id} className="text-left" onClick={() => { setSelected(item); setEditing(false); }}>
-            <Card className={cn("p-4 transition hover:border-primary", selected?.id === item.id && "border-primary")}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{item.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {item.user && user.role === "admin" ? `${item.user.name} - ` : ""}
-                    {new Date(item.createdAt).toLocaleString("id-ID")}
-                  </p>
+      <div className="flex min-w-0 flex-col gap-6 xl:flex-row xl:items-start">
+        <section className="grid min-w-0 gap-3 xl:w-[360px] xl:flex-none">
+          <Card className="grid gap-3 p-3">
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Cari judul, isi, bahasa, atau user"
+              aria-label="Cari riwayat"
+            />
+            <Select value={jenisFilter} onChange={(event) => setJenisFilter(event.target.value as "all" | JenisId)} aria-label="Filter jenis naskah">
+              <option value="all">Semua jenis</option>
+              {jenisOptions.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {filteredItems.length} dari {items.length} naskah
+            </p>
+          </Card>
+          {loading && <EmptyState text="Memuat riwayat..." />}
+          {filteredItems.map((item) => (
+            <button key={item.id} className="block w-full text-left" onClick={() => { setSelected(item); setEditing(false); }}>
+              <Card className={cn("p-4 transition hover:border-primary", selected?.id === item.id && "border-primary")}>
+                <div className="grid gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{item.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {item.user && user.role === "admin" ? `${item.user.name} - ` : ""}
+                      {new Date(item.createdAt).toLocaleString("id-ID")}
+                    </p>
+                  </div>
+                  <Badge className="w-max shrink-0">{item.bahasa}</Badge>
                 </div>
-                <Badge>{item.bahasa}</Badge>
-              </div>
-            </Card>
-          </button>
-        ))}
-        {!loading && items.length === 0 && <EmptyState text="Belum ada riwayat." />}
-        {items.length > 0 && filteredItems.length === 0 && <EmptyState text="Tidak ada naskah yang cocok." />}
-      </section>
-      <section>
+              </Card>
+            </button>
+          ))}
+          {!loading && items.length === 0 && <EmptyState text="Belum ada riwayat." />}
+          {items.length > 0 && filteredItems.length === 0 && <EmptyState text="Tidak ada naskah yang cocok." />}
+        </section>
+        <section className="min-w-0 flex-1">
         {selected ? (
-          <Card className="p-4">
+          <Card className="min-w-0 p-4">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold">{selected.title}</h2>
@@ -328,19 +366,19 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button className="bg-secondary text-secondary-foreground" onClick={() => exportFile(selected.id, "pdf")}>
-                  <FileDown className="size-4" />
+                <Button className="bg-muted text-foreground" onClick={() => exportFile(selected.id, "pdf")}>
+                  <IconPdf className="size-4" />
                   {exporting === "pdf" ? "PDF..." : "PDF"}
                 </Button>
-                <Button className="bg-secondary text-secondary-foreground" onClick={() => exportFile(selected.id, "docx")}>
-                  <Download className="size-4" />
+                <Button className="bg-muted text-foreground" onClick={() => exportFile(selected.id, "docx")}>
+                  <IconDocx className="size-4" />
                   {exporting === "docx" ? "DOCX..." : "DOCX"}
                 </Button>
                 <IconButton onClick={() => startEdit(selected)} aria-label="Edit naskah" disabled={editing || Boolean(exporting)}>
-                  <Pencil className="size-4" />
+                  <IconPencil className="size-4" />
                 </IconButton>
                 <IconButton onClick={() => remove(selected.id)} aria-label="Hapus">
-                  <Trash2 className="size-4" />
+                  <IconTrash className="size-4" />
                 </IconButton>
               </div>
             </div>
@@ -349,7 +387,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
               <div className="mb-4 grid gap-2 rounded-md border border-border p-3 md:grid-cols-[1fr_auto]">
                 <Input value={selectedLink} readOnly aria-label="Link export" />
                 <Button className="bg-secondary text-secondary-foreground" onClick={() => copyLink(selectedLink)}>
-                  <Copy className="size-4" />
+                  <IconCopy className="size-4" />
                   Copy link
                 </Button>
               </div>
@@ -371,21 +409,21 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
                 {autosaveStatus && <p className="text-xs text-muted-foreground">{autosaveStatus}</p>}
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={saveEdit} disabled={savingEdit}>
-                    <Save className="size-4" />
+                    <IconSave className="size-4" />
                     {savingEdit ? "Menyimpan..." : "Simpan perubahan"}
                   </Button>
                   <Button type="button" className="bg-secondary text-secondary-foreground" onClick={cancelEdit} disabled={savingEdit}>
-                    <X className="size-4" />
+                    <IconX className="size-4" />
                     Batal
                   </Button>
                 </div>
               </div>
             ) : (
               <div className="grid gap-4">
-                <QualityPanel report={selected.qualityReport ?? null} />
+                <QualityPanel report={selected.qualityReport ?? null} onQuickFix={applyQuickFix} quickFixLoading={quickFixLoading} />
                 <div className="grid gap-3 rounded-md border border-border bg-muted/20 p-3">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="size-4 text-primary" />
+                    <IconSparkles className="size-4 text-primary" />
                     <p className="text-sm font-medium">Revisi AI</p>
                   </div>
                   <Textarea
@@ -396,7 +434,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
                   />
                   <div>
                     <Button onClick={refineSelected} disabled={refining || Boolean(exporting)}>
-                      <Sparkles className="size-4" />
+                      <IconSparkles className="size-4" />
                       {refining ? "Merevisi..." : "Revisi dan simpan versi"}
                     </Button>
                   </div>
@@ -415,50 +453,6 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
   );
 }
 
-function QualityPanel({ report }: { report: QualityReport | null }) {
-  if (!report) return null;
-  const failedChecks = report.checks.filter((check) => !check.passed);
-
-  return (
-    <div className="grid gap-3 rounded-md border border-border bg-muted/20 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {report.reviewRequired ? <AlertTriangle className="size-4 text-amber-600" /> : <CheckCircle2 className="size-4 text-primary" />}
-          <p className="text-sm font-medium">Quality guard</p>
-        </div>
-        <Badge>Skor {report.score}/100</Badge>
-      </div>
-      <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-        <p>{report.wordCount.toLocaleString("id-ID")} kata</p>
-        <p>{report.reviewRequired ? "Perlu tinjauan khusus sebelum dipakai" : "Tetap tinjau dalil sebelum disampaikan"}</p>
-      </div>
-      {report.metrics?.length ? (
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {report.metrics.map((metric) => (
-            <div key={metric.id} className="rounded-md border border-border bg-background px-3 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold">{metric.label}</p>
-                <Badge>{metric.score}</Badge>
-              </div>
-              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{metric.detail}</p>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {failedChecks.length > 0 && (
-        <div className="grid gap-2">
-          {failedChecks.map((check) => (
-            <div key={check.id} className="rounded-md border border-border bg-background px-3 py-2">
-              <p className="text-xs font-semibold">{check.label}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{check.detail}</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function VersionsPanel({
   versions,
   loading,
@@ -471,7 +465,7 @@ function VersionsPanel({
   return (
     <div className="grid gap-3 rounded-md border border-border bg-muted/20 p-3">
       <div className="flex items-center gap-2">
-        <HistoryIcon className="size-4 text-primary" />
+        <IconHistory className="size-4 text-primary" />
         <p className="text-sm font-medium">Versi naskah</p>
       </div>
       {loading && <p className="text-xs text-muted-foreground">Memuat versi...</p>}
@@ -489,7 +483,7 @@ function VersionsPanel({
               </p>
             </div>
             <Button className="bg-secondary text-secondary-foreground" onClick={() => onRestore(version.id)}>
-              <RotateCcw className="size-4" />
+              <IconRotateCcw className="size-4" />
               Restore
             </Button>
           </div>

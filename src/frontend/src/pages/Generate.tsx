@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { CheckCircle2, ChevronDown, ChevronUp, Copy, Download, Eye, FileDown, FileText, Maximize2, Minimize2, MoveDown, MoveUp, RefreshCcw, Save, ShieldAlert, Sparkles } from "lucide-react";
+import { IconCheckCircle, IconChevronDown, IconChevronUp, IconCopy, IconDocx, IconDownload, IconEye, IconFileDown, IconFileText, IconMaximize, IconMinimize, IconMoveDown, IconMoveUp, IconPdf, IconRotateCcw, IconSave, IconShield, IconSparkles, IconSync } from "../components/icons";
 import { defaultParameters, FormKhutbah } from "../components/FormKhutbah";
 import { JenisCard } from "../components/JenisCard";
 import { NaskahPreview } from "../components/NaskahPreview";
@@ -639,17 +639,17 @@ export function Generate({
       {hasContent && (
         <div className="sticky bottom-3 z-10 flex gap-2 rounded-lg border border-border bg-background/95 p-2 shadow-sm backdrop-blur sm:hidden">
           <Button type="button" className="flex-1 bg-secondary text-secondary-foreground" onClick={() => scrollToPanel(editorPanelRef)}>
-            <FileText className="size-4" />
+            <IconFileText className="size-4" />
             Editor
           </Button>
           {!focusMode && (
             <Button type="button" className="flex-1 bg-secondary text-secondary-foreground" onClick={() => scrollToPanel(previewPanelRef)}>
-              <Eye className="size-4" />
+              <IconEye className="size-4" />
               Preview
             </Button>
           )}
           <Button type="button" className="flex-1 bg-secondary text-secondary-foreground" onClick={() => scrollToPanel(qualityPanelRef)}>
-            <ShieldAlert className="size-4" />
+            <IconShield className="size-4" />
             Quality
           </Button>
         </div>
@@ -680,7 +680,7 @@ export function Generate({
                 onClick={() => setMobileParametersCollapsed((current) => !current)}
                 aria-label={mobileParametersCollapsed ? "Buka parameter" : "Ciutkan parameter"}
               >
-                {mobileParametersCollapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+                {mobileParametersCollapsed ? <IconChevronDown className="size-4" /> : <IconChevronUp className="size-4" />}
               </Button>
             </div>
           </div>
@@ -700,18 +700,18 @@ export function Generate({
                   className="bg-secondary text-secondary-foreground"
                   onClick={() => setMobileParametersCollapsed(false)}
                 >
-                  <ChevronDown className="size-4" />
+                  <IconChevronDown className="size-4" />
                   Buka parameter
                 </Button>
               </div>
               {validationMessage && <Notice tone="error">{validationMessage}</Notice>}
               <div className="grid gap-2 sm:grid-cols-2">
                 <Button onClick={generate} disabled={loading || saving || Boolean(exporting)}>
-                  <RefreshCcw className="size-4" />
-                  {loading ? "Generate..." : "Generate AI"}
+                  <IconSync className={cn("size-4", loading && "animate-spin")} />
+                  {loading ? "Generating..." : "Generate"}
                 </Button>
                 <Button className="bg-secondary text-secondary-foreground" onClick={saveTemplate} disabled={loading || saving || Boolean(exporting)}>
-                  <Save className="size-4" />
+                  <IconSave className="size-4" />
                   Template
                 </Button>
               </div>
@@ -725,11 +725,11 @@ export function Generate({
               {validationMessage && <Notice tone="error" className="mt-4">{validationMessage}</Notice>}
               <div className="mt-5 grid gap-2 sm:grid-cols-2">
                 <Button onClick={generate} disabled={loading || saving || Boolean(exporting)}>
-                  <RefreshCcw className="size-4" />
-                  {loading ? "Generate..." : "Generate AI"}
+                  <IconSync className={cn("size-4", loading && "animate-spin")} />
+                  {loading ? "Generating..." : "Generate"}
                 </Button>
                 <Button className="bg-secondary text-secondary-foreground" onClick={saveTemplate} disabled={loading || saving || Boolean(exporting)}>
-                  <Save className="size-4" />
+                  <IconSave className="size-4" />
                   Template
                 </Button>
               </div>
@@ -746,19 +746,19 @@ export function Generate({
             </Field>
             <div className="flex flex-wrap items-end gap-2">
               <Button onClick={save} disabled={!content || loading || saving || Boolean(exporting)}>
-                <Save className="size-4" />
+                <IconSave className="size-4" />
                 {saving ? "Menyimpan..." : "Simpan"}
               </Button>
-              <Button className="bg-secondary text-secondary-foreground" onClick={() => exportFile("pdf")} disabled={!content || loading || saving || Boolean(exporting)}>
-                <FileDown className="size-4" />
+              <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => exportFile("pdf")} disabled={!content || loading || saving || Boolean(exporting)}>
+                <IconPdf className="size-4" />
                 {exporting === "pdf" ? "PDF..." : "PDF"}
               </Button>
-              <Button className="bg-secondary text-secondary-foreground" onClick={() => exportFile("docx")} disabled={!content || loading || saving || Boolean(exporting)}>
-                <Download className="size-4" />
+              <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => exportFile("docx")} disabled={!content || loading || saving || Boolean(exporting)}>
+                <IconDocx className="size-4" />
                 {exporting === "docx" ? "DOCX..." : "DOCX"}
               </Button>
               <Button className="bg-secondary text-secondary-foreground" onClick={copyExportLink} disabled={!exportUrl || Boolean(exporting)}>
-                <Copy className="size-4" />
+                <IconCopy className="size-4" />
                 Copy link
               </Button>
             </div>
@@ -770,7 +770,7 @@ export function Generate({
           </div>
           {savedNaskahId && (
             <Notice tone="success" className="mb-3 flex items-center gap-2">
-              <CheckCircle2 className="size-4 shrink-0" />
+              <IconCheckCircle className="size-4 shrink-0" />
               <span>{exportUrl ? "Naskah tersimpan. Link export siap disalin." : "Naskah tersimpan. Export PDF/DOCX sudah tersedia."}</span>
             </Notice>
           )}
@@ -778,7 +778,7 @@ export function Generate({
             <div className="mb-3 grid gap-2 rounded-md border border-border p-3 md:grid-cols-[1fr_auto]">
               <Input value={exportUrl} readOnly aria-label="Link export terbaru" />
               <Button className="bg-secondary text-secondary-foreground" onClick={copyExportLink}>
-                <Copy className="size-4" />
+                <IconCopy className="size-4" />
                 Copy link
               </Button>
             </div>
@@ -798,7 +798,7 @@ export function Generate({
                     onClick={() => setFocusMode((current) => !current)}
                     disabled={!hasContent}
                   >
-                    {focusMode ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+                    {focusMode ? <IconMinimize className="size-4" /> : <IconMaximize className="size-4" />}
                     {focusMode ? "Keluar fokus" : "Mode fokus"}
                   </Button>
                   <Button
@@ -806,7 +806,7 @@ export function Generate({
                     onClick={reviewManualDraft}
                     disabled={loading || saving || Boolean(exporting) || reviewingManual || !content.trim()}
                   >
-                    <RefreshCcw className="size-4" />
+                    <IconRotateCcw className="size-4" />
                     {reviewingManual ? "Meninjau..." : "Tinjau ulang"}
                   </Button>
                 </div>
@@ -834,7 +834,7 @@ export function Generate({
                         onClick={copySection}
                         disabled={!activeSection}
                       >
-                        <Copy className="size-4" />
+                        <IconCopy className="size-4" />
                         Salin section
                       </Button>
                       <Button
@@ -843,7 +843,7 @@ export function Generate({
                         onClick={() => moveSection(-1)}
                         disabled={!activeSection || activeSectionIndex <= 0}
                       >
-                        <MoveUp className="size-4" />
+                        <IconMoveUp className="size-4" />
                         Naikkan section
                       </Button>
                       <Button
@@ -852,7 +852,7 @@ export function Generate({
                         onClick={() => moveSection(1)}
                         disabled={!activeSection || activeSectionIndex < 0 || activeSectionIndex >= sectionBlocks.length - 1}
                       >
-                        <MoveDown className="size-4" />
+                        <IconMoveDown className="size-4" />
                         Turunkan section
                       </Button>
                       <Button
@@ -861,7 +861,7 @@ export function Generate({
                         onClick={duplicateSection}
                         disabled={!activeSection}
                       >
-                        <Sparkles className="size-4" />
+                        <IconSparkles className="size-4" />
                         Duplikat section
                       </Button>
                       <Button
@@ -870,7 +870,7 @@ export function Generate({
                         onClick={cleanupSpacing}
                         disabled={!content.trim()}
                       >
-                        <RefreshCcw className="size-4" />
+                        <IconRotateCcw className="size-4" />
                         Rapikan spasi
                       </Button>
                     </div>
@@ -884,7 +884,7 @@ export function Generate({
                         onClick={() => refineActiveSection("polish")}
                         disabled={!activeSection || Boolean(sectionAiLoading)}
                       >
-                        <Sparkles className="size-4" />
+                        <IconSparkles className="size-4" />
                         {sectionAiLoading === "polish" ? "Memproses..." : "Perhalus section"}
                       </Button>
                       <Button
@@ -893,7 +893,7 @@ export function Generate({
                         onClick={() => refineActiveSection("shorten")}
                         disabled={!activeSection || Boolean(sectionAiLoading)}
                       >
-                        <Sparkles className="size-4" />
+                        <IconSparkles className="size-4" />
                         {sectionAiLoading === "shorten" ? "Memproses..." : "Pendekkan section"}
                       </Button>
                       <Button
@@ -902,7 +902,7 @@ export function Generate({
                         onClick={() => refineActiveSection("dalil")}
                         disabled={!activeSection || Boolean(sectionAiLoading)}
                       >
-                        <Sparkles className="size-4" />
+                        <IconSparkles className="size-4" />
                         {sectionAiLoading === "dalil" ? "Memproses..." : "Perkuat dalil"}
                       </Button>
                       <Button
@@ -911,7 +911,7 @@ export function Generate({
                         onClick={() => refineActiveSection("closing")}
                         disabled={!activeSection || Boolean(sectionAiLoading)}
                       >
-                        <Sparkles className="size-4" />
+                        <IconSparkles className="size-4" />
                         {sectionAiLoading === "closing" ? "Memproses..." : "Kuatkan penutup"}
                       </Button>
                     </div>

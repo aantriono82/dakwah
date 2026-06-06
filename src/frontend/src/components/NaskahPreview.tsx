@@ -1,5 +1,5 @@
 import type { RefObject, UIEventHandler } from "react";
-import { FileText } from "lucide-react";
+import { IconFileText } from "./icons";
 import { cn } from "../lib/utils";
 
 const arabicPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;
@@ -50,7 +50,7 @@ export function NaskahPreview({
         </div>
       ) : (
         <div className="flex min-h-[520px] flex-col items-center justify-center gap-3 p-5 text-center text-muted-foreground">
-          <FileText className="size-10" />
+          <IconFileText className="size-10" />
           <p className="max-w-sm text-sm">
             {loading ? "Naskah sedang dihasilkan dan akan tampil bertahap di sini." : "Isi parameter, lalu jalankan generate untuk melihat naskah."}
           </p>
