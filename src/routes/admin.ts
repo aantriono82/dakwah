@@ -1,20 +1,53 @@
 import { Hono } from "hono";
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, like, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../db/client";
-import { naskah, templates, usageEvents, users } from "../db/schema";
+import { curatedDalil, naskah, templates, usageEvents, users } from "../db/schema";
 import { adminRequired, authRequired, isUniqueConstraintError, publicUser, type AppEnv } from "../utils/http";
 import { hashPassword } from "../utils/password";
 
 export const adminRoutes = new Hono<AppEnv>();
 adminRoutes.use("*", authRequired, adminRequired);
 
+const dalilBodySchema = z.object({
+  kind: z.enum(["quran", "hadith"]),
+  reference: z.string().min(2),
+  arab: z.string().optional().nullable(),
+  translation: z.string().min(3),
+  source: z.string().optional().nullable(),
+  grade: z.string().optional().nullable(),
+  takhrij: z.string().optional().nullable(),
+  tafsir: z.string().optional().nullable(),
+  tags: z.array(z.string()).optional(),
+  status: z.enum(["draft", "reviewed", "approved", "archived"]).optional(),
+  isActive: z.boolean().optional()
+});
+
+const dalilUpdateSchema = dalilBodySchema.partial();
+
+function normalizeTags(tags: string[] | undefined) {
+  return [
+    ...new Set(
+      (tags ?? [])
+        .flatMap((item) => item.split(","))
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  ];
+}
+
+function nullableText(value: string | null | undefined) {
+  const trimmed = String(value ?? "").trim();
+  return trimmed ? trimmed : null;
+}
+
 adminRoutes.get("/stats", async (c) => {
   const [userCount] = await db.select({ value: count() }).from(users);
   const [naskahCount] = await db.select({ value: count() }).from(naskah);
   const [templateCount] = await db.select({ value: count() }).from(templates);
+  const [dalilCount] = await db.select({ value: count() }).from(curatedDalil);
   const [todayGenerates] = await db
     .select({ value: count() })
     .from(usageEvents)
@@ -55,6 +88,7 @@ adminRoutes.get("/stats", async (c) => {
       users: userCount.value,
       naskah: naskahCount.value,
       templates: templateCount.value,
+      dalil: dalilCount.value,
       todayGenerates: todayGenerates.value,
       todayExports: todayExports.value,
       blockedGenerates: blockedGenerates.value,
@@ -66,6 +100,86 @@ adminRoutes.get("/stats", async (c) => {
       }))
     }
   });
+});
+
+adminRoutes.get("/dalil", async (c) => {
+  const kind = c.req.query("kind");
+  const status = c.req.query("status") ?? "active";
+  const q = c.req.query("q")?.trim();
+  const filters = [];
+
+  if (kind === "quran" || kind === "hadith") filters.push(eq(curatedDalil.kind, kind));
+  if (status !== "all") filters.push(eq(curatedDalil.isActive, status !== "inactive"));
+  if (q) {
+    const pattern = `%${q}%`;
+    filters.push(
+      or(
+        like(curatedDalil.reference, pattern),
+        like(curatedDalil.translation, pattern),
+        like(curatedDalil.source, pattern),
+        like(curatedDalil.tags, pattern)
+      )
+    );
+  }
+
+  const query = db
+    .select()
+    .from(curatedDalil)
+    .where(filters.length > 0 ? and(...filters) : undefined)
+    .orderBy(desc(curatedDalil.updatedAt))
+    .limit(200);
+
+  return c.json({ data: await query });
+});
+
+adminRoutes.post("/dalil", zValidator("json", dalilBodySchema), async (c) => {
+  const body = c.req.valid("json");
+  const id = nanoid();
+  await db.insert(curatedDalil).values({
+    id,
+    kind: body.kind,
+    reference: body.reference.trim(),
+    arab: nullableText(body.arab),
+    translation: body.translation.trim(),
+    source: nullableText(body.source) ?? "Database dalil terkurasi",
+    grade: nullableText(body.grade),
+    takhrij: nullableText(body.takhrij),
+    tafsir: nullableText(body.tafsir),
+    tags: normalizeTags(body.tags),
+    status: body.status ?? "draft",
+    isActive: body.isActive ?? true
+  });
+  const row = await db.query.curatedDalil.findFirst({ where: eq(curatedDalil.id, id) });
+  return c.json({ data: row }, 201);
+});
+
+adminRoutes.put("/dalil/:id", zValidator("json", dalilUpdateSchema), async (c) => {
+  const body = c.req.valid("json");
+  const patch: Partial<typeof curatedDalil.$inferInsert> = {
+    updatedAt: new Date().toISOString()
+  };
+
+  if (body.kind !== undefined) patch.kind = body.kind;
+  if (body.reference !== undefined) patch.reference = body.reference.trim();
+  if (body.arab !== undefined) patch.arab = nullableText(body.arab);
+  if (body.translation !== undefined) patch.translation = body.translation.trim();
+  if (body.source !== undefined) patch.source = nullableText(body.source) ?? "Database dalil terkurasi";
+  if (body.grade !== undefined) patch.grade = nullableText(body.grade);
+  if (body.takhrij !== undefined) patch.takhrij = nullableText(body.takhrij);
+  if (body.tafsir !== undefined) patch.tafsir = nullableText(body.tafsir);
+  if (body.tags !== undefined) patch.tags = normalizeTags(body.tags);
+  if (body.status !== undefined) patch.status = body.status;
+  if (body.isActive !== undefined) patch.isActive = body.isActive;
+
+  await db.update(curatedDalil).set(patch).where(eq(curatedDalil.id, c.req.param("id")));
+  const row = await db.query.curatedDalil.findFirst({ where: eq(curatedDalil.id, c.req.param("id")) });
+  if (!row) return c.json({ message: "Dalil tidak ditemukan." }, 404);
+  return c.json({ data: row });
+});
+
+adminRoutes.delete("/dalil/:id", async (c) => {
+  await db.delete(curatedDalil).where(eq(curatedDalil.id, c.req.param("id")));
+  return c.json({ ok: true });
 });
 
 adminRoutes.get("/users", async (c) => {

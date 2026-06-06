@@ -890,7 +890,6 @@ function MainLayout({
             <DesktopTab active={activeTab === "generate" && activeJenis === "kultum"} onClick={() => onOpenGenerate("kultum")} label="Kultum" />
             <DesktopTab active={activeTab === "history"} onClick={() => setActiveTab("history")} label="Riwayat" />
             <DesktopTab active={activeTab === "templates"} onClick={() => setActiveTab("templates")} label="Template" />
-            {user.role === "admin" && <DesktopTab active={activeTab === "admin"} onClick={() => setActiveTab("admin")} label="Admin" />}
             <DesktopTab active={activeTab === "disclaimer"} onClick={() => setActiveTab("disclaimer")} label="Disclaimer" />
             <div className="relative w-44 xl:w-56">
               <Search className="pointer-events-none absolute inset-y-0 left-3 my-auto size-4 text-muted-foreground" />
@@ -965,7 +964,6 @@ function MainLayout({
           <MobileTab active={activeTab === "generate" && activeJenis === "kultum"} onClick={() => onOpenGenerate("kultum")} label="Kultum" />
           <MobileTab active={activeTab === "history"} onClick={() => setActiveTab("history")} label="Riwayat" />
           <MobileTab active={activeTab === "templates"} onClick={() => setActiveTab("templates")} label="Template" />
-          {user.role === "admin" && <MobileTab active={activeTab === "admin"} onClick={() => setActiveTab("admin")} label="Admin" />}
           <MobileTab active={activeTab === "disclaimer"} onClick={() => setActiveTab("disclaimer")} label="Disclaimer" />
         </nav>
       </header>

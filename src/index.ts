@@ -10,8 +10,17 @@ import { naskahRoutes } from "./routes/naskah";
 import { templateRoutes } from "./routes/templates";
 import { exportRoutes } from "./routes/export";
 import { adminRoutes } from "./routes/admin";
+import { dalilRoutes } from "./routes/dalil";
 import { statsRoutes } from "./routes/stats";
-import { activeModelCount, aiProvider, appPublicUrl, corsOrigins, generateClientTimeoutMs, providerTimeoutMs } from "./config";
+import {
+  activeModelCount,
+  aiProvider,
+  appPublicUrl,
+  corsOrigins,
+  generateClientTimeoutMs,
+  myQuranEnabled,
+  providerTimeoutMs
+} from "./config";
 import { checkStorageHealth, isStorageRequired } from "./services/storage";
 import type { AppEnv } from "./utils/http";
 
@@ -47,12 +56,14 @@ api.get("/config", (c) =>
       providerTimeoutMs,
       modelCount: activeModelCount,
       aiProvider,
+      myQuranEnabled,
       storageRequired: isStorageRequired()
     }
   })
 );
 api.route("/auth", authRoutes);
 api.route("/generate", generateRoutes);
+api.route("/dalil", dalilRoutes);
 api.route("/naskah", naskahRoutes);
 api.route("/templates", templateRoutes);
 api.route("/export", exportRoutes);

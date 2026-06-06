@@ -12,8 +12,11 @@ import {
   minimumWordCountFor,
   missingRequiredArabicSections,
   normalizeLanguage,
+  type PromptDalilContext,
   sanitizeGeneratedText
 } from "../utils/content";
+import { qualityReportFor } from "../utils/quality";
+import { retrieveDalilContext } from "./myquran";
 
 const apiKey = process.env.OPENAI_API_KEY;
 const aiProvider = String(process.env.AI_PROVIDER ?? "openai").trim().toLowerCase();
@@ -192,6 +195,24 @@ function parametersWithVariation(parameters: Record<string, unknown>, traceId: s
   return { ...parameters, __variationSeed: traceId };
 }
 
+async function buildPromptWithRetrievedDalil(
+  jenis: string,
+  parameters: Record<string, unknown>,
+  traceId: string,
+  providedDalilContext?: PromptDalilContext
+) {
+  try {
+    const dalilContext = providedDalilContext ?? (await retrieveDalilContext(jenis, parameters));
+    console.info(
+      `[generateText:${traceId}] dalil_source=${dalilContext.source} quran=${dalilContext.quran[0]?.reference ?? "none"} hadith=${dalilContext.hadith[0]?.reference ?? "none"}`
+    );
+    return buildPrompt(jenis, parameters, dalilContext);
+  } catch (error) {
+    console.warn(`[generateText:${traceId}] dalil_retrieval_failed message=${providerMessage(error)}`);
+    return buildPrompt(jenis, parameters);
+  }
+}
+
 function retryLengthInstructionFor(jenis: string) {
   if (jenis === "ceramah") {
     return "Untuk Ceramah Umum, hasil harus jelas lebih panjang dan lebih mendalam daripada kultum: perluas isi utama dalam paragraf narasi utuh, bukan daftar poin pendek.";
@@ -214,6 +235,96 @@ function retryInstruction(jenis: string, parameters: Record<string, unknown>, re
     ? ' Setelah heading "Khutbah Kedua" seluruh isi harus hanya teks Arab berharakat sampai akhir naskah; jangan tulis Pesan Praktis, Doa Penutup, Takbir Pembuka Kedua, terjemah, transliterasi, sapaan Indonesia, atau narasi Indonesia di bagian itu. Jika perlu heading doa, gunakan heading Arab "الدُّعَاءُ". Untuk khutbah Idul Fitri/Idul Adha, awali isi Khutbah Kedua langsung dengan takbir Arab 7 kali.'
     : "";
   return `Ulangi naskah final dari awal. Bahasa target wajib ${targetLanguage}; semua sapaan, transisi, isi, renungan, terjemah/penjelasan ayat-hadits, pesan praktis, dan penutup harus memakai bahasa target tersebut, bukan bahasa Indonesia, kecuali heading struktur standar. Naskah sebelumnya bermasalah: ${reason}. Jangan ringkas; penuhi minimal ${minimumWordCountFor(jenis, parameters)} kata dan buat uraian utama mengalir dalam banyak paragraf. ${retryLengthInstructionFor(jenis)} Wajib ikuti rukun khutbah: hamdalah, shalawat Nabi, dan wasiat takwa harus ada di khutbah pertama dan kedua; syahadat Arab berharakat harus ada di mukadimah khutbah pertama; ayat Al-Qur'an Arab harus ada minimal di salah satu khutbah; doa untuk kaum mukminin harus ada di khutbah kedua.${arabicOnlySecondInstruction} Untuk khutbah Idul Fitri/Idul Adha, khutbah pertama diawali takbir Arab 9 kali dan khutbah kedua diawali takbir Arab 7 kali. Terapkan STYLE PROFILE: dakwah.id sesuai jenis naskah agar pembuka, isi, penutup, dan doa bervariasi, humanis, dan tidak terasa template. Pembuka Arab harus utuh, bukan satu baris pendek. Doa penutup Arab minimal 4-6 kalimat doa berharakat, memuat doa untuk kaum mukminin, dan jangan hanya satu doa pendek. Jangan tampilkan label teknis seperti Rukun 1/2/3/4/5 pada naskah final. Semua teks Arab wajib diberi harakat lengkap (tasykil), tanpa Arab gundul.`;
+}
+
+function outlineInstruction(jenis: string, parameters: Record<string, unknown>) {
+  return `Buat kerangka internal untuk naskah ${jenis}. Kerangka harus:
+- Mengikat tema, dalil retrieval, alur pembuka, isi utama, transisi, pesan praktis, dan penutup.
+- Menentukan di bagian mana ayat dan hadits hasil retrieval dipakai.
+- Menjaga semua aturan struktur dan bahasa target.
+- Jangan menulis naskah final. Jangan menambah dalil baru.
+
+Parameter ringkas:
+${Object.entries(parameters)
+  .map(([key, value]) => `- ${key}: ${String(value)}`)
+  .join("\n")}`;
+}
+
+function staticOutlineFor(jenis: string) {
+  if (jenis === "kultum") return "Pembuka singkat -> ayat retrieval -> hadits retrieval -> satu renungan dekat -> tiga langkah praktis -> penutup doa.";
+  if (jenis === "nikah") return "Pembukaan Arab -> ayat retrieval -> hadits retrieval -> nasihat mempelai -> pesan keluarga -> doa penutup.";
+  if (jenis === "khutbah-jumat" || jenis === "idul-fitri" || jenis === "idul-adha") {
+    return "Khutbah Pertama: mukadimah Arab -> ayat retrieval -> hadits retrieval -> uraian utama bertahap -> penutup khutbah pertama. Khutbah Kedua: Arab berharakat, hamdalah, shalawat, wasiat takwa, doa mukminin.";
+  }
+  return "Pembuka natural -> ayat retrieval -> hadits retrieval -> uraian masalah -> contoh dekat -> renungan -> langkah praktis -> penutup.";
+}
+
+function messagesWithOutline(
+  prompt: string,
+  traceId: string,
+  outline: string
+): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+  return [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: prompt },
+    {
+      role: "user",
+      content: `Kerangka internal yang wajib diikuti tetapi jangan ditampilkan sebagai catatan proses:\n${outline || "Gunakan struktur standar sesuai prompt."}`
+    },
+    { role: "user", content: variationInstruction(traceId) }
+  ];
+}
+
+function failedQualityDetails(jenis: string, text: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
+  const report = qualityReportFor(jenis, text, parameters, dalilContext);
+  return report.checks
+    .filter((item) => !item.passed && item.severity !== "info")
+    .map((item) => `${item.label}: ${item.detail}`)
+    .join("\n");
+}
+
+function needsDalilRepair(jenis: string, text: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
+  const report = qualityReportFor(jenis, text, parameters, dalilContext);
+  return report.checks.some(
+    (item) =>
+      !item.passed &&
+      (item.severity === "critical" ||
+        item.id.includes("dalil") ||
+        item.id.includes("quran") ||
+        item.id.includes("hadith") ||
+        item.id === "arabic_diacritics")
+  );
+}
+
+function repairInstructionFor(jenis: string, parameters: Record<string, unknown>, text: string, dalilContext?: PromptDalilContext) {
+  const failures = failedQualityDetails(jenis, text, parameters, dalilContext) || "Validasi quality report belum memadai.";
+  return `Perbaiki naskah final berikut agar lolos validasi. Kembalikan naskah final lengkap saja.
+
+Masalah validasi:
+${failures}
+
+Aturan repair:
+- Jangan menambah ayat atau hadits baru.
+- Pakai hanya dalil retrieval yang sudah ada di prompt awal.
+- Jika ada referensi, teks Arab, terjemah inti, grade, atau takhrij yang berubah, kembalikan sesuai data retrieval.
+- Perbaiki bahasa agar tetap natural, bukan seperti daftar ceklis.
+- Jangan tampilkan catatan proses, ringkasan, atau Markdown.
+
+Naskah yang perlu diperbaiki:
+${text}`;
+}
+
+function naturalRewriteInstructionFor(text: string) {
+  return `Haluskan naskah final berikut agar lebih natural, lisan, jernih, dan tidak terasa template.
+
+Aturan:
+- Jangan menambah, menghapus, atau mengganti ayat/hadits, referensi, teks Arab, terjemah inti, grade, takhrij, heading wajib, rukun khutbah, atau doa wajib.
+- Kurangi pengulangan, perbaiki transisi, dan buat paragraf lebih enak dibacakan.
+- Jangan menampilkan catatan proses, ringkasan perubahan, atau Markdown.
+- Kembalikan naskah final lengkap saja.
+
+Naskah:
+${text}`;
 }
 
 type GeminiResponse = {
@@ -292,16 +403,166 @@ async function createGeminiCompletion(modelName: string, prompt: string, jenis: 
   return data;
 }
 
-async function generateTextWithGemini(jenis: string, parameters: Record<string, unknown>, traceId: string) {
-  const basePrompt = `${buildPrompt(jenis, parameters)}\n\n${geminiStrictStructureInstruction(jenis)}\n\n${variationInstruction(traceId)}`;
+async function createOpenAITextPass(
+  modelName: string,
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  jenis: string,
+  parameters: Record<string, unknown>,
+  traceId: string,
+  pass: string,
+  maxTokenOverride?: number
+) {
+  const response = await createCompletionWithCreditRetry(
+    {
+      model: modelName,
+      messages,
+      ...generationSettingsFor(jenis, parameters),
+      ...(maxTokenOverride ? { max_tokens: maxTokenOverride } : {})
+    },
+    traceId,
+    pass
+  );
+  return response.choices[0]?.message.content ?? "";
+}
+
+async function createOpenAIOutline(modelName: string, prompt: string, jenis: string, parameters: Record<string, unknown>, traceId: string) {
+  try {
+    const outline = await createOpenAITextPass(
+      modelName,
+      [
+        { role: "system", content: "Anda membuat kerangka internal naskah dakwah. Tampilkan kerangka ringkas saja." },
+        { role: "user", content: prompt },
+        { role: "user", content: outlineInstruction(jenis, parameters) }
+      ],
+      jenis,
+      parameters,
+      traceId,
+      "outline",
+      700
+    );
+    return sanitizeGeneratedText(outline) || staticOutlineFor(jenis);
+  } catch (error) {
+    console.warn(`[generateText:${traceId}] model=${modelName} pass=outline_failed message=${providerMessage(error)}`);
+    return staticOutlineFor(jenis);
+  }
+}
+
+async function finalizeOpenAIText(
+  modelName: string,
+  prompt: string,
+  outline: string,
+  text: string,
+  jenis: string,
+  parameters: Record<string, unknown>,
+  dalilContext: PromptDalilContext | undefined,
+  traceId: string
+) {
+  let output = normalizeProviderText(jenis, text, parameters);
+
+  if (needsDalilRepair(jenis, output, parameters, dalilContext)) {
+    try {
+      const repaired = await createOpenAITextPass(
+        modelName,
+        [...messagesWithOutline(prompt, traceId, outline), { role: "user", content: repairInstructionFor(jenis, parameters, output, dalilContext) }],
+        jenis,
+        parameters,
+        traceId,
+        "quality_repair"
+      );
+      const cleanRepair = normalizeProviderText(jenis, repaired, parameters);
+      if (providerTextIsClean(jenis, cleanRepair, parameters)) output = cleanRepair;
+    } catch (error) {
+      console.warn(`[generateText:${traceId}] model=${modelName} pass=quality_repair_failed message=${providerMessage(error)}`);
+    }
+  }
+
+  try {
+    const rewritten = await createOpenAITextPass(
+      modelName,
+      [...messagesWithOutline(prompt, traceId, outline), { role: "user", content: naturalRewriteInstructionFor(output) }],
+      jenis,
+      parameters,
+      traceId,
+      "natural_rewrite"
+    );
+    const cleanRewrite = normalizeProviderText(jenis, rewritten, parameters);
+    if (providerTextIsClean(jenis, cleanRewrite, parameters) && !needsDalilRepair(jenis, cleanRewrite, parameters, dalilContext)) {
+      output = cleanRewrite;
+    }
+  } catch (error) {
+    console.warn(`[generateText:${traceId}] model=${modelName} pass=natural_rewrite_failed message=${providerMessage(error)}`);
+  }
+
+  return output;
+}
+
+async function createGeminiOutline(modelName: string, prompt: string, jenis: string, parameters: Record<string, unknown>, traceId: string) {
+  try {
+    const response = await createGeminiCompletion(modelName, `${prompt}\n\n${outlineInstruction(jenis, parameters)}`, jenis, parameters);
+    return sanitizeGeneratedText(geminiTextFromResponse(response)) || staticOutlineFor(jenis);
+  } catch (error) {
+    console.warn(`[generateText:${traceId}] provider=gemini model=${modelName} pass=outline_failed message=${providerMessage(error)}`);
+    return staticOutlineFor(jenis);
+  }
+}
+
+async function finalizeGeminiText(
+  modelName: string,
+  prompt: string,
+  outline: string,
+  text: string,
+  jenis: string,
+  parameters: Record<string, unknown>,
+  dalilContext: PromptDalilContext | undefined,
+  traceId: string
+) {
+  let output = normalizeProviderText(jenis, text, parameters);
+  const contextualPrompt = `${prompt}\n\nKerangka internal yang wajib diikuti tetapi jangan ditampilkan:\n${outline}`;
+
+  if (needsDalilRepair(jenis, output, parameters, dalilContext)) {
+    try {
+      const response = await createGeminiCompletion(
+        modelName,
+        `${contextualPrompt}\n\n${repairInstructionFor(jenis, parameters, output, dalilContext)}`,
+        jenis,
+        parameters
+      );
+      const cleanRepair = normalizeProviderText(jenis, geminiTextFromResponse(response), parameters);
+      if (providerTextIsClean(jenis, cleanRepair, parameters)) output = cleanRepair;
+    } catch (error) {
+      console.warn(`[generateText:${traceId}] provider=gemini model=${modelName} pass=quality_repair_failed message=${providerMessage(error)}`);
+    }
+  }
+
+  try {
+    const response = await createGeminiCompletion(modelName, `${contextualPrompt}\n\n${naturalRewriteInstructionFor(output)}`, jenis, parameters);
+    const cleanRewrite = normalizeProviderText(jenis, geminiTextFromResponse(response), parameters);
+    if (providerTextIsClean(jenis, cleanRewrite, parameters) && !needsDalilRepair(jenis, cleanRewrite, parameters, dalilContext)) output = cleanRewrite;
+  } catch (error) {
+    console.warn(`[generateText:${traceId}] provider=gemini model=${modelName} pass=natural_rewrite_failed message=${providerMessage(error)}`);
+  }
+
+  return output;
+}
+
+async function generateTextWithGemini(
+  jenis: string,
+  parameters: Record<string, unknown>,
+  traceId: string,
+  dalilContext?: PromptDalilContext
+) {
+  const prompt = await buildPromptWithRetrievedDalil(jenis, parameters, traceId, dalilContext);
+  const basePromptRoot = `${prompt}\n\n${geminiStrictStructureInstruction(jenis)}\n\n${variationInstruction(traceId)}`;
 
   for (const modelName of geminiModels) {
     try {
+      const outline = await createGeminiOutline(modelName, basePromptRoot, jenis, parameters, traceId);
+      const basePrompt = `${basePromptRoot}\n\nKerangka internal yang wajib diikuti tetapi jangan ditampilkan:\n${outline}`;
       const firstResponse = await createGeminiCompletion(modelName, basePrompt, jenis, parameters);
       const firstPass = normalizeProviderText(jenis, geminiTextFromResponse(firstResponse), parameters);
       if (providerTextIsClean(jenis, firstPass, parameters)) {
         console.info(`[generateText:${traceId}] provider=gemini model=${modelName} pass=first jenis=${jenis} status=ok`);
-        return firstPass;
+        return finalizeGeminiText(modelName, basePromptRoot, outline, firstPass, jenis, parameters, dalilContext, traceId);
       }
 
       const firstPassReason = providerTextFailureReason(jenis, firstPass, parameters);
@@ -318,7 +579,7 @@ async function generateTextWithGemini(jenis: string, parameters: Record<string, 
       const retryPass = normalizeProviderText(jenis, geminiTextFromResponse(retryResponse), parameters);
       if (providerTextIsClean(jenis, retryPass, parameters)) {
         console.info(`[generateText:${traceId}] provider=gemini model=${modelName} pass=retry jenis=${jenis} status=ok`);
-        return retryPass;
+        return finalizeGeminiText(modelName, basePromptRoot, outline, retryPass, jenis, parameters, dalilContext, traceId);
       }
 
       console.warn(
@@ -333,22 +594,17 @@ async function generateTextWithGemini(jenis: string, parameters: Record<string, 
   return fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
 }
 
-export async function generateText(jenis: string, parameters: Record<string, unknown>) {
+export async function generateText(jenis: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
   const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  if (aiProvider === "gemini") return generateTextWithGemini(jenis, parameters, traceId);
+  if (aiProvider === "gemini") return generateTextWithGemini(jenis, parameters, traceId, dalilContext);
   if (!client) return fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
   const generationSettings = generationSettingsFor(jenis, parameters);
-  const baseMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    {
-      role: "system",
-      content: systemPrompt
-    },
-    { role: "user", content: buildPrompt(jenis, parameters) },
-    { role: "user", content: variationInstruction(traceId) }
-  ];
+  const prompt = await buildPromptWithRetrievedDalil(jenis, parameters, traceId, dalilContext);
 
   for (const modelName of models) {
     try {
+      const outline = await createOpenAIOutline(modelName, prompt, jenis, parameters, traceId);
+      const baseMessages = messagesWithOutline(prompt, traceId, outline);
       const response = await createCompletionWithCreditRetry(
         {
           model: modelName,
@@ -362,7 +618,7 @@ export async function generateText(jenis: string, parameters: Record<string, unk
       const firstPass = normalizeProviderText(jenis, response.choices[0]?.message.content ?? "", parameters);
       if (providerTextIsClean(jenis, firstPass, parameters)) {
         console.info(`[generateText:${traceId}] model=${modelName} pass=first jenis=${jenis} status=ok`);
-        return firstPass;
+        return finalizeOpenAIText(modelName, prompt, outline, firstPass, jenis, parameters, dalilContext, traceId);
       }
 
       const firstPassReason = providerTextFailureReason(jenis, firstPass, parameters);
@@ -389,7 +645,7 @@ export async function generateText(jenis: string, parameters: Record<string, unk
       const retryPass = normalizeProviderText(jenis, retryResponse.choices[0]?.message.content ?? "", parameters);
       if (providerTextIsClean(jenis, retryPass, parameters)) {
         console.info(`[generateText:${traceId}] model=${modelName} pass=retry jenis=${jenis} status=ok`);
-        return retryPass;
+        return finalizeOpenAIText(modelName, prompt, outline, retryPass, jenis, parameters, dalilContext, traceId);
       }
 
       console.warn(
@@ -405,9 +661,9 @@ export async function generateText(jenis: string, parameters: Record<string, unk
   return fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
 }
 
-export async function* streamGeneratedText(jenis: string, parameters: Record<string, unknown>) {
+export async function* streamGeneratedText(jenis: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
   if (aiProvider === "gemini") {
-    const finalText = await generateText(jenis, parameters);
+    const finalText = await generateText(jenis, parameters, dalilContext);
     for (const chunk of finalText.match(/[\s\S]{1,240}/g) ?? []) {
       yield chunk;
     }
@@ -426,18 +682,13 @@ export async function* streamGeneratedText(jenis: string, parameters: Record<str
 
   const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const generationSettings = generationSettingsFor(jenis, parameters);
-  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    {
-      role: "system",
-      content: systemPrompt
-    },
-    { role: "user", content: buildPrompt(jenis, parameters) },
-    { role: "user", content: variationInstruction(traceId) }
-  ];
+  const prompt = await buildPromptWithRetrievedDalil(jenis, parameters, traceId, dalilContext);
   let hadProviderOutput = false;
 
   for (const modelName of models) {
     try {
+      const outline = await createOpenAIOutline(modelName, prompt, jenis, parameters, traceId);
+      const messages = messagesWithOutline(prompt, traceId, outline);
       const stream = await createStreamingCompletionWithCreditRetry(
         {
           model: modelName,
@@ -457,7 +708,8 @@ export async function* streamGeneratedText(jenis: string, parameters: Record<str
       const clean = normalizeProviderText(jenis, text, parameters);
       if (providerTextIsClean(jenis, clean, parameters)) {
         console.info(`[streamGeneratedText:${traceId}] model=${modelName} jenis=${jenis} status=ok`);
-        for (const chunk of clean.match(/[\s\S]{1,160}/g) ?? []) {
+        const finalText = await finalizeOpenAIText(modelName, prompt, outline, clean, jenis, parameters, dalilContext, traceId);
+        for (const chunk of finalText.match(/[\s\S]{1,160}/g) ?? []) {
           yield chunk;
         }
         return;
@@ -473,7 +725,7 @@ export async function* streamGeneratedText(jenis: string, parameters: Record<str
     }
   }
 
-  const finalText = hadProviderOutput ? await generateText(jenis, parameters) : fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
+  const finalText = hadProviderOutput ? await generateText(jenis, parameters, dalilContext) : fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
   if (!hadProviderOutput) console.warn(`[streamGeneratedText:${traceId}] provider_failed_all fallback=local models=${models.join(",")}`);
   for (const chunk of finalText.match(/[\s\S]{1,240}/g) ?? []) {
     yield chunk;

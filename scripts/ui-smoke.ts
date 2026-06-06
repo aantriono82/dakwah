@@ -130,6 +130,13 @@ async function main() {
     await sleep(700);
   }
 
+  async function clickButtonByAriaPrefix(prefix: string) {
+    await evaluate(
+      `Array.from(document.querySelectorAll("button")).find((button) => button.getAttribute("aria-label")?.startsWith(${JSON.stringify(prefix)}))?.click()`
+    );
+    await sleep(700);
+  }
+
   try {
     await page.send("Network.enable");
     await page.send("Page.enable");
@@ -147,8 +154,7 @@ async function main() {
     const tabChecks: Record<string, string> = {
       Ceramah: "Jenis naskah",
       Riwayat: "Naskah tersimpan",
-      Template: "Parameter favorit",
-      Admin: "Monitoring dan user"
+      Template: "Parameter favorit"
     };
 
     for (const [tab, expectedText] of Object.entries(tabChecks)) {
@@ -156,6 +162,11 @@ async function main() {
       await waitForText(expectedText);
       await screenshot(tab.toLowerCase());
     }
+
+    await clickButtonByAriaPrefix("Akun ");
+    await clickButton("Buka Admin");
+    await waitForText("Monitoring dan user");
+    await screenshot("admin");
 
     await clickButton("Ceramah");
     await waitForText("Jenis naskah");

@@ -42,3 +42,7 @@ export const authRateLimitMax = optionalPositiveInteger(process.env.AUTH_RATE_LI
 export const generateRateLimitWindowMs = optionalPositiveInteger(process.env.GENERATE_RATE_LIMIT_WINDOW_MS, 60 * 1000);
 export const generateRateLimitMax = optionalPositiveInteger(process.env.GENERATE_RATE_LIMIT_MAX, 6);
 export const defaultDailyGenerateLimit = optionalPositiveInteger(process.env.DEFAULT_DAILY_GENERATE_LIMIT, 50);
+export const myQuranEnabled = parseBoolean(process.env.MYQURAN_ENABLED, true);
+export const myQuranApiBaseUrl = String(process.env.MYQURAN_API_BASE_URL ?? "https://api.myquran.com/v3").replace(/\/+$/, "");
+export const myQuranTimeoutMs = optionalPositiveInteger(process.env.MYQURAN_TIMEOUT_MS, 2500);
+export const myQuranCacheTtlSeconds = optionalPositiveInteger(process.env.MYQURAN_CACHE_TTL_SECONDS, 30 * 24 * 60 * 60);

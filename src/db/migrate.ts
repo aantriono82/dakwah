@@ -1,8 +1,9 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { sqlite } from "./client";
 import { db } from "./client";
-import { users } from "./schema";
+import { curatedDalil, users } from "./schema";
+import { curatedDalilSeedItems } from "../utils/content";
 import { hashPassword } from "../utils/password";
 
 export async function migrate() {
@@ -110,6 +111,39 @@ export async function migrate() {
     CREATE INDEX IF NOT EXISTS password_reset_tokens_user_idx ON password_reset_tokens(user_id);
     CREATE INDEX IF NOT EXISTS password_reset_tokens_token_hash_idx ON password_reset_tokens(token_hash);
     CREATE INDEX IF NOT EXISTS password_reset_tokens_expires_idx ON password_reset_tokens(expires_at);
+
+    CREATE TABLE IF NOT EXISTS myquran_cache (
+      cache_key TEXT PRIMARY KEY NOT NULL,
+      url TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      status INTEGER NOT NULL DEFAULT 200,
+      expires_at INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS myquran_cache_expires_idx ON myquran_cache(expires_at);
+
+    CREATE TABLE IF NOT EXISTS curated_dalil (
+      id TEXT PRIMARY KEY NOT NULL,
+      kind TEXT NOT NULL,
+      reference TEXT NOT NULL,
+      arab TEXT,
+      translation TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'Database dalil terkurasi',
+      grade TEXT,
+      takhrij TEXT,
+      tafsir TEXT,
+      tags TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'draft',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS curated_dalil_kind_idx ON curated_dalil(kind);
+    CREATE INDEX IF NOT EXISTS curated_dalil_active_idx ON curated_dalil(is_active);
+    CREATE INDEX IF NOT EXISTS curated_dalil_reference_idx ON curated_dalil(reference);
   `);
 
   ensureColumn("users", "daily_generate_limit", "INTEGER");
@@ -118,6 +152,9 @@ export async function migrate() {
   ensureColumn("naskah", "autosaved_at", "TEXT");
   ensureColumn("naskah", "quality_score", "INTEGER");
   ensureColumn("naskah", "quality_report", "TEXT");
+  ensureColumn("curated_dalil", "status", "TEXT NOT NULL DEFAULT 'approved'");
+  sqlite.run("UPDATE curated_dalil SET status = 'approved' WHERE status IS NULL OR status = ''");
+  sqlite.run("CREATE INDEX IF NOT EXISTS curated_dalil_status_idx ON curated_dalil(status)");
 
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "admin123";
   const userPassword = process.env.SEED_USER_PASSWORD ?? "user123";
@@ -128,6 +165,7 @@ export async function migrate() {
 
   await seedUser("admin", "Administrator", "admin", adminPassword);
   await seedUser("user", "Pengguna", "user", userPassword);
+  await seedCuratedDalil();
 }
 
 function ensureColumn(tableName: string, columnName: string, definition: string) {
@@ -147,6 +185,30 @@ async function seedUser(username: string, name: string, role: "admin" | "user", 
     role,
     passwordHash: await hashPassword(password)
   });
+}
+
+async function seedCuratedDalil() {
+  for (const item of curatedDalilSeedItems()) {
+    const existing = await db.query.curatedDalil.findFirst({
+      where: and(eq(curatedDalil.kind, item.kind), eq(curatedDalil.reference, item.reference))
+    });
+    if (existing) continue;
+
+    await db.insert(curatedDalil).values({
+      id: item.id,
+      kind: item.kind,
+      reference: item.reference,
+      arab: item.arab,
+      translation: item.translation,
+      source: item.source,
+      grade: item.grade,
+      takhrij: item.takhrij,
+      tafsir: item.tafsir,
+      tags: item.tags,
+      status: "approved",
+      isActive: true
+    });
+  }
 }
 
 if (import.meta.main) {

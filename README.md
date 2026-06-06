@@ -9,7 +9,11 @@ Dakwah adalah aplikasi web full-stack untuk membantu ustaz, khatib, dai, dan pen
 - Simpan naskah ke SQLite via Drizzle ORM.
 - Riwayat naskah, template parameter favorit, dan export PDF/DOCX.
 - Editor riwayat dengan autosave draft, status draft/final, snapshot versi, restore versi, dan revisi AI dari naskah tersimpan.
-- Quality guard untuk menandai panjang naskah, struktur wajib, bahasa target, konteks, harakat Arab, dan kebutuhan tinjauan dalil.
+- Quality guard untuk menandai panjang naskah, struktur wajib, bahasa target, konteks, harakat Arab, referensi dalil hasil retrieval, dan kebutuhan tinjauan dai.
+- Retrieval dalil dari database curated, myQuran API untuk ayat Al-Qur'an dan Ensiklopedia Hadis, dengan cache SQLite dan fallback dalil tematik lokal.
+- Database dalil curated otomatis di-seed dari paket dalil tematik aplikasi. Admin dapat menambahkan tag tema manual, status kurasi `draft/reviewed/approved/archived`, dan mengaktifkan/nonaktifkan dalil.
+- Generator hanya memakai dalil curated berstatus `approved`; jika belum ada, sistem mencoba myQuran lalu fallback lokal.
+- Pipeline generate bertahap: retrieval dalil, kerangka internal, generate, validasi quality guard, repair otomatis saat dalil/struktur bermasalah, lalu natural rewrite tanpa mengubah dalil.
 - Upload file export ke RustFS/S3-compatible storage.
 - Login berbasis session dengan role Admin dan User, registrasi mandiri dengan captcha, serta lupa/reset kata sandi via email.
 - Dashboard statistik, monitoring admin, quota generate harian per user, dark mode, dan tampilan responsif.
@@ -121,6 +125,10 @@ Variabel penting:
 | `GENERATE_RATE_LIMIT_WINDOW_MS` | `60000` | Window rate limit generate dalam milidetik |
 | `GENERATE_RATE_LIMIT_MAX` | `6` | Maksimal request generate per window per user |
 | `DEFAULT_DAILY_GENERATE_LIMIT` | `50` | Quota generate harian default per user. `0` berarti unlimited |
+| `MYQURAN_ENABLED` | `true` | Aktifkan retrieval dalil dari myQuran sebelum generate AI |
+| `MYQURAN_API_BASE_URL` | `https://api.myquran.com/v3` | Base URL myQuran API v3 |
+| `MYQURAN_TIMEOUT_MS` | `2500` | Timeout request myQuran dalam milidetik. Jika gagal, aplikasi memakai fallback lokal |
+| `MYQURAN_CACHE_TTL_SECONDS` | `2592000` | TTL cache respons myQuran di SQLite |
 | `AI_PROVIDER` | `openai` | Provider AI: `openai` untuk OpenAI/OpenRouter atau `gemini` untuk Google AI Studio |
 | `OPENAI_API_KEY` | kosong | API key OpenAI/OpenRouter. Jika kosong saat `AI_PROVIDER=openai`, aplikasi memakai generator fallback lokal |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model OpenAI untuk generate |
@@ -187,6 +195,8 @@ Semua endpoint berada di bawah `/api`.
 | `GET` | `/api/auth/me` | User aktif |
 | `POST` | `/api/generate` | Generate non-streaming |
 | `POST` | `/api/generate/stream` | Generate streaming |
+| `GET` | `/api/dalil/search?jenis=ceramah&tema=Sabar` | Cek retrieval dalil tematik |
+| `POST` | `/api/dalil/search` | Cek retrieval dalil dengan body `{ jenis, parameters }` |
 | `GET` | `/api/naskah` | Riwayat naskah |
 | `POST` | `/api/naskah` | Simpan naskah |
 | `GET` | `/api/naskah/:id` | Detail naskah |
@@ -206,6 +216,10 @@ Semua endpoint berada di bawah `/api`.
 | `POST` | `/api/admin/users` | Tambah user |
 | `PUT` | `/api/admin/users/:id` | Edit user |
 | `DELETE` | `/api/admin/users/:id` | Hapus user |
+| `GET` | `/api/admin/dalil` | Daftar database dalil curated |
+| `POST` | `/api/admin/dalil` | Tambah dalil curated dan tag tema |
+| `PUT` | `/api/admin/dalil/:id` | Edit dalil curated |
+| `DELETE` | `/api/admin/dalil/:id` | Hapus dalil curated |
 
 ## Struktur Proyek
 
@@ -241,5 +255,6 @@ Checklist sebelum production:
 - Ganti `SEED_ADMIN_PASSWORD` dan `SEED_USER_PASSWORD` sebelum database pertama dibuat.
 - Set `S3_REQUIRED=true` dan cek `GET /api/health/storage`.
 - Set provider AI dan API key yang benar.
+- Biarkan `MYQURAN_ENABLED=true` agar prompt AI memakai dalil hasil retrieval. Retrieval memprioritaskan database dalil curated berstatus `approved` yang dikelola Admin, lalu myQuran, lalu fallback dalil tematik lokal.
 - Jalankan `bun run check` dan `bun run qa:ui`.
 - Pastikan file `.env` tidak ikut dipublish.

@@ -19,6 +19,7 @@ beforeAll(async () => {
   process.env.AUTH_RATE_LIMIT_MAX = "100";
   process.env.GENERATE_RATE_LIMIT_MAX = "100";
   process.env.DEFAULT_DAILY_GENERATE_LIMIT = "100";
+  process.env.MYQURAN_ENABLED = "false";
   delete process.env.S3_REQUIRED;
   delete process.env.OPENAI_API_KEY;
   delete process.env.GEMINI_API_KEY;
@@ -337,6 +338,79 @@ describe("API auth and roles", () => {
     const remove = await request(`/api/admin/users/${created.data.id}`, { method: "DELETE" }, adminCookie);
     expect(remove.status).toBe(200);
   });
+
+  test("admin can curate dalil with manual tags for retrieval", async () => {
+    const quranCreate = await request(
+      "/api/admin/dalil",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "quran",
+          reference: "QS. Al-Baqarah: 153",
+          arab: "يَا أَيُّهَا الَّذِيْنَ آمَنُوا اسْتَعِيْنُوا بِالصَّبْرِ وَالصَّلَاةِ.",
+          translation: "Wahai orang-orang yang beriman, mohonlah pertolongan dengan sabar dan shalat.",
+          source: "Kurasi admin",
+          tags: ["ujian-khusus", "sabar"],
+          status: "approved",
+          isActive: true
+        })
+      },
+      adminCookie
+    );
+    const quran = await quranCreate.json();
+    expect(quranCreate.status).toBe(201);
+
+    const hadithCreate = await request(
+      "/api/admin/dalil",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "hadith",
+          reference: "HR. Muslim",
+          arab: "عَجَبًا لِأَمْرِ الْمُؤْمِنِ.",
+          translation: "Sungguh menakjubkan keadaan seorang mukmin.",
+          source: "Kurasi admin",
+          grade: "Sahih",
+          takhrij: "HR. Muslim",
+          tags: ["ujian-khusus", "sabar"],
+          status: "approved",
+          isActive: true
+        })
+      },
+      adminCookie
+    );
+    const hadith = await hadithCreate.json();
+    expect(hadithCreate.status).toBe(201);
+
+    const list = await request("/api/admin/dalil?q=ujian-khusus&status=all", {}, adminCookie);
+    expect(list.status).toBe(200);
+    expect((await list.json()).data.length).toBeGreaterThanOrEqual(2);
+
+    const retrieval = await request(
+      "/api/dalil/search",
+      {
+        method: "POST",
+        body: JSON.stringify({ jenis: "ceramah", parameters: { bahasa: "Indonesia", topik: "ujian-khusus" } })
+      },
+      adminCookie
+    );
+    const retrieved = await retrieval.json();
+    expect(retrieval.status).toBe(200);
+    expect(retrieved.data.source).toBe("Kurasi admin");
+    expect(retrieved.data.quran[0].reference).toBe("QS. Al-Baqarah: 153");
+    expect(retrieved.data.hadith[0].grade).toBe("Sahih");
+
+    const update = await request(
+      `/api/admin/dalil/${quran.data.id}`,
+      { method: "PUT", body: JSON.stringify({ isActive: false, status: "archived", tags: ["arsip"] }) },
+      adminCookie
+    );
+    expect(update.status).toBe(200);
+    expect((await update.json()).data.isActive).toBe(false);
+
+    expect((await request(`/api/admin/dalil/${quran.data.id}`, { method: "DELETE" }, adminCookie)).status).toBe(200);
+    expect((await request(`/api/admin/dalil/${hadith.data.id}`, { method: "DELETE" }, adminCookie)).status).toBe(200);
+  });
 });
 
 describe("API naskah, template, generate, and export", () => {
@@ -397,6 +471,24 @@ describe("API naskah, template, generate, and export", () => {
     expect(body.title).toContain("Menjaga amanah");
     expect(body.content).toContain("Ceramah Umum");
     expect(body.quality.score).toBeGreaterThan(0);
+  });
+
+  test("dalil search returns themed quran and hadith context", async () => {
+    const response = await request(
+      "/api/dalil/search",
+      {
+        method: "POST",
+        body: JSON.stringify({ jenis: "ceramah", parameters: { bahasa: "Indonesia", topik: "Sabar menghadapi musibah" } })
+      },
+      userCookie
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.theme).toBe("Sabar menghadapi musibah");
+    expect(body.data.quran[0].reference).toBe("QS. Al-Baqarah: 153");
+    expect(body.data.hadith[0].reference).toContain("HR.");
+    expect(body.data.warnings[0]).toContain("MYQURAN_ENABLED=false");
   });
 
   test("stream generate returns theme-aligned text and dalil for every content type", async () => {

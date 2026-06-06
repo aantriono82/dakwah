@@ -9,11 +9,19 @@ export type QualityCheck = {
   severity: "info" | "warning" | "critical";
 };
 
+export type QualityMetric = {
+  id: string;
+  label: string;
+  score: number;
+  detail: string;
+};
+
 export type QualityReport = {
   score: number;
   wordCount: number;
   reviewRequired: boolean;
   checks: QualityCheck[];
+  metrics?: QualityMetric[];
   generatedAt: string;
 };
 
@@ -161,6 +169,48 @@ export const passwordResetTokens = sqliteTable(
   })
 );
 
+export const myQuranCache = sqliteTable(
+  "myquran_cache",
+  {
+    cacheKey: text("cache_key").primaryKey(),
+    url: text("url").notNull(),
+    payload: text("payload").notNull(),
+    status: integer("status").notNull().default(200),
+    expiresAt: integer("expires_at").notNull(),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`)
+  },
+  (table) => ({
+    expiresIdx: index("myquran_cache_expires_idx").on(table.expiresAt)
+  })
+);
+
+export const curatedDalil = sqliteTable(
+  "curated_dalil",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind", { enum: ["quran", "hadith"] }).notNull(),
+    reference: text("reference").notNull(),
+    arab: text("arab"),
+    translation: text("translation").notNull(),
+    source: text("source").notNull().default("Database dalil terkurasi"),
+    grade: text("grade"),
+    takhrij: text("takhrij"),
+    tafsir: text("tafsir"),
+    tags: text("tags", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    status: text("status", { enum: ["draft", "reviewed", "approved", "archived"] }).notNull().default("draft"),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`)
+  },
+  (table) => ({
+    kindIdx: index("curated_dalil_kind_idx").on(table.kind),
+    activeIdx: index("curated_dalil_active_idx").on(table.isActive),
+    statusIdx: index("curated_dalil_status_idx").on(table.status),
+    referenceIdx: index("curated_dalil_reference_idx").on(table.reference)
+  })
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   naskah: many(naskah),
   naskahVersions: many(naskahVersions),
@@ -222,3 +272,5 @@ export type Naskah = typeof naskah.$inferSelect;
 export type NaskahVersion = typeof naskahVersions.$inferSelect;
 export type Template = typeof templates.$inferSelect;
 export type UsageEvent = typeof usageEvents.$inferSelect;
+export type MyQuranCache = typeof myQuranCache.$inferSelect;
+export type CuratedDalil = typeof curatedDalil.$inferSelect;

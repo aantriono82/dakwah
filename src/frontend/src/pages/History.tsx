@@ -432,6 +432,19 @@ function QualityPanel({ report }: { report: QualityReport | null }) {
         <p>{report.wordCount.toLocaleString("id-ID")} kata</p>
         <p>{report.reviewRequired ? "Perlu tinjauan khusus sebelum dipakai" : "Tetap tinjau dalil sebelum disampaikan"}</p>
       </div>
+      {report.metrics?.length ? (
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {report.metrics.map((metric) => (
+            <div key={metric.id} className="rounded-md border border-border bg-background px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold">{metric.label}</p>
+                <Badge>{metric.score}</Badge>
+              </div>
+              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{metric.detail}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {failedChecks.length > 0 && (
         <div className="grid gap-2">
           {failedChecks.map((check) => (

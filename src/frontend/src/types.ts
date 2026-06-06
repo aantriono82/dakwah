@@ -2,6 +2,23 @@ import type { JenisId } from "./lib/utils";
 
 export type User = { id: string; username: string; name: string; role: "admin" | "user"; dailyGenerateLimit?: number | null };
 
+export type CuratedDalil = {
+  id: string;
+  kind: "quran" | "hadith";
+  reference: string;
+  arab?: string | null;
+  translation: string;
+  source: string;
+  grade?: string | null;
+  takhrij?: string | null;
+  tafsir?: string | null;
+  tags: string[];
+  status: "draft" | "reviewed" | "approved" | "archived";
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type QualityCheck = {
   id: string;
   label: string;
@@ -15,6 +32,7 @@ export type QualityReport = {
   wordCount: number;
   reviewRequired: boolean;
   checks: QualityCheck[];
+  metrics?: Array<{ id: string; label: string; score: number; detail: string }>;
   generatedAt: string;
 };
 

@@ -206,6 +206,32 @@ function styleProfileFor(jenis: string) {
   return "";
 }
 
+function styleExamplesFor(jenis: string) {
+  const examples: Record<string, string> = {
+    "khutbah-jumat": `Contoh rasa bahasa Khutbah Jumat:
+- "Jamaah Jumat rahimakumullah, sering kali amanah tidak hilang sekaligus, tetapi mulai retak dari hal-hal kecil yang kita anggap biasa."
+- "Ayat ini tidak hanya memerintahkan, tetapi juga menegur cara kita memperlakukan titipan Allah dalam keluarga, pekerjaan, dan masyarakat."`,
+    "idul-fitri": `Contoh rasa bahasa Idul Fitri:
+- "Hari ini kita pulang dari madrasah Ramadhan dengan hati yang berharap diterima, bukan dengan kesombongan merasa sudah sempurna."
+- "Maaf yang kita ucapkan hari ini semestinya menjadi awal akhlak baru, bukan sekadar kalimat musiman."`,
+    "idul-adha": `Contoh rasa bahasa Idul Adha:
+- "Kurban mengajarkan bahwa cinta kepada Allah harus lebih besar daripada rasa memiliki terhadap apa pun yang paling kita sayangi."
+- "Daging kurban sampai kepada manusia, tetapi yang naik kepada Allah adalah takwa dan keikhlasan."`,
+    nikah: `Contoh rasa bahasa Khutbah Nikah:
+- "Rumah tangga yang kuat bukan rumah tanpa masalah, tetapi rumah yang punya adab ketika berbeda pendapat."
+- "Sakinah tumbuh dari kesediaan saling mendengar, saling memaafkan, dan saling kembali kepada Allah."`,
+    ceramah: `Contoh rasa bahasa Ceramah:
+- "Kadang yang melelahkan bukan beratnya ujian, tetapi cara kita memikulnya sendirian tanpa kembali kepada Allah."
+- "Mari kita turunkan nasihat ini ke hal yang dekat: rumah, pekerjaan, percakapan, dan keputusan kecil setiap hari."`,
+    kultum: `Contoh rasa bahasa Kultum:
+- "Pesan malam ini sederhana: jangan menunggu lapang untuk berbuat baik."
+- "Satu amal kecil yang dijaga dengan ikhlas sering lebih mendidik hati daripada rencana besar yang tidak pernah dimulai."`
+  };
+
+  return `${examples[jenis] ?? examples.ceramah}
+- Gunakan contoh ini hanya sebagai rasa bahasa: natural, lisan, jernih, dan tidak kaku. Jangan menyalin kalimatnya mentah-mentah jika tidak sesuai tema.`;
+}
+
 function languageGuidanceFor(parameters: Record<string, unknown>) {
   const language = normalizeLanguage(parameters.bahasa);
   const specific: Record<SupportedLanguage, string> = {
@@ -327,7 +353,7 @@ function arabicOnlySecondKhutbahGuidanceFor(jenis: string) {
 - Isi Khutbah Kedua harus memuat hamdalah, shalawat Nabi, wasiat takwa, doa untuk kaum mukminin, dan doa penutup dalam bahasa Arab berharakat.${idulTakbir}`;
 }
 
-export function buildPrompt(jenis: string, parameters: Record<string, unknown>) {
+export function buildPrompt(jenis: string, parameters: Record<string, unknown>, retrievedDalil?: PromptDalilContext) {
   const label = contentTypeLabels[jenis as ContentType] ?? jenis;
   const tema = topicFromParameters(parameters);
   const thematicDalil = dalilGuidanceFor(jenis, tema);
@@ -343,6 +369,8 @@ ${languageGuidanceFor(parameters)}
 ${lengthGuidanceFor(jenis, parameters)}
 
 ${themeAlignmentGuidanceFor(jenis, tema, parameters)}
+
+${retrievedDalilGuidanceFor(retrievedDalil)}
 
 ${arabicVariationGuidanceFor(jenis)}
 
@@ -379,6 +407,7 @@ ${thematicDalil}
 
 ${styleGuidanceFor(jenis)}
 ${styleProfileFor(jenis)}
+${styleExamplesFor(jenis)}
 
 Struktur wajib:
 ${structureRequirementsFor(jenis)}
@@ -851,7 +880,41 @@ function pickDistinct(items: string[], seed: string, salts: number[]) {
 }
 
 type FallbackSection = { title: string; body: string };
-type DalilText = { arab: string; arti: string; rujukan: string };
+export type DalilText = { arab: string; arti: string; rujukan: string };
+
+export type PromptDalilItem = {
+  kind: "quran" | "hadith";
+  reference: string;
+  arab?: string;
+  translation: string;
+  source: string;
+  grade?: string;
+  takhrij?: string;
+  tafsir?: string;
+  relevance?: string;
+  fallback?: boolean;
+};
+
+export type PromptDalilContext = {
+  theme: string;
+  source: string;
+  quran: PromptDalilItem[];
+  hadith: PromptDalilItem[];
+  warnings?: string[];
+};
+
+export type CuratedDalilSeedItem = {
+  id: string;
+  kind: "quran" | "hadith";
+  reference: string;
+  arab: string;
+  translation: string;
+  source: string;
+  grade?: string | null;
+  takhrij?: string | null;
+  tafsir?: string | null;
+  tags: string[];
+};
 
 type ThematicDalilSet = {
   label: string;
@@ -1564,7 +1627,7 @@ const thematicDalilSets: ThematicDalilSet[] = [
   }
 ];
 
-function topicFromParameters(parameters: Record<string, unknown>) {
+export function topicFromParameters(parameters: Record<string, unknown>) {
   const primary = String(
     parameters.temaUtama ?? parameters.tema ?? parameters.topik ?? parameters.topikSingkat ?? parameters.temaPesan ?? ""
   ).trim();
@@ -1647,7 +1710,7 @@ function matchingThematicDalilSet(jenis: string, tema: string) {
     : null;
 }
 
-function selectedDalilFor(jenis: string, tema: string, seed: string) {
+export function selectedDalilFor(jenis: string, tema: string, seed: string) {
   const set = matchingThematicDalilSet(jenis, tema);
   if (!set) {
     return {
@@ -1678,6 +1741,123 @@ function dalilGuidanceFor(jenis: string, tema: string) {
   Daftar hadits:
   ${hadithList}
   Isi naskah wajib menjelaskan hubungan dalil ini dengan tema, bukan sekadar menempelkan kutipan.`;
+}
+
+function promptDalilLines(items: PromptDalilItem[]) {
+  return items
+    .map((item, index) => {
+      const details = [
+        `${index + 1}. ${item.reference}`,
+        item.grade ? `Derajat: ${item.grade}` : "",
+        item.takhrij ? `Takhrij: ${item.takhrij}` : "",
+        `Sumber data: ${item.source}${item.fallback ? " (fallback terkurasi lokal)" : ""}`,
+        item.arab ? `Arab: ${item.arab}` : "",
+        `Terjemah/isi: ${item.translation}`,
+        item.tafsir ? `${item.kind === "hadith" ? "Hikmah/catatan" : "Tafsir ringkas"}: ${item.tafsir}` : "",
+        item.relevance ? `Kaitan tema: ${item.relevance}` : ""
+      ].filter(Boolean);
+
+      return details.join("\n  ");
+    })
+    .join("\n");
+}
+
+function retrievedDalilGuidanceFor(context?: PromptDalilContext) {
+  if (!context || (context.quran.length === 0 && context.hadith.length === 0)) return "";
+
+  const quran = context.quran.length > 0 ? promptDalilLines(context.quran) : "Tidak ada ayat hasil retrieval.";
+  const hadith = context.hadith.length > 0 ? promptDalilLines(context.hadith) : "Tidak ada hadits hasil retrieval.";
+  const warnings = context.warnings?.length ? `\nCatatan retrieval:\n${context.warnings.map((warning) => `- ${warning}`).join("\n")}` : "";
+
+  return `Dalil terkurasi hasil retrieval untuk tema "${context.theme}".
+Sumber retrieval: ${context.source}.
+
+Ayat hasil retrieval:
+  ${quran}
+
+Hadits hasil retrieval:
+  ${hadith}
+
+Aturan khusus dalil:
+- Jadikan daftar hasil retrieval ini sebagai rujukan utama ketika menulis bagian ayat dan hadits.
+- Salin referensi, teks Arab, terjemah inti, sumber hadits, takhrij, dan derajat hadits sesuai data di atas. Jangan mengganti nomor surah/ayat, sumber hadits, takhrij, atau derajat hadits.
+- Jangan menambah ayat atau hadits lain kecuali hasil retrieval kosong atau benar-benar tidak relevan; jika memakai fallback, pilih yang paling dekat dengan tema dan jelaskan kaitannya secara jujur.
+- Jangan mengarang teks Arab, terjemahan, takhrij, derajat hadits, atau sumber kitab.
+- Jika hadits memiliki derajat, tampilkan derajat itu secara ringkas setelah rujukan atau dalam kalimat penjelas.
+- Penjelasan boleh memakai bahasa natural, tetapi kutipan dalil harus tetap terkunci pada data retrieval.
+- Isi utama harus menjelaskan hubungan dalil dengan tema "${context.theme}", bukan sekadar menempelkan kutipan.${warnings}`;
+}
+
+function seedIdFor(kind: "quran" | "hadith", reference: string, index: number) {
+  const normalized = reference
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return `seed-${kind}-${normalized || index}`;
+}
+
+function seedTagsFor(set: ThematicDalilSet) {
+  return [
+    ...new Set(
+      [
+        set.label,
+        ...set.keywords,
+        ...set.label.split(/[,،]/),
+        ...set.label.split(/\s+dan\s+|\s+atau\s+/)
+      ]
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  ];
+}
+
+function gradeFromReference(reference: string) {
+  if (/bukhari|muslim/i.test(reference)) return "Sahih";
+  if (/tirmidzi/i.test(reference)) return "Perlu cek derajat di kitab sumber";
+  return null;
+}
+
+export function curatedDalilSeedItems(): CuratedDalilSeedItem[] {
+  const items: CuratedDalilSeedItem[] = [];
+  let index = 0;
+
+  for (const set of thematicDalilSets) {
+    const tags = seedTagsFor(set);
+    for (const ayat of set.ayat) {
+      index += 1;
+      items.push({
+        id: seedIdFor("quran", ayat.rujukan, index),
+        kind: "quran",
+        reference: ayat.rujukan,
+        arab: ayat.arab,
+        translation: ayat.arti,
+        source: "Seed dalil tematik aplikasi",
+        tafsir: `Paket tema: ${set.label}.`,
+        tags
+      });
+    }
+
+    for (const hadith of set.hadith) {
+      index += 1;
+      items.push({
+        id: seedIdFor("hadith", hadith.rujukan, index),
+        kind: "hadith",
+        reference: hadith.rujukan,
+        arab: hadith.arab,
+        translation: hadith.arti,
+        source: "Seed dalil tematik aplikasi",
+        grade: gradeFromReference(hadith.rujukan),
+        takhrij: hadith.rujukan,
+        tafsir: `Paket tema: ${set.label}.`,
+        tags
+      });
+    }
+  }
+
+  return items;
 }
 
 const localizedContentTypeLabels: Record<SupportedLanguage, Record<ContentType, string>> = {

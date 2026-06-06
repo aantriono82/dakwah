@@ -9,6 +9,7 @@ import { CONTENT_TYPES, titleFromParameters, validateContentParameters } from ".
 import { qualityReportFor } from "../utils/quality";
 import { rateLimit } from "../utils/rate-limit";
 import { generateText, streamGeneratedText } from "../services/openai";
+import { retrieveDalilContext } from "../services/myquran";
 
 const generateSchema = z.object({
   jenis: z.enum(CONTENT_TYPES),
@@ -33,8 +34,9 @@ generateRoutes.post("/", zValidator("json", generateSchema), async (c) => {
   }
 
   const startedAt = Date.now();
-  const content = await generateText(jenis, parameters);
-  const quality = qualityReportFor(jenis, content, parameters);
+  const dalilContext = await retrieveDalilContext(jenis, parameters);
+  const content = await generateText(jenis, parameters, dalilContext);
+  const quality = qualityReportFor(jenis, content, parameters, dalilContext);
   await recordUsageEvent({
     userId: user.id,
     eventType: "generate",
@@ -42,7 +44,15 @@ generateRoutes.post("/", zValidator("json", generateSchema), async (c) => {
     jenis,
     route: "/api/generate",
     durationMs: Date.now() - startedAt,
-    metadata: { qualityScore: quality.score, wordCount: quality.wordCount, quotaUsed: quota.used + 1, quotaLimit: quota.limit }
+    metadata: {
+      qualityScore: quality.score,
+      wordCount: quality.wordCount,
+      quotaUsed: quota.used + 1,
+      quotaLimit: quota.limit,
+      dalilSource: dalilContext.source,
+      quranReference: dalilContext.quran[0]?.reference,
+      hadithReference: dalilContext.hadith[0]?.reference
+    }
   });
   return c.json({
     title: titleFromParameters(jenis, parameters),
@@ -66,12 +76,13 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
   c.header("Cache-Control", "no-cache, no-transform");
   return streamText(c, async (stream) => {
     const startedAt = Date.now();
+    const dalilContext = await retrieveDalilContext(jenis, parameters);
     let content = "";
-    for await (const chunk of streamGeneratedText(jenis, parameters)) {
+    for await (const chunk of streamGeneratedText(jenis, parameters, dalilContext)) {
       content += chunk;
       await stream.write(chunk);
     }
-    const quality = qualityReportFor(jenis, content, parameters);
+    const quality = qualityReportFor(jenis, content, parameters, dalilContext);
     await recordUsageEvent({
       userId: user.id,
       eventType: "generate",
@@ -79,7 +90,15 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
       jenis,
       route: "/api/generate/stream",
       durationMs: Date.now() - startedAt,
-      metadata: { qualityScore: quality.score, wordCount: quality.wordCount, quotaUsed: quota.used + 1, quotaLimit: quota.limit }
+      metadata: {
+        qualityScore: quality.score,
+        wordCount: quality.wordCount,
+        quotaUsed: quota.used + 1,
+        quotaLimit: quota.limit,
+        dalilSource: dalilContext.source,
+        quranReference: dalilContext.quran[0]?.reference,
+        hadithReference: dalilContext.hadith[0]?.reference
+      }
     });
   });
 });
