@@ -1,9 +1,9 @@
 import type React from "react";
 import { useEffect, useState } from "react";
-import { BookOpen, CalendarDays, FileText, Mail, MapPin, Megaphone, MoonStar, Phone } from "lucide-react";
+import { BookOpen, FileText, Mail, MapPin, Megaphone, MoonStar, Phone } from "lucide-react";
 import { Badge, Button } from "../components/ui";
 import { api, jenisOptions, type JenisId } from "../lib/utils";
-import type { Naskah, Template, User } from "../types";
+import type { Template, User } from "../types";
 import mosqueHero from "../assets/dashboard-mosque-hero.png";
 
 const featureCards: Array<{
@@ -45,17 +45,14 @@ const featureCards: Array<{
 ];
 
 export function Dashboard({
-  user,
   onCreate
 }: {
   user: User;
   onCreate: (jenis?: JenisId) => void;
 }) {
-  const [stats, setStats] = useState<{ naskah: number; templates: number; recent: Naskah[] } | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
 
   useEffect(() => {
-    api<{ data: { naskah: number; templates: number; recent: Naskah[] } }>("/api/stats").then((data) => setStats(data.data));
     api<{ data: Template[] }>("/api/templates")
       .then((data) => setTemplates(data.data.slice(0, 3)))
       .catch(() => setTemplates([]));
@@ -91,7 +88,7 @@ export function Dashboard({
         </div>
       </section>
 
-      <HomeFooter user={user} templates={templates} recent={stats?.recent ?? []} onCreate={onCreate} />
+      <HomeFooter templates={templates} onCreate={onCreate} />
     </div>
   );
 }
@@ -125,14 +122,10 @@ function FeatureCard({
 }
 
 function HomeFooter({
-  user,
   templates,
-  recent,
   onCreate
 }: {
-  user: User;
   templates: Template[];
-  recent: Naskah[];
   onCreate: (jenis?: JenisId) => void;
 }) {
   const featured = templates.slice(0, 2);
@@ -196,25 +189,18 @@ function HomeFooter({
           <div className="mt-6 grid gap-4 text-sm text-white/75">
             <p className="flex gap-3">
               <Phone className="mt-0.5 size-4 shrink-0 text-primary" />
-              Hubungi admin untuk akun dan pengelolaan akses.
+              085789786635
             </p>
             <p className="flex gap-3">
               <Mail className="mt-0.5 size-4 shrink-0 text-primary" />
-              Login sebagai {user.name}
+              aantriono57@guru.smp.belajar.id
             </p>
             <p className="flex gap-3">
               <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
-              {recent.length} riwayat terbaru tersedia di ruang kerja.
-            </p>
-            <p className="flex gap-3">
-              <CalendarDays className="mt-0.5 size-4 shrink-0 text-primary" />
-              Siapkan materi untuk jadwal dakwah berikutnya.
+              Sidoluhur Kec. Bangunrejo
             </p>
           </div>
         </div>
-      </div>
-      <div className="border-t border-white/10 bg-[#0d1412] px-6 py-6 text-center text-xs text-white/55">
-        Dakwah &copy; 2026. Gunakan naskah sebagai draft dan tinjau kembali sebelum disampaikan.
       </div>
     </footer>
   );

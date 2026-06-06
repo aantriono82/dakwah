@@ -5,18 +5,39 @@ import { Badge, Button, Card, Field, IconButton, Input, Notice, Select } from ".
 import { api } from "../lib/utils";
 import type { User } from "../types";
 
+type AdminStats = {
+  users: number;
+  naskah: number;
+  templates: number;
+  todayGenerates: number;
+  todayExports: number;
+  blockedGenerates: number;
+  byJenis: { jenis: string; total: number }[];
+  usageByUser: { userId: string | null; username: string | null; name: string | null; total: number }[];
+  recentUsage: Array<{
+    id: string;
+    eventType: string;
+    status: string;
+    jenis?: string | null;
+    route?: string | null;
+    durationMs?: number | null;
+    createdAt: string;
+    user?: User | null;
+  }>;
+};
+
 export function Admin() {
-  const [stats, setStats] = useState<{ users: number; naskah: number; templates: number; byJenis: { jenis: string; total: number }[] } | null>(null);
+  const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-  const [form, setForm] = useState({ username: "", name: "", password: "", role: "user" });
+  const [form, setForm] = useState({ username: "", name: "", password: "", role: "user", dailyGenerateLimit: "" });
   const [editingUserId, setEditingUserId] = useState("");
-  const [editForm, setEditForm] = useState({ username: "", name: "", password: "", role: "user" });
+  const [editForm, setEditForm] = useState({ username: "", name: "", password: "", role: "user", dailyGenerateLimit: "" });
   const [message, setMessage] = useState("");
 
   async function load() {
     try {
       const [statsData, usersData] = await Promise.all([
-        api<{ data: typeof stats }>("/api/admin/stats"),
+        api<{ data: AdminStats }>("/api/admin/stats"),
         api<{ data: User[] }>("/api/admin/users")
       ]);
       setStats(statsData.data);
@@ -34,8 +55,8 @@ export function Admin() {
   async function createUser(event: React.FormEvent) {
     event.preventDefault();
     try {
-      await api("/api/admin/users", { method: "POST", body: JSON.stringify(form) });
-      setForm({ username: "", name: "", password: "", role: "user" });
+      await api("/api/admin/users", { method: "POST", body: JSON.stringify(userPayload(form)) });
+      setForm({ username: "", name: "", password: "", role: "user", dailyGenerateLimit: "" });
       await load();
       setMessage("User berhasil ditambahkan.");
     } catch (error) {
@@ -45,13 +66,19 @@ export function Admin() {
 
   function startEdit(user: User) {
     setEditingUserId(user.id);
-    setEditForm({ username: user.username, name: user.name, password: "", role: user.role });
+    setEditForm({
+      username: user.username,
+      name: user.name,
+      password: "",
+      role: user.role,
+      dailyGenerateLimit: user.dailyGenerateLimit === null || user.dailyGenerateLimit === undefined ? "" : String(user.dailyGenerateLimit)
+    });
     setMessage("");
   }
 
   function cancelEdit() {
     setEditingUserId("");
-    setEditForm({ username: "", name: "", password: "", role: "user" });
+    setEditForm({ username: "", name: "", password: "", role: "user", dailyGenerateLimit: "" });
   }
 
   async function updateUser(event: React.FormEvent) {
@@ -59,12 +86,9 @@ export function Admin() {
     if (!editingUserId) return;
 
     try {
-      const payload: { username: string; name: string; role: string; password?: string } = {
-        username: editForm.username,
-        name: editForm.name,
-        role: editForm.role
-      };
+      const payload: { username: string; name: string; role: string; dailyGenerateLimit: number | null; password?: string } = userPayload(editForm);
       if (editForm.password.trim()) payload.password = editForm.password;
+      else delete payload.password;
       await api(`/api/admin/users/${editingUserId}`, { method: "PUT", body: JSON.stringify(payload) });
       cancelEdit();
       await load();
@@ -99,7 +123,11 @@ export function Admin() {
         <Stat label="User" value={stats?.users ?? 0} />
         <Stat label="Semua naskah" value={stats?.naskah ?? 0} />
         <Stat label="Semua template" value={stats?.templates ?? 0} />
+        <Stat label="Generate hari ini" value={stats?.todayGenerates ?? 0} />
+        <Stat label="Export hari ini" value={stats?.todayExports ?? 0} />
+        <Stat label="Generate diblokir" value={stats?.blockedGenerates ?? 0} />
       </section>
+      {stats ? <UsageMonitoring stats={stats} /> : null}
       {stats?.byJenis?.length ? (
         <Card className="p-4">
           <h2 className="mb-4 text-lg font-semibold">Distribusi naskah</h2>
@@ -132,6 +160,15 @@ export function Admin() {
                 <option value="admin">Admin</option>
               </Select>
             </Field>
+            <Field label="Quota generate harian">
+              <Input
+                type="number"
+                min={0}
+                value={form.dailyGenerateLimit}
+                onChange={(event) => setForm({ ...form, dailyGenerateLimit: event.target.value })}
+                placeholder="Kosong = default"
+              />
+            </Field>
             <Button>
               <Users className="size-4" />
               Simpan user
@@ -161,6 +198,15 @@ export function Admin() {
                           <option value="admin">Admin</option>
                         </Select>
                       </Field>
+                      <Field label="Quota generate harian">
+                        <Input
+                          type="number"
+                          min={0}
+                          value={editForm.dailyGenerateLimit}
+                          onChange={(event) => setEditForm({ ...editForm, dailyGenerateLimit: event.target.value })}
+                          placeholder="Kosong = default"
+                        />
+                      </Field>
                       <Field label="Password baru">
                         <Input
                           type="password"
@@ -188,6 +234,7 @@ export function Admin() {
                       <div className="mt-1 flex flex-wrap gap-2">
                         <Badge>{item.username}</Badge>
                         <Badge className={item.role === "admin" ? "border-primary/30 bg-primary/10 text-primary" : undefined}>{item.role}</Badge>
+                        <Badge>Quota: {item.dailyGenerateLimit ?? "default"}</Badge>
                         <Badge title="Password asli tidak dapat ditampilkan karena disimpan sebagai hash terenkripsi. Gunakan edit untuk reset password.">
                           Password: ********
                         </Badge>
@@ -209,6 +256,55 @@ export function Admin() {
         </Card>
       </section>
     </div>
+  );
+}
+
+function userPayload(form: { username: string; name: string; password: string; role: string; dailyGenerateLimit: string }) {
+  return {
+    username: form.username,
+    name: form.name,
+    password: form.password,
+    role: form.role,
+    dailyGenerateLimit: form.dailyGenerateLimit.trim() === "" ? null : Number(form.dailyGenerateLimit)
+  };
+}
+
+function UsageMonitoring({ stats }: { stats: AdminStats }) {
+  return (
+    <section className="grid gap-4 xl:grid-cols-2">
+      <Card className="p-4">
+        <h2 className="mb-4 text-lg font-semibold">Generate per user hari ini</h2>
+        <div className="grid gap-2">
+          {stats.usageByUser.length === 0 && <p className="text-sm text-muted-foreground">Belum ada generate hari ini.</p>}
+          {stats.usageByUser.map((item) => (
+            <div key={item.userId ?? "anonymous"} className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+              <span className="min-w-0 truncate text-sm text-muted-foreground">{item.name || item.username || "User terhapus"}</span>
+              <Badge>{item.total}</Badge>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card className="p-4">
+        <h2 className="mb-4 text-lg font-semibold">Event terbaru</h2>
+        <div className="grid gap-2">
+          {stats.recentUsage.length === 0 && <p className="text-sm text-muted-foreground">Belum ada event penggunaan.</p>}
+          {stats.recentUsage.slice(0, 8).map((event) => (
+            <div key={event.id} className="grid gap-1 rounded-md border border-border px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium">
+                  {event.eventType} - {event.status}
+                </span>
+                <Badge>{event.jenis ?? event.route ?? "umum"}</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {event.user?.name ?? "User terhapus"} - {new Date(event.createdAt).toLocaleString("id-ID")}
+                {event.durationMs ? ` - ${event.durationMs}ms` : ""}
+              </p>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </section>
   );
 }
 

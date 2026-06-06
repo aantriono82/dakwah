@@ -10,14 +10,15 @@ export type AppEnv = {
   };
 };
 
-export type PublicUser = Pick<User, "id" | "username" | "name" | "role">;
+export type PublicUser = Pick<User, "id" | "username" | "name" | "role" | "dailyGenerateLimit">;
 
 export function publicUser(user: User): PublicUser {
   return {
     id: user.id,
     username: user.username,
     name: user.name,
-    role: user.role
+    role: user.role,
+    dailyGenerateLimit: user.dailyGenerateLimit
   };
 }
 

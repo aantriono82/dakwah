@@ -11,7 +11,7 @@ import { templateRoutes } from "./routes/templates";
 import { exportRoutes } from "./routes/export";
 import { adminRoutes } from "./routes/admin";
 import { statsRoutes } from "./routes/stats";
-import { activeModelCount, aiProvider, generateClientTimeoutMs, providerTimeoutMs } from "./config";
+import { activeModelCount, aiProvider, appPublicUrl, corsOrigins, generateClientTimeoutMs, providerTimeoutMs } from "./config";
 import { checkStorageHealth, isStorageRequired } from "./services/storage";
 import type { AppEnv } from "./utils/http";
 
@@ -23,7 +23,13 @@ app.use("*", logger());
 app.use(
   "/api/*",
   cors({
-    origin: (origin) => origin,
+    origin: (origin) => {
+      if (!origin) return origin;
+      const normalizedOrigin = origin.replace(/\/+$/, "");
+      if (corsOrigins.length > 0) return corsOrigins.includes(normalizedOrigin) ? origin : "";
+      if (process.env.NODE_ENV === "production") return normalizedOrigin === appPublicUrl ? origin : "";
+      return origin;
+    },
     credentials: true
   })
 );

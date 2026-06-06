@@ -482,3 +482,91 @@ export async function* streamGeneratedText(jenis: string, parameters: Record<str
     }
   }
 }
+
+function revisionPrompt(input: {
+  jenis: string;
+  parameters: Record<string, unknown>;
+  currentContent: string;
+  instruction: string;
+  targetSection?: string;
+}) {
+  const target = input.targetSection ? `\nBagian yang difokuskan: ${input.targetSection}` : "";
+  return `Revisi naskah dakwah berikut sesuai instruksi pengguna.
+
+Aturan:
+- Kembalikan naskah final lengkap, bukan catatan perubahan.
+- Pertahankan struktur utama naskah, heading standar, rukun khutbah, ayat, hadits, dan doa yang sudah benar.
+- Jika hanya satu bagian diminta, perbaiki bagian itu tanpa merusak bagian lain.
+- Jangan tampilkan analisis, reasoning, ringkasan perubahan, atau Markdown.
+- Semua teks Arab di bagian penting tetap berharakat.
+
+Jenis naskah: ${input.jenis}${target}
+Instruksi revisi: ${input.instruction}
+
+Parameter:
+${Object.entries(input.parameters)
+  .map(([key, value]) => `- ${key}: ${String(value)}`)
+  .join("\n")}
+
+Naskah saat ini:
+${input.currentContent}`;
+}
+
+function localRevisionFallback(currentContent: string, instruction: string) {
+  return sanitizeGeneratedText(
+    `${currentContent.trim()}
+
+Catatan penyuntingan:
+Instruksi revisi belum dapat diproses oleh provider AI saat ini. Tinjau naskah di atas dengan arahan berikut sebelum disampaikan: ${instruction.trim()}`
+  );
+}
+
+export async function reviseNaskahContent(input: {
+  jenis: string;
+  parameters: Record<string, unknown>;
+  currentContent: string;
+  instruction: string;
+  targetSection?: string;
+}) {
+  const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const prompt = revisionPrompt(input);
+
+  if (aiProvider === "gemini" && geminiApiKey) {
+    for (const modelName of geminiModels) {
+      try {
+        const response = await createGeminiCompletion(modelName, prompt, input.jenis, input.parameters);
+        const text = normalizeProviderText(input.jenis, geminiTextFromResponse(response), input.parameters);
+        if (text) return text;
+      } catch (error) {
+        console.warn(`[reviseNaskahContent:${traceId}] provider=gemini model=${modelName} provider_failed message=${providerMessage(error)}`);
+      }
+    }
+  }
+
+  if (client) {
+    const settings = generationSettingsFor(input.jenis, input.parameters);
+    for (const modelName of models) {
+      try {
+        const response = await createCompletionWithCreditRetry(
+          {
+            model: modelName,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt },
+              { role: "user", content: variationInstruction(traceId) }
+            ],
+            ...settings
+          },
+          traceId,
+          "revision"
+        );
+        const text = normalizeProviderText(input.jenis, response.choices[0]?.message.content ?? "", input.parameters);
+        if (text) return text;
+      } catch (error) {
+        console.warn(`[reviseNaskahContent:${traceId}] model=${modelName} provider_failed message=${providerMessage(error)}`);
+      }
+    }
+  }
+
+  return localRevisionFallback(input.currentContent, input.instruction);
+}

@@ -1,10 +1,10 @@
 import { Hono } from "hono";
-import { count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../db/client";
-import { naskah, templates, users } from "../db/schema";
+import { naskah, templates, usageEvents, users } from "../db/schema";
 import { adminRequired, authRequired, isUniqueConstraintError, publicUser, type AppEnv } from "../utils/http";
 import { hashPassword } from "../utils/password";
 
@@ -15,17 +15,55 @@ adminRoutes.get("/stats", async (c) => {
   const [userCount] = await db.select({ value: count() }).from(users);
   const [naskahCount] = await db.select({ value: count() }).from(naskah);
   const [templateCount] = await db.select({ value: count() }).from(templates);
+  const [todayGenerates] = await db
+    .select({ value: count() })
+    .from(usageEvents)
+    .where(and(eq(usageEvents.eventType, "generate"), eq(usageEvents.status, "ok"), sql`${usageEvents.createdAt} >= datetime('now', 'start of day')`));
+  const [todayExports] = await db
+    .select({ value: count() })
+    .from(usageEvents)
+    .where(and(eq(usageEvents.eventType, "export"), eq(usageEvents.status, "ok"), sql`${usageEvents.createdAt} >= datetime('now', 'start of day')`));
+  const [blockedGenerates] = await db
+    .select({ value: count() })
+    .from(usageEvents)
+    .where(and(eq(usageEvents.eventType, "generate"), eq(usageEvents.status, "blocked"), sql`${usageEvents.createdAt} >= datetime('now', 'start of day')`));
   const byJenis = await db
     .select({ jenis: naskah.jenis, total: count() })
     .from(naskah)
     .groupBy(naskah.jenis)
     .orderBy(desc(sql`count(*)`));
+  const usageByUser = await db
+    .select({
+      userId: usageEvents.userId,
+      username: users.username,
+      name: users.name,
+      total: count()
+    })
+    .from(usageEvents)
+    .leftJoin(users, eq(usageEvents.userId, users.id))
+    .where(and(eq(usageEvents.eventType, "generate"), sql`${usageEvents.createdAt} >= datetime('now', 'start of day')`))
+    .groupBy(usageEvents.userId)
+    .orderBy(desc(sql`count(*)`))
+    .limit(10);
+  const recentUsage = await db.query.usageEvents.findMany({
+    orderBy: desc(usageEvents.createdAt),
+    limit: 20,
+    with: { user: true }
+  });
   return c.json({
     data: {
       users: userCount.value,
       naskah: naskahCount.value,
       templates: templateCount.value,
-      byJenis
+      todayGenerates: todayGenerates.value,
+      todayExports: todayExports.value,
+      blockedGenerates: blockedGenerates.value,
+      byJenis,
+      usageByUser,
+      recentUsage: recentUsage.map((event) => ({
+        ...event,
+        user: event.user ? publicUser(event.user) : null
+      }))
     }
   });
 });
@@ -43,7 +81,8 @@ adminRoutes.post(
       username: z.string().min(3),
       name: z.string().min(3),
       password: z.string().min(6),
-      role: z.enum(["admin", "user"])
+      role: z.enum(["admin", "user"]),
+      dailyGenerateLimit: z.number().int().min(0).nullable().optional()
     })
   ),
   async (c) => {
@@ -55,6 +94,7 @@ adminRoutes.post(
         username: body.username,
         name: body.name,
         role: body.role,
+        dailyGenerateLimit: body.dailyGenerateLimit,
         passwordHash: await hashPassword(body.password)
       });
     } catch (error) {
@@ -74,7 +114,8 @@ adminRoutes.put(
       username: z.string().min(3).optional(),
       name: z.string().min(3).optional(),
       password: z.string().min(6).optional(),
-      role: z.enum(["admin", "user"]).optional()
+      role: z.enum(["admin", "user"]).optional(),
+      dailyGenerateLimit: z.number().int().min(0).nullable().optional()
     })
   ),
   async (c) => {
@@ -83,6 +124,7 @@ adminRoutes.put(
       username: body.username,
       name: body.name,
       role: body.role,
+      dailyGenerateLimit: body.dailyGenerateLimit,
       updatedAt: new Date().toISOString()
     };
     if (body.password) patch.passwordHash = await hashPassword(body.password);

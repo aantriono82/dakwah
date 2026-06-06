@@ -6,6 +6,7 @@ import {
   Eye,
   EyeOff,
   Github,
+  Heart,
   LockKeyhole,
   LogOut,
   Mail,
@@ -26,6 +27,10 @@ import { api, cn, jenisOptions, type JenisId } from "./lib/utils";
 import type { Naskah, Template, User } from "./types";
 
 type TabId = "home" | "about" | "generate" | "history" | "templates" | "admin" | "disclaimer";
+type CaptchaChallenge = { token: string; question: string; noise: Array<{ left: number; top: number; width: number; rotate: number }> };
+
+const authCardClass =
+  "relative w-full max-w-[590px] rounded-lg border border-border bg-card px-5 py-8 text-card-foreground shadow-2xl sm:px-9 sm:py-11";
 
 const khutbahItems: Array<{ label: string; jenis: JenisId }> = [
   { label: "Jumat", jenis: "khutbah-jumat" },
@@ -235,12 +240,19 @@ function Login({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [authPanel, setAuthPanel] = useState<"login" | "register" | "terms" | "privacy">("login");
+  const initialResetToken =
+    window.location.pathname === "/reset-password" ? new URLSearchParams(window.location.search).get("token") ?? "" : "";
+  const [resetToken, setResetToken] = useState(initialResetToken);
+  const [authPanel, setAuthPanel] = useState<"login" | "register" | "forgot" | "reset" | "terms" | "privacy">(
+    initialResetToken ? "reset" : "login"
+  );
+  const [notice, setNotice] = useState("");
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setLoading(true);
     setError("");
+    setNotice("");
     try {
       const data = await api<{ user: User }>("/api/auth/login", {
         method: "POST",
@@ -254,9 +266,14 @@ function Login({
     }
   }
 
+  function showSocialLoginNotice(provider: "Google" | "GitHub") {
+    setError("");
+    setNotice(`Login dengan ${provider} belum dikonfigurasi. Gunakan email dan kata sandi, atau hubungi admin untuk mengaktifkan OAuth ${provider}.`);
+  }
+
   const content =
     authPanel === "login" ? (
-    <div className="relative w-full max-w-[590px] rounded-lg border border-border bg-card px-5 py-8 text-card-foreground shadow-2xl sm:px-9 sm:py-11">
+    <div className={authCardClass}>
       {onClose && (
         <button
           className="absolute right-5 top-5 inline-flex size-9 items-center justify-center rounded-md text-foreground transition hover:bg-accent"
@@ -272,22 +289,32 @@ function Login({
         <p className="mt-3 text-base text-foreground sm:text-lg">Akses lebih banyak fitur pembelajaran</p>
         <p className="mt-5 text-base text-muted-foreground sm:text-lg">
           Belum punya akun?{" "}
-          <button className="font-bold text-primary" onClick={() => setAuthPanel("register")} type="button">
+          <button
+            className="font-bold text-primary"
+            onClick={() => {
+              setError("");
+              setNotice("");
+              setAuthPanel("register");
+            }}
+            type="button"
+          >
             Daftar
           </button>
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4" aria-label="Pilihan masuk cepat">
-        <SocialLoginButton label="Google">
+        <SocialLoginButton label="Google" onClick={() => showSocialLoginNotice("Google")}>
           <span className="text-3xl font-black">
             <span className="text-[#4285f4]">G</span>
           </span>
         </SocialLoginButton>
-        <SocialLoginButton label="GitHub">
+        <SocialLoginButton label="GitHub" onClick={() => showSocialLoginNotice("GitHub")}>
           <Github className="size-9 text-foreground" />
         </SocialLoginButton>
       </div>
+
+      {notice && <p className="mt-4 rounded-md border border-primary/25 bg-primary/10 px-3 py-2 text-sm text-primary">{notice}</p>}
 
       <div className="my-7 flex items-center gap-5">
         <div className="h-px flex-1 bg-border" />
@@ -325,7 +352,15 @@ function Login({
             {showPassword ? <EyeOff className="size-6" /> : <Eye className="size-6" />}
           </button>
         </label>
-        <button className="w-max text-base font-medium text-blue-600 hover:text-blue-700" type="button">
+        <button
+          className="w-max text-base font-medium text-blue-600 hover:text-blue-700"
+          onClick={() => {
+            setError("");
+            setNotice("");
+            setAuthPanel("forgot");
+          }}
+          type="button"
+        >
           Lupa kata sandi?
         </button>
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
@@ -335,11 +370,25 @@ function Login({
       </form>
     </div>
   ) : authPanel === "register" ? (
-    <RegisterPanel
-      onRegister={onLogin}
-      onShowLogin={() => setAuthPanel("login")}
-      onShowTerms={() => setAuthPanel("terms")}
-      onShowPrivacy={() => setAuthPanel("privacy")}
+	    <RegisterPanel
+	      onRegister={onLogin}
+	      onShowLogin={() => setAuthPanel("login")}
+	      onShowTerms={() => setAuthPanel("terms")}
+	      onShowPrivacy={() => setAuthPanel("privacy")}
+	    />
+  ) : authPanel === "forgot" ? (
+    <ForgotPasswordPanel
+      onBack={() => setAuthPanel("login")}
+    />
+  ) : authPanel === "reset" ? (
+    <ResetPasswordPanel
+      token={resetToken}
+      onBack={() => setAuthPanel("login")}
+      onSuccess={() => {
+        setResetToken("");
+        window.history.replaceState(null, "", "/");
+        setAuthPanel("login");
+      }}
     />
   ) : authPanel === "terms" ? (
     <LegalPanel
@@ -382,6 +431,155 @@ function Login({
   );
 }
 
+function ForgotPasswordPanel({ onBack }: { onBack: () => void }) {
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    setLoading(true);
+    try {
+      const data = await api<{ message: string }>("/api/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email })
+      });
+      setMessage(data.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Permintaan reset kata sandi gagal.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className={authCardClass}>
+      <div className="text-center">
+        <h1 className="text-2xl font-black tracking-normal text-foreground sm:text-3xl">Lupa Kata Sandi</h1>
+        <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-muted-foreground">Masukkan email akun untuk menerima tautan reset kata sandi.</p>
+      </div>
+
+      <form className="mt-7 grid gap-4" onSubmit={submit}>
+        <label className="relative block">
+          <Mail className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
+          <Input
+            className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
+            placeholder="E-mail"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
+            required
+          />
+        </label>
+        {message && <p className="rounded-md border border-primary/25 bg-primary/10 px-3 py-2 text-sm text-primary">{message}</p>}
+        {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        <Button className="h-11 rounded-full bg-primary text-base font-bold hover:bg-primary/90" disabled={loading}>
+          {loading ? "Mengirim..." : "Kirim Link Reset"}
+        </Button>
+        <button className="text-sm font-medium text-muted-foreground transition hover:text-foreground" onClick={onBack} type="button">
+          Kembali ke Masuk
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function ResetPasswordPanel({ token, onBack, onSuccess }: { token: string; onBack: () => void; onSuccess: () => void }) {
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+
+    if (!token) {
+      setError("Token reset tidak tersedia.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Konfirmasi kata sandi belum sama.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await api<{ message: string }>("/api/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify({ token, password })
+      });
+      setMessage(data.message);
+      window.setTimeout(onSuccess, 900);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Reset kata sandi gagal.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className={authCardClass}>
+      <div className="text-center">
+        <h1 className="text-2xl font-black tracking-normal text-foreground sm:text-3xl">Kata Sandi Baru</h1>
+        <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-muted-foreground">Buat kata sandi baru untuk akun Dakwah Anda.</p>
+      </div>
+
+      <form className="mt-7 grid gap-4" onSubmit={submit}>
+        <label className="relative block">
+          <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
+          <Input
+            className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 pr-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
+            placeholder="Kata sandi baru"
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="new-password"
+            minLength={6}
+            required
+          />
+          <button
+            className="absolute right-4 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition hover:bg-accent"
+            onClick={() => setShowPassword((value) => !value)}
+            type="button"
+            aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+          >
+            {showPassword ? <Eye className="size-5" /> : <EyeOff className="size-5" />}
+          </button>
+        </label>
+        <label className="relative block">
+          <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
+          <Input
+            className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
+            placeholder="Ulangi kata sandi baru"
+            type={showPassword ? "text" : "password"}
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            autoComplete="new-password"
+            minLength={6}
+            required
+          />
+        </label>
+        {message && <p className="rounded-md border border-primary/25 bg-primary/10 px-3 py-2 text-sm text-primary">{message}</p>}
+        {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        <Button className="h-11 rounded-full bg-primary text-base font-bold hover:bg-primary/90" disabled={loading}>
+          {loading ? "Menyimpan..." : "Simpan Kata Sandi"}
+        </Button>
+        <button className="text-sm font-medium text-muted-foreground transition hover:text-foreground" onClick={onBack} type="button">
+          Kembali ke Masuk
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function RegisterPanel({
   onRegister,
   onShowLogin,
@@ -397,23 +595,33 @@ function RegisterPanel({
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [captcha, setCaptcha] = useState(() => createCaptcha());
+  const [captcha, setCaptcha] = useState<CaptchaChallenge | null>(null);
   const [captchaAnswer, setCaptchaAnswer] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const captchaIsValid = Number(captchaAnswer) === captcha.answer;
+  const captchaIsReady = Boolean(captcha && captchaAnswer);
 
-  function refreshCaptcha() {
-    setCaptcha(createCaptcha());
+  const refreshCaptcha = useCallback(async () => {
     setCaptchaAnswer("");
-  }
+    try {
+      const challenge = await api<{ token: string; question: string }>("/api/auth/captcha");
+      setCaptcha({ ...challenge, noise: createCaptchaNoise() });
+    } catch (error) {
+      setCaptcha(null);
+      setError(error instanceof Error ? error.message : "Captcha gagal dimuat.");
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshCaptcha();
+  }, [refreshCaptcha]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError("");
 
-    if (!captchaIsValid) {
-      setError("Jawaban captcha belum benar.");
+    if (!captcha || !captchaAnswer) {
+      setError("Lengkapi captcha terlebih dahulu.");
       return;
     }
 
@@ -421,19 +629,19 @@ function RegisterPanel({
     try {
       const data = await api<{ user: User }>("/api/auth/register", {
         method: "POST",
-        body: JSON.stringify({ email, name, password })
+        body: JSON.stringify({ email, name, password, captchaToken: captcha.token, captchaAnswer })
       });
       onRegister(data.user);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Registrasi gagal.");
-      refreshCaptcha();
+      void refreshCaptcha();
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="relative my-auto max-h-[calc(100vh-3rem)] w-full max-w-[390px] overflow-y-auto rounded-2xl border border-border bg-card px-5 py-6 text-card-foreground shadow-2xl sm:max-h-[calc(100vh-5rem)] sm:px-8 sm:py-8">
+    <div className={cn(authCardClass, "my-auto max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-h-[calc(100vh-5rem)]")}>
       <div className="text-center">
         <h1 className="text-2xl font-black tracking-normal text-foreground sm:text-3xl">Daftar</h1>
         <div className="mx-auto mt-5 grid size-14 place-items-center rounded-full bg-muted text-muted-foreground shadow-inner ring-4 ring-border sm:mt-6 sm:size-16">
@@ -443,6 +651,17 @@ function RegisterPanel({
 
       <form className="mt-6 grid gap-4 sm:mt-7" onSubmit={submit}>
         <label className="relative block">
+          <UserIcon className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
+          <Input
+            className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
+            placeholder="Nama"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            autoComplete="name"
+            required
+          />
+        </label>
+        <label className="relative block">
           <Mail className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
           <Input
             className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
@@ -451,17 +670,6 @@ function RegisterPanel({
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             autoComplete="email"
-            required
-          />
-        </label>
-        <label className="relative block">
-          <UserIcon className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" strokeWidth={2.3} />
-          <Input
-            className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
-            placeholder="Nama"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            autoComplete="name"
             required
           />
         </label>
@@ -491,8 +699,8 @@ function RegisterPanel({
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase text-muted-foreground">Verifikasi keamanan</p>
-              <div className="relative mt-2 flex h-11 w-44 max-w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-card sm:h-12" aria-label={`Soal captcha ${captcha.question}`}>
-                {captcha.noise.map((line, index) => (
+              <div className="relative mt-2 flex h-11 w-64 max-w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-card px-3 sm:h-12" aria-label={captcha ? `Soal captcha ${captcha.question}` : "Memuat captcha"}>
+                {captcha?.noise.map((line, index) => (
                   <span
                     key={`${line.left}-${index}`}
                     className="pointer-events-none absolute h-px rounded-full bg-muted-foreground/35"
@@ -505,12 +713,14 @@ function RegisterPanel({
                   />
                 ))}
                 <span className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--muted-foreground)/0.22)_1px,transparent_0)] bg-[length:8px_8px] opacity-60" />
-                <span className="relative select-none font-mono text-lg font-black tracking-normal text-foreground sm:text-xl">{captcha.question}</span>
+                <span className="relative select-none text-center font-mono text-sm font-black tracking-normal text-foreground sm:text-base">
+                  {captcha?.question ?? "Memuat..."}
+                </span>
               </div>
             </div>
             <button
               className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition hover:bg-accent"
-              onClick={refreshCaptcha}
+              onClick={() => void refreshCaptcha()}
               type="button"
               aria-label="Ganti captcha"
               title="Ganti captcha"
@@ -526,13 +736,12 @@ function RegisterPanel({
             aria-label="Jawaban captcha"
             inputMode="numeric"
           />
-          {captchaAnswer && !captchaIsValid && <p className="text-xs font-medium text-destructive">Jawaban captcha belum benar.</p>}
         </div>
 
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
         <div className="relative mt-1 flex items-center justify-center">
-          <Button className="h-11 min-w-28 rounded-full bg-primary px-5 text-base font-bold hover:bg-primary/90" disabled={!captchaIsValid || loading}>
+          <Button className="h-11 min-w-28 rounded-full bg-primary px-5 text-base font-bold hover:bg-primary/90" disabled={!captchaIsReady || loading}>
             {loading ? "Mendaftar..." : "Daftar"}
           </Button>
         </div>
@@ -559,30 +768,26 @@ function RegisterPanel({
   );
 }
 
-function createCaptcha() {
-  const a = Math.floor(Math.random() * 8) + 3;
-  const b = Math.floor(Math.random() * 6) + 2;
-  const c = Math.floor(Math.random() * 15) + 6;
-  const d = Math.floor(Math.random() * 7) + 3;
-  const variants = [
-    { question: `${a} x ${b} + ${c}`, answer: a * b + c },
-    { question: `${c} + ${a} x ${b}`, answer: c + a * b },
-    { question: `(${a} + ${b}) x ${d}`, answer: (a + b) * d },
-    { question: `${a} x (${b} + ${d})`, answer: a * (b + d) },
-    { question: `${a * b + c} - ${a} x ${b}`, answer: c }
-  ];
-  const selected = variants[Math.floor(Math.random() * variants.length)];
-  const noise = Array.from({ length: 5 }, () => ({
+function createCaptchaNoise() {
+  return Array.from({ length: 5 }, () => ({
     left: Math.floor(Math.random() * 78),
     top: Math.floor(Math.random() * 78) + 10,
     width: Math.floor(Math.random() * 70) + 45,
     rotate: Math.floor(Math.random() * 121) - 60
   }));
-
-  return { ...selected, noise };
 }
 
-function LegalPanel({ title, paragraphs, onBack }: { title: string; paragraphs: string[]; onBack: () => void }) {
+function LegalPanel({
+  title,
+  paragraphs,
+  backLabel = "Kembali ke Daftar",
+  onBack
+}: {
+  title: string;
+  paragraphs: string[];
+  backLabel?: string;
+  onBack: () => void;
+}) {
   return (
     <div className="relative w-full max-w-[520px] rounded-2xl border border-border bg-card px-5 py-8 text-card-foreground shadow-2xl sm:px-8">
       <h1 className="text-center text-2xl font-black tracking-normal text-foreground">{title}</h1>
@@ -592,16 +797,17 @@ function LegalPanel({ title, paragraphs, onBack }: { title: string; paragraphs: 
         ))}
       </div>
       <Button className="mt-7 h-11 w-full rounded-full bg-primary text-base font-bold hover:bg-primary/90" onClick={onBack} type="button">
-        Kembali ke Daftar
+        {backLabel}
       </Button>
     </div>
   );
 }
 
-function SocialLoginButton({ label, children }: { label: string; children: React.ReactNode }) {
+function SocialLoginButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       className="flex h-16 items-center justify-center rounded-lg border border-border bg-card transition hover:bg-accent"
+      onClick={onClick}
       type="button"
       aria-label={`Masuk dengan ${label}`}
       title={label}
@@ -662,7 +868,7 @@ function MainLayout({
     : [];
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur lg:py-0">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 lg:h-24">
           <button className="text-left" onClick={() => setActiveTab("home")}>
@@ -683,6 +889,8 @@ function MainLayout({
             <DesktopTab active={activeTab === "generate" && activeJenis === "ceramah"} onClick={() => onOpenGenerate("ceramah")} label="Ceramah" />
             <DesktopTab active={activeTab === "generate" && activeJenis === "kultum"} onClick={() => onOpenGenerate("kultum")} label="Kultum" />
             <DesktopTab active={activeTab === "history"} onClick={() => setActiveTab("history")} label="Riwayat" />
+            <DesktopTab active={activeTab === "templates"} onClick={() => setActiveTab("templates")} label="Template" />
+            {user.role === "admin" && <DesktopTab active={activeTab === "admin"} onClick={() => setActiveTab("admin")} label="Admin" />}
             <DesktopTab active={activeTab === "disclaimer"} onClick={() => setActiveTab("disclaimer")} label="Disclaimer" />
             <div className="relative w-44 xl:w-56">
               <Search className="pointer-events-none absolute inset-y-0 left-3 my-auto size-4 text-muted-foreground" />
@@ -756,11 +964,24 @@ function MainLayout({
           <MobileTab active={activeTab === "generate" && activeJenis === "ceramah"} onClick={() => onOpenGenerate("ceramah")} label="Ceramah" />
           <MobileTab active={activeTab === "generate" && activeJenis === "kultum"} onClick={() => onOpenGenerate("kultum")} label="Kultum" />
           <MobileTab active={activeTab === "history"} onClick={() => setActiveTab("history")} label="Riwayat" />
+          <MobileTab active={activeTab === "templates"} onClick={() => setActiveTab("templates")} label="Template" />
+          {user.role === "admin" && <MobileTab active={activeTab === "admin"} onClick={() => setActiveTab("admin")} label="Admin" />}
           <MobileTab active={activeTab === "disclaimer"} onClick={() => setActiveTab("disclaimer")} label="Disclaimer" />
         </nav>
       </header>
-      <main className="mx-auto max-w-7xl px-4 py-6 lg:py-0">{children}</main>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 lg:py-0">{children}</main>
+      <FooterCredit />
     </div>
+  );
+}
+
+function FooterCredit() {
+  return (
+    <footer className="flex flex-wrap items-center justify-center gap-1.5 border-t border-border bg-muted/30 px-6 py-6 text-center text-xs text-muted-foreground">
+      <span>Dakwah &copy; 2026. Dibuat dengan</span>
+      <Heart className="size-3.5 fill-[#800020] text-[#800020]" aria-label="cinta" />
+      <span>oleh Aan Triono.</span>
+    </footer>
   );
 }
 

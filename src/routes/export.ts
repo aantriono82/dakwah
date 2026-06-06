@@ -4,6 +4,7 @@ import { db } from "../db/client";
 import { naskah } from "../db/schema";
 import { createDocx, createPdf } from "../services/exporters";
 import { uploadFile } from "../services/storage";
+import { recordUsageEvent } from "../services/usage";
 import { authRequired, canAccessOwner, type AppEnv } from "../utils/http";
 
 export const exportRoutes = new Hono<AppEnv>();
@@ -15,6 +16,8 @@ function exportFilename(title: string, id: string, format: "pdf" | "docx") {
 }
 
 exportRoutes.post("/:id/:format", async (c) => {
+  const user = c.get("user");
+  const startedAt = Date.now();
   const format = c.req.param("format");
   if (format !== "pdf" && format !== "docx") return c.json({ message: "Format harus pdf atau docx." }, 400);
 
@@ -43,6 +46,15 @@ exportRoutes.post("/:id/:format", async (c) => {
   }
 
   await db.update(naskah).set({ fileKey: uploaded.key, fileUrl: uploaded.url }).where(eq(naskah.id, row.id));
+  await recordUsageEvent({
+    userId: user.id,
+    eventType: "export",
+    status: "ok",
+    jenis: row.jenis,
+    route: `/api/export/:id/${format}`,
+    durationMs: Date.now() - startedAt,
+    metadata: { format, storageUrl: uploaded.url, storageError: "error" in uploaded ? uploaded.error : undefined }
+  });
 
   c.header("Content-Type", contentType);
   c.header("Content-Disposition", `attachment; filename="${exportFilename(row.title, row.id, format)}"`);

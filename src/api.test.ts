@@ -15,6 +15,10 @@ beforeAll(async () => {
   process.env.AI_PROVIDER = "openai";
   process.env.S3_ENDPOINT = "http://127.0.0.1:65534";
   process.env.S3_PUBLIC_URL = "http://127.0.0.1:65534/khutbahai";
+  process.env.RESET_PASSWORD_DEBUG_LINK = "true";
+  process.env.AUTH_RATE_LIMIT_MAX = "100";
+  process.env.GENERATE_RATE_LIMIT_MAX = "100";
+  process.env.DEFAULT_DAILY_GENERATE_LIMIT = "100";
   delete process.env.S3_REQUIRED;
   delete process.env.OPENAI_API_KEY;
   delete process.env.GEMINI_API_KEY;
@@ -53,6 +57,33 @@ async function login(username: string, password: string) {
   });
 
   return { response, cookie: cookieFrom(response), body: await response.json() };
+}
+
+function solveCaptcha(question: string) {
+  let match = question.match(/^(\d+) x (\d+) \+ (\d+)$/);
+  if (match) return String(Number(match[1]) * Number(match[2]) + Number(match[3]));
+
+  match = question.match(/^(\d+) \+ (\d+) x (\d+)$/);
+  if (match) return String(Number(match[1]) + Number(match[2]) * Number(match[3]));
+
+  match = question.match(/^\((\d+) \+ (\d+)\) x (\d+)$/);
+  if (match) return String((Number(match[1]) + Number(match[2])) * Number(match[3]));
+
+  match = question.match(/^(\d+) x \((\d+) \+ (\d+)\)$/);
+  if (match) return String(Number(match[1]) * (Number(match[2]) + Number(match[3])));
+
+  match = question.match(/^(\d+) \+ (\d+) \+ (\d+)$/);
+  if (match) return String(Number(match[1]) + Number(match[2]) + Number(match[3]));
+
+  throw new Error(`Unknown captcha question: ${question}`);
+}
+
+async function captchaPayload() {
+  const response = await request("/api/auth/captcha");
+  const body = (await response.json()) as { token: string; question: string };
+
+  expect(response.status).toBe(200);
+  return { captchaToken: body.token, captchaAnswer: solveCaptcha(body.question) };
 }
 
 describe("API auth and roles", () => {
@@ -98,12 +129,14 @@ describe("API auth and roles", () => {
 
   test("register creates a user, starts a session, and allows login", async () => {
     const email = `jamaah-${Date.now()}@example.com`;
+    const captcha = await captchaPayload();
     const register = await request("/api/auth/register", {
       method: "POST",
       body: JSON.stringify({
         email,
         name: "Jamaah Baru",
-        password: "password123"
+        password: "password123",
+        ...captcha
       })
     });
     const registerCookie = cookieFrom(register);
@@ -122,16 +155,83 @@ describe("API auth and roles", () => {
     expect(loginResult.response.status).toBe(200);
     expect(loginResult.body.user.name).toBe("Jamaah Baru");
 
+    const duplicateCaptcha = await captchaPayload();
     const duplicate = await request("/api/auth/register", {
       method: "POST",
       body: JSON.stringify({
         email,
         name: "Jamaah Baru",
-        password: "password123"
+        password: "password123",
+        ...duplicateCaptcha
       })
     });
     expect(duplicate.status).toBe(409);
     expect((await duplicate.json()).message).toBe("Email sudah digunakan.");
+  });
+
+  test("register rejects invalid captcha", async () => {
+    const captcha = await captchaPayload();
+    const response = await request("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        email: `captcha-${Date.now()}@example.com`,
+        name: "Captcha User",
+        password: "password123",
+        captchaToken: captcha.captchaToken,
+        captchaAnswer: String(Number(captcha.captchaAnswer) + 1)
+      })
+    });
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).message).toBe("Jawaban captcha belum benar.");
+  });
+
+  test("forgot and reset password update credentials", async () => {
+    const email = `reset-${Date.now()}@example.com`;
+    const captcha = await captchaPayload();
+    const register = await request("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        email,
+        name: "Reset User",
+        password: "old-password",
+        ...captcha
+      })
+    });
+    const registerCookie = cookieFrom(register);
+    expect(register.status).toBe(201);
+    await request("/api/auth/logout", { method: "POST", body: "{}" }, registerCookie);
+
+    const forgot = await request("/api/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email })
+    });
+    const forgotBody = (await forgot.json()) as { message: string; resetUrl?: string };
+    expect(forgot.status).toBe(200);
+    expect(forgotBody.message).toBe("Jika email terdaftar, instruksi reset kata sandi akan dikirim.");
+    expect(typeof forgotBody.resetUrl).toBe("string");
+
+    const token = new URL(forgotBody.resetUrl ?? "").searchParams.get("token");
+    expect(typeof token).toBe("string");
+
+    const invalid = await request("/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token: "invalid-reset-token", password: "new-password" })
+    });
+    expect(invalid.status).toBe(400);
+
+    const reset = await request("/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, password: "new-password" })
+    });
+    expect(reset.status).toBe(200);
+
+    const oldLogin = await login(email, "old-password");
+    expect(oldLogin.response.status).toBe(401);
+
+    const newLogin = await login(email, "new-password");
+    expect(newLogin.response.status).toBe(200);
+    expect(newLogin.body.user.username).toBe(email);
   });
 
   test("admin endpoints reject user role and allow admin role", async () => {
@@ -296,6 +396,7 @@ describe("API naskah, template, generate, and export", () => {
     expect(response.status).toBe(200);
     expect(body.title).toContain("Menjaga amanah");
     expect(body.content).toContain("Ceramah Umum");
+    expect(body.quality.score).toBeGreaterThan(0);
   });
 
   test("stream generate returns theme-aligned text and dalil for every content type", async () => {
@@ -432,6 +533,9 @@ describe("API naskah, template, generate, and export", () => {
 
     expect(create.status).toBe(201);
     expect(created.data.title).toBe("Ceramah Amanah");
+    expect(created.data.status).toBe("draft");
+    expect(created.data.version).toBe(1);
+    expect(created.data.qualityReport.score).toBeGreaterThan(0);
 
     const list = await request("/api/naskah", {}, userCookie);
     const listBody = await list.json();
@@ -446,8 +550,39 @@ describe("API naskah, template, generate, and export", () => {
     expect(update.status).toBe(200);
     const updatedBody = await update.json();
     expect(updatedBody.data.title).toBe("Ceramah Amanah Updated");
+    expect(updatedBody.data.version).toBe(2);
     expect(updatedBody.data.user).toMatchObject({ username: "user", role: "user" });
     expect(updatedBody.data.user).not.toHaveProperty("passwordHash");
+
+    const autosave = await request(
+      `/api/naskah/${createdNaskahId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          content: "Autosave naskah ceramah tentang amanah yang tetap cukup panjang untuk disimpan sebagai draft.",
+          autosave: true
+        })
+      },
+      userCookie
+    );
+    const autosavedBody = await autosave.json();
+    expect(autosave.status).toBe(200);
+    expect(autosavedBody.data.version).toBe(2);
+    expect(typeof autosavedBody.data.autosavedAt).toBe("string");
+
+    const versions = await request(`/api/naskah/${createdNaskahId}/versions`, {}, userCookie);
+    const versionsBody = await versions.json();
+    expect(versions.status).toBe(200);
+    expect(versionsBody.data.length).toBeGreaterThanOrEqual(2);
+
+    const refine = await request(
+      `/api/naskah/${createdNaskahId}/refine`,
+      { method: "POST", body: JSON.stringify({ instruction: "Tambahkan penekanan agar jamaah menjaga amanah di keluarga." }) },
+      userCookie
+    );
+    const refinedBody = await refine.json();
+    expect(refine.status).toBe(200);
+    expect(refinedBody.data.version).toBe(3);
 
     const invalidTypeUpdate = await request(
       `/api/naskah/${createdNaskahId}`,

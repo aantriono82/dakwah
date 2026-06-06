@@ -141,11 +141,11 @@ async function main() {
       sameSite: "Lax"
     });
     await page.send("Page.navigate", { url: appUrl });
-    await waitForText("Siapkan naskah dakwah");
+    await waitForText("Mulai dari kebutuhan dakwah");
     await screenshot("dashboard");
 
     const tabChecks: Record<string, string> = {
-      Generate: "Jenis naskah",
+      Ceramah: "Jenis naskah",
       Riwayat: "Naskah tersimpan",
       Template: "Parameter favorit",
       Admin: "Monitoring dan user"
@@ -157,7 +157,7 @@ async function main() {
       await screenshot(tab.toLowerCase());
     }
 
-    await clickButton("Generate");
+    await clickButton("Ceramah");
     await waitForText("Jenis naskah");
     await screenshot("generate-mobile", 390, 844);
 

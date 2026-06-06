@@ -11,6 +11,7 @@ describe("http utilities", () => {
       name: "Admin",
       passwordHash: "hash",
       role: "admin",
+      dailyGenerateLimit: null,
       createdAt: "2026-05-31",
       updatedAt: "2026-05-31"
     } satisfies User;
@@ -19,7 +20,8 @@ describe("http utilities", () => {
       id: "user-1",
       username: "admin",
       name: "Admin",
-      role: "admin"
+      role: "admin",
+      dailyGenerateLimit: null
     });
   });
 
@@ -35,7 +37,7 @@ describe("http utilities", () => {
   test("canAccessOwner allows admins and matching owners only", () => {
     const context = (role: "admin" | "user", id: string) =>
       ({
-        get: () => ({ id, username: "user", name: "User", role })
+        get: () => ({ id, username: "user", name: "User", role, dailyGenerateLimit: null })
       }) as unknown as Context<AppEnv>;
 
     expect(canAccessOwner(context("admin", "admin-1"), "owner-1")).toBe(true);
