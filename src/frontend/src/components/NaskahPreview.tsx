@@ -1,3 +1,4 @@
+import type { RefObject, UIEventHandler } from "react";
 import { FileText } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -8,11 +9,17 @@ const headingPattern = /^\s*(#{1,4}\s*)?(\*\*)?(khutbah|isi|penutup|poin|nasihat
 export function NaskahPreview({
   content,
   loading,
-  activeSectionLabel
+  activeSectionLabel,
+  scrollViewportRef,
+  onViewportScroll,
+  viewportClassName
 }: {
   content: string;
   loading: boolean;
   activeSectionLabel?: string;
+  scrollViewportRef?: RefObject<HTMLDivElement>;
+  onViewportScroll?: UIEventHandler<HTMLDivElement>;
+  viewportClassName?: string;
 }) {
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
   const charCount = content.length;
@@ -34,7 +41,11 @@ export function NaskahPreview({
         </div>
       </div>
       {content ? (
-        <div className="max-h-[72vh] min-h-[520px] overflow-auto p-5">
+        <div
+          ref={scrollViewportRef}
+          onScroll={onViewportScroll}
+          className={cn("max-h-[72vh] min-h-[520px] overflow-auto p-5", viewportClassName)}
+        >
           <PreviewContent content={content} activeSectionLabel={activeSectionLabel} />
         </div>
       ) : (

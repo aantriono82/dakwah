@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { CheckCircle2, ChevronDown, ChevronUp, Copy, Download, Eye, FileDown, FileText, MoveDown, MoveUp, RefreshCcw, Save, ShieldAlert, Sparkles } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, Copy, Download, Eye, FileDown, FileText, Maximize2, Minimize2, MoveDown, MoveUp, RefreshCcw, Save, ShieldAlert, Sparkles } from "lucide-react";
 import { defaultParameters, FormKhutbah } from "../components/FormKhutbah";
 import { JenisCard } from "../components/JenisCard";
 import { NaskahPreview } from "../components/NaskahPreview";
 import { QualityPanel } from "../components/QualityPanel";
 import { Badge, Button, Card, Field, Input, Notice, Textarea } from "../components/ui";
-import { api, downloadBlob, jenisOptions, type JenisId } from "../lib/utils";
+import { api, cn, downloadBlob, jenisOptions, type JenisId } from "../lib/utils";
 import { validateGenerateParameters } from "../lib/validation";
 import type { Naskah, QualityReport, Template } from "../types";
 
@@ -60,8 +60,11 @@ export function Generate({
   const editorPanelRef = useRef<HTMLDivElement | null>(null);
   const previewPanelRef = useRef<HTMLDivElement | null>(null);
   const qualityPanelRef = useRef<HTMLDivElement | null>(null);
+  const previewViewportRef = useRef<HTMLDivElement | null>(null);
+  const syncingScrollRef = useRef<"" | "editor" | "preview">("");
   const [cursorPosition, setCursorPosition] = useState(0);
   const [mobileParametersCollapsed, setMobileParametersCollapsed] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
 
   useEffect(() => {
     changeJenis(initialJenis);
@@ -85,6 +88,7 @@ export function Generate({
     setManualDraftStatus("");
     setLastQuickFixDiff(null);
     setMobileParametersCollapsed(false);
+    setFocusMode(false);
     setMessageTone("success");
     setMessage(`Template "${template.name}" siap dipakai.`);
     onTemplateApplied();
@@ -114,6 +118,7 @@ export function Generate({
       setManualDraftStatus("");
       setLastQuickFixDiff(null);
       setMobileParametersCollapsed(false);
+      setFocusMode(false);
       setMessage("");
       setMessageTone("neutral");
     };
@@ -137,6 +142,7 @@ export function Generate({
     setManualDraftStatus("");
     setLastQuickFixDiff(null);
     setMobileParametersCollapsed(false);
+    setFocusMode(false);
     setMessage("");
   }
 
@@ -405,6 +411,44 @@ export function Generate({
     const lineHeight = 24;
     editor.scrollTop = Math.max(0, targetLine * lineHeight - lineHeight * 2);
     setCursorPosition(selectionStart);
+    syncPreviewToEditor();
+  }
+
+  function syncScrollPosition(source: "editor" | "preview") {
+    if (syncingScrollRef.current && syncingScrollRef.current !== source) return;
+    const editor = editorRef.current;
+    const preview = previewViewportRef.current;
+    if (!editor || !preview) return;
+
+    syncingScrollRef.current = source;
+    if (source === "editor") {
+      const editorScrollable = Math.max(1, editor.scrollHeight - editor.clientHeight);
+      const previewScrollable = Math.max(0, preview.scrollHeight - preview.clientHeight);
+      const ratio = editor.scrollTop / editorScrollable;
+      preview.scrollTop = ratio * previewScrollable;
+    } else {
+      const previewScrollable = Math.max(1, preview.scrollHeight - preview.clientHeight);
+      const editorScrollable = Math.max(0, editor.scrollHeight - editor.clientHeight);
+      const ratio = preview.scrollTop / previewScrollable;
+      editor.scrollTop = ratio * editorScrollable;
+    }
+
+    window.requestAnimationFrame(() => {
+      syncingScrollRef.current = "";
+    });
+  }
+
+  function syncPreviewToEditor() {
+    syncScrollPosition("editor");
+  }
+
+  function handleEditorScroll() {
+    syncScrollPosition("editor");
+  }
+
+  function handlePreviewScroll() {
+    if (focusMode) return;
+    syncScrollPosition("preview");
   }
 
   function applySectionContent(nextContent: string, nextCursorPosition?: number) {
@@ -591,24 +635,26 @@ export function Generate({
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[400px_1fr]">
+    <div className={cn("grid gap-6", focusMode ? "xl:grid-cols-1" : "xl:grid-cols-[400px_1fr]")}>
       {hasContent && (
         <div className="sticky bottom-3 z-10 flex gap-2 rounded-lg border border-border bg-background/95 p-2 shadow-sm backdrop-blur sm:hidden">
           <Button type="button" className="flex-1 bg-secondary text-secondary-foreground" onClick={() => scrollToPanel(editorPanelRef)}>
             <FileText className="size-4" />
             Editor
           </Button>
-          <Button type="button" className="flex-1 bg-secondary text-secondary-foreground" onClick={() => scrollToPanel(previewPanelRef)}>
-            <Eye className="size-4" />
-            Preview
-          </Button>
+          {!focusMode && (
+            <Button type="button" className="flex-1 bg-secondary text-secondary-foreground" onClick={() => scrollToPanel(previewPanelRef)}>
+              <Eye className="size-4" />
+              Preview
+            </Button>
+          )}
           <Button type="button" className="flex-1 bg-secondary text-secondary-foreground" onClick={() => scrollToPanel(qualityPanelRef)}>
             <ShieldAlert className="size-4" />
             Quality
           </Button>
         </div>
       )}
-      <section className="grid gap-4">
+      <section className={cn("grid gap-4", focusMode && "hidden")}>
         <div className="grid gap-3">
           <div>
             <h2 className="text-lg font-semibold">Jenis naskah</h2>
@@ -745,17 +791,33 @@ export function Generate({
                   <p className="text-sm font-medium">Revisi manual sebelum simpan</p>
                   <p className="text-xs text-muted-foreground">Sunting isi naskah dan lihat hasil bacanya langsung sebelum disimpan atau diexport.</p>
                 </div>
-                <Button
-                  className="bg-secondary text-secondary-foreground"
-                  onClick={reviewManualDraft}
-                  disabled={loading || saving || Boolean(exporting) || reviewingManual || !content.trim()}
-                >
-                  <RefreshCcw className="size-4" />
-                  {reviewingManual ? "Meninjau..." : "Tinjau ulang"}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    className="bg-secondary text-secondary-foreground"
+                    onClick={() => setFocusMode((current) => !current)}
+                    disabled={!hasContent}
+                  >
+                    {focusMode ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+                    {focusMode ? "Keluar fokus" : "Mode fokus"}
+                  </Button>
+                  <Button
+                    className="bg-secondary text-secondary-foreground"
+                    onClick={reviewManualDraft}
+                    disabled={loading || saving || Boolean(exporting) || reviewingManual || !content.trim()}
+                  >
+                    <RefreshCcw className="size-4" />
+                    {reviewingManual ? "Meninjau..." : "Tinjau ulang"}
+                  </Button>
+                </div>
               </div>
-              <div className="grid gap-3 xl:grid-cols-[220px_minmax(0,1fr)_minmax(0,1fr)]">
-                <div className="grid gap-2 xl:sticky xl:top-4 xl:self-start">
+              {focusMode && (
+                <Notice>
+                  Mode fokus menyembunyikan parameter, outline, dan preview agar area menulis lebih lega. Gunakan tombol editor di bawah pada mobile atau keluar dari mode fokus untuk kembali ke tampilan lengkap.
+                </Notice>
+              )}
+              <div className={cn("grid gap-3", focusMode ? "xl:grid-cols-1" : "xl:grid-cols-[220px_minmax(0,1fr)_minmax(0,1fr)]")}>
+                <div className={cn("grid gap-2 xl:sticky xl:top-4 xl:self-start", focusMode && "hidden")}>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Outline</p>
                   {activeSection && (
                     <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
@@ -877,7 +939,7 @@ export function Generate({
                 <div className="grid min-h-[420px] gap-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Editor</p>
-                    {sectionMarkers.length > 0 && (
+                    {!focusMode && sectionMarkers.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {sectionMarkers.map((section) => (
                           <button
@@ -894,19 +956,26 @@ export function Generate({
                   </div>
                   <Textarea
                     ref={editorRef}
-                    className="min-h-[420px] resize-y font-mono leading-6 xl:min-h-[560px]"
+                    className={cn("resize-y font-mono leading-6", focusMode ? "min-h-[70vh] xl:min-h-[78vh]" : "min-h-[420px] xl:min-h-[560px]")}
                     value={content}
                     onChange={(event) => handleManualContentChange(event.target.value)}
                     onClick={updateCursorPosition}
                     onKeyUp={updateCursorPosition}
                     onSelect={updateCursorPosition}
+                    onScroll={handleEditorScroll}
                     placeholder="Hasil generate akan muncul di sini dan bisa langsung Anda revisi."
                   />
                 </div>
-                <div className="grid min-h-[420px] gap-2">
+                <div className={cn("grid min-h-[420px] gap-2", focusMode && "hidden")}>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Preview</p>
                   <div ref={previewPanelRef} className="min-h-[420px] rounded-md border border-border bg-background p-3 xl:min-h-[560px]">
-                    <NaskahPreview content={content} loading={loading} activeSectionLabel={activeSection?.label} />
+                    <NaskahPreview
+                      content={content}
+                      loading={loading}
+                      activeSectionLabel={activeSection?.label}
+                      scrollViewportRef={previewViewportRef}
+                      onViewportScroll={handlePreviewScroll}
+                    />
                   </div>
                 </div>
               </div>
