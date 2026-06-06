@@ -47,6 +47,48 @@ http://localhost:3000
 
 RustFS tersedia di port `9000` dan digunakan otomatis oleh aplikasi untuk menyimpan hasil export.
 
+## Publish Image ke GHCR
+
+Workflow `.github/workflows/docker-publish.yml` otomatis build Docker image dan push ke GitHub Container Registry saat ada push ke branch `main` atau tag `v*.*.*`.
+
+Image default:
+
+```text
+ghcr.io/aantriono82/dakwah:latest
+```
+
+Tag yang dibuat:
+
+- `latest` untuk branch default.
+- `main` untuk push ke branch `main`.
+- `sha-<commit>` untuk rollback spesifik.
+- `vX.Y.Z` untuk release tag.
+
+Untuk pull image private dari VPS, login dulu ke GHCR memakai GitHub token yang punya akses package:
+
+```bash
+docker login ghcr.io
+```
+
+Siapkan file `.env` di VPS dari contoh production:
+
+```bash
+cp .env.prod.example .env
+```
+
+Contoh deploy di VPS dengan compose production:
+
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Untuk rollback ke commit tertentu:
+
+```bash
+APP_IMAGE=ghcr.io/aantriono82/dakwah:sha-<commit> docker compose -f docker-compose.prod.yml up -d
+```
+
 ## Menjalankan Lokal dengan Bun
 
 Install dependency:
