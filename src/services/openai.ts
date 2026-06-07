@@ -123,6 +123,41 @@ function normalizeProviderText(jenis: string, text: string, parameters: Record<s
   return completeMissingSecondKhutbah(jenis, sanitizeGeneratedText(text), parameters);
 }
 
+function normalizedRevisionText(text: string) {
+  return sanitizeGeneratedText(text).replace(/\s+/g, " ").trim();
+}
+
+export function isMeaningfullyDifferentRevision(currentContent: string, revisedContent: string) {
+  return normalizedRevisionText(currentContent) !== normalizedRevisionText(revisedContent);
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function cleanReplacementFragment(value: string) {
+  return value
+    .trim()
+    .replace(/^["'“”‘’`]+/, "")
+    .replace(/["'“”‘’`]+$/, "")
+    .replace(/[.,;:]+$/, "")
+    .trim();
+}
+
+export function applyLiteralRevisionInstruction(currentContent: string, instruction: string) {
+  const match = instruction.match(/(?:^|\b)(?:ganti|ubah|replace)\s+(?:teks\s+)?(.+?)\s+menjadi\s+(.+?)(?:[.!?\n]|$)/i);
+  if (!match) return null;
+
+  const source = cleanReplacementFragment(match[1]);
+  const target = cleanReplacementFragment(match[2]);
+  if (!source || !target) return null;
+
+  const pattern = new RegExp(escapeRegExp(source), "gi");
+  if (!pattern.test(currentContent)) return null;
+
+  return currentContent.replace(pattern, target);
+}
+
 function providerTextFailureReason(jenis: string, text: string, parameters: Record<string, unknown>) {
   const targetLanguage = normalizeLanguage(parameters.bahasa);
   const missingSections = missingRequiredArabicSections(jenis, text);
@@ -866,9 +901,80 @@ Naskah saat ini:
 ${input.currentContent}`;
 }
 
+const revisionStopwords = new Set([
+  "agar",
+  "akan",
+  "atau",
+  "dan",
+  "dengan",
+  "di",
+  "dari",
+  "dalam",
+  "hal",
+  "ini",
+  "itu",
+  "jangan",
+  "jadi",
+  "karena",
+  "kepada",
+  "lebih",
+  "maka",
+  "para",
+  "pada",
+  "saat",
+  "sebagai",
+  "supaya",
+  "tentang",
+  "terlalu",
+  "untuk",
+  "yang"
+]);
+
+function revisionFocusClause(instruction: string) {
+  const clauseMatch = instruction.match(/\b(?:agar|tentang|pada|untuk|supaya)\s+([^.;:\n]+)/i);
+  return (clauseMatch?.[1] ?? instruction).trim();
+}
+
+function revisionKeywords(instruction: string) {
+  return Array.from(
+    new Set(
+      revisionFocusClause(instruction)
+        .toLowerCase()
+        .match(/[a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ-]{2,}/g)
+        ?.filter((word) => !revisionStopwords.has(word) && !/^per/.test(word) && !/^(tidak|bukan|sangat|cukup|terlalu)$/.test(word)) ?? []
+    )
+  ).slice(0, 4);
+}
+
+function revisionSentenceFor(instruction: string) {
+  const keywords = revisionKeywords(instruction);
+  if (keywords.length === 0) {
+    return "";
+  }
+
+  if (keywords.length === 1) {
+    return `Fokus pada ${keywords[0]} dipertegas.`;
+  }
+
+  if (keywords.length === 2) {
+    return `Fokus pada ${keywords[0]} dan ${keywords[1]} dipertegas.`;
+  }
+
+  return `Fokus pada ${keywords.slice(0, 3).join(", ")} dipertegas.`;
+}
+
 function localRevisionFallback(currentContent: string, instruction: string) {
-  console.warn(`[reviseNaskahContent] provider_failed_all keeping_current_content instruction=${instruction.trim().slice(0, 120)}`);
-  return sanitizeGeneratedText(currentContent);
+  console.warn(`[reviseNaskahContent] provider_failed_all applying_local_revision instruction=${instruction.trim().slice(0, 120)}`);
+
+  const content = sanitizeGeneratedText(currentContent).trim();
+  if (!content) return content;
+
+  const literalRevision = applyLiteralRevisionInstruction(content, instruction);
+  if (literalRevision && isMeaningfullyDifferentRevision(content, literalRevision)) {
+    return sanitizeGeneratedText(literalRevision).trim();
+  }
+
+  return content;
 }
 
 export async function reviseNaskahContent(input: {
@@ -879,6 +985,11 @@ export async function reviseNaskahContent(input: {
   targetSection?: string;
   dalilContext?: PromptDalilContext;
 }) {
+  const literalRevision = applyLiteralRevisionInstruction(input.currentContent, input.instruction);
+  if (literalRevision && isMeaningfullyDifferentRevision(input.currentContent, literalRevision)) {
+    return sanitizeGeneratedText(literalRevision);
+  }
+
   const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const prompt = revisionPrompt(input);
 
@@ -889,6 +1000,7 @@ export async function reviseNaskahContent(input: {
         const text = normalizeProviderText(input.jenis, geminiTextFromResponse(response), input.parameters);
         if (
           providerTextIsClean(input.jenis, text, input.parameters) &&
+          isMeaningfullyDifferentRevision(input.currentContent, text) &&
           !needsDalilRepair(input.jenis, text, input.parameters, input.dalilContext) &&
           !needsEditorialRepair(input.jenis, text, input.parameters, input.dalilContext)
         ) return text;
@@ -902,6 +1014,7 @@ export async function reviseNaskahContent(input: {
         const retryText = normalizeProviderText(input.jenis, geminiTextFromResponse(retryResponse), input.parameters);
         if (
           providerTextIsClean(input.jenis, retryText, input.parameters) &&
+          isMeaningfullyDifferentRevision(input.currentContent, retryText) &&
           !needsDalilRepair(input.jenis, retryText, input.parameters, input.dalilContext) &&
           !needsEditorialRepair(input.jenis, retryText, input.parameters, input.dalilContext)
         ) return retryText;
@@ -934,6 +1047,7 @@ export async function reviseNaskahContent(input: {
         const text = normalizeProviderText(input.jenis, response.choices[0]?.message.content ?? "", input.parameters);
         if (
           providerTextIsClean(input.jenis, text, input.parameters) &&
+          isMeaningfullyDifferentRevision(input.currentContent, text) &&
           !needsDalilRepair(input.jenis, text, input.parameters, input.dalilContext) &&
           !needsEditorialRepair(input.jenis, text, input.parameters, input.dalilContext)
         ) return text;
@@ -956,6 +1070,7 @@ export async function reviseNaskahContent(input: {
         const retryText = normalizeProviderText(input.jenis, retryResponse.choices[0]?.message.content ?? "", input.parameters);
         if (
           providerTextIsClean(input.jenis, retryText, input.parameters) &&
+          isMeaningfullyDifferentRevision(input.currentContent, retryText) &&
           !needsDalilRepair(input.jenis, retryText, input.parameters, input.dalilContext) &&
           !needsEditorialRepair(input.jenis, retryText, input.parameters, input.dalilContext)
         ) return retryText;

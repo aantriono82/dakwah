@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { maxTokensForRequest, parseOpenAIModels } from "./openai";
+import {
+  applyLiteralRevisionInstruction,
+  isMeaningfullyDifferentRevision,
+  maxTokensForRequest,
+  parseOpenAIModels,
+  reviseNaskahContent
+} from "./openai";
 
 describe("OpenAI generation settings", () => {
   test("parses model priority list from environment values", () => {
@@ -25,5 +31,29 @@ describe("OpenAI generation settings", () => {
     expect(maxTokensForRequest("ceramah", { durasi: "20" })).toBe(4000);
     expect(maxTokensForRequest("khutbah-jumat", { durasi: "20 menit" })).toBe(4500);
     expect(maxTokensForRequest("kultum", { durasi: "7 menit" })).toBe(1800);
+  });
+
+  test("treats identical revision output as unchanged", () => {
+    expect(isMeaningfullyDifferentRevision("Naskah awal", "Naskah awal")).toBe(false);
+    expect(isMeaningfullyDifferentRevision("Naskah awal", "Naskah awal yang diperluas")).toBe(true);
+  });
+
+  test("applies literal replacement instructions", () => {
+    const content = "Pernikahan ali dan ani adalah amanah.";
+    const revised = applyLiteralRevisionInstruction(content, "ganti teks ali dan ani menjadi Ali dan Ani");
+    expect(revised).toBe("Pernikahan Ali dan Ani adalah amanah.");
+  });
+
+  test("revision fallback does not inject meta text into content", async () => {
+    const revised = await reviseNaskahContent({
+      jenis: "ceramah",
+      parameters: { bahasa: "Indonesia", topik: "Menjaga amanah" },
+      currentContent: "Pernikahan ali dan ani adalah amanah.",
+      instruction: "ganti teks ali dan ani menjadi Ali dan Ani"
+    });
+
+    expect(revised).toBe("Pernikahan Ali dan Ani adalah amanah.");
+    expect(revised).not.toContain("Isi revisi");
+    expect(revised).not.toContain("Redaksinya dibuat");
   });
 });

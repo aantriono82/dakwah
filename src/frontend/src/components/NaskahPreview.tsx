@@ -44,12 +44,12 @@ export function NaskahPreview({
         <div
           ref={scrollViewportRef}
           onScroll={onViewportScroll}
-          className={cn("max-h-[72vh] min-h-[520px] overflow-auto p-5", viewportClassName)}
+          className={cn("min-h-[280px] max-h-[58vh] overflow-auto p-4 sm:min-h-[360px] sm:p-5 xl:min-h-[320px] xl:max-h-[44vh]", viewportClassName)}
         >
           <PreviewContent content={content} activeSectionLabel={activeSectionLabel} />
         </div>
       ) : (
-        <div className="flex min-h-[520px] flex-col items-center justify-center gap-3 p-5 text-center text-muted-foreground">
+        <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-4 text-center text-muted-foreground sm:min-h-[360px] sm:p-5 xl:min-h-[320px]">
           <IconFileText className="size-10" />
           <p className="max-w-sm text-sm">
             {loading ? "Naskah sedang dihasilkan dan akan tampil bertahap di sini." : "Isi parameter, lalu jalankan generate untuk melihat naskah."}

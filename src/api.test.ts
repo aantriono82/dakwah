@@ -649,6 +649,7 @@ describe("API naskah, template, generate, and export", () => {
     );
     const created = await create.json();
     createdNaskahId = created.data.id;
+    const originalContent = created.data.content as string;
 
     expect(create.status).toBe(201);
     expect(created.data.title).toBe("Ceramah Amanah");
@@ -702,6 +703,8 @@ describe("API naskah, template, generate, and export", () => {
     const refinedBody = await refine.json();
     expect(refine.status).toBe(200);
     expect(refinedBody.data.version).toBe(3);
+    expect(refinedBody.data.content).not.toBe(originalContent);
+    expect(refinedBody.data.content.length).toBeGreaterThan(0);
 
     const invalidTypeUpdate = await request(
       `/api/naskah/${createdNaskahId}`,
