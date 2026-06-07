@@ -287,9 +287,12 @@ export function App() {
         <PageSuspense>
           <Generate
             initialJenis={initialGenerateJenis}
-            allowedJenis={[initialGenerateJenis]}
             template={templateToUse}
             onTemplateApplied={clearTemplate}
+            onJenisChange={(jenis) => {
+              setInitialGenerateJenis(jenis);
+              pushPath(generatePathByJenis[jenis]);
+            }}
           />
         </PageSuspense>
       )}

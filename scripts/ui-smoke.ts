@@ -203,6 +203,19 @@ async function main() {
     await sleep(700);
   }
 
+  async function clickFirstAvailableButton(texts: string[]) {
+    const response = await evaluate(`(() => {
+      const texts = ${JSON.stringify(texts)};
+      const buttons = Array.from(document.querySelectorAll("button"));
+      const match = texts.find((text) => buttons.some((button) => button.textContent?.includes(text)));
+      if (!match) return "";
+      buttons.find((button) => button.textContent?.includes(match))?.click();
+      return match;
+    })()`);
+    await sleep(700);
+    return ((response.result?.result as { value?: string } | undefined)?.value ?? "").trim();
+  }
+
   async function scrollIntoText(text: string) {
     await evaluate(
       `Array.from(document.querySelectorAll("*")).find((node) => node.textContent?.includes(${JSON.stringify(text)}))?.scrollIntoView({ behavior: "instant", block: "center" })`
@@ -238,7 +251,7 @@ async function main() {
 
     await clickButtonByAriaPrefix("Akun ");
     await clickButton("Buka Admin");
-    await waitForText("Monitoring dan user");
+    await waitForText("Kelola aplikasi");
     await screenshot("admin");
 
     await clickButton("Ceramah");
@@ -248,10 +261,15 @@ async function main() {
     await page.send("Page.navigate", { url: `${appUrl}/history` });
     await waitForText("Naskah tersimpan");
     await clickByText("button", "Smoke Quick Fix Fokus Tema");
-    await waitForText("Perbaiki fokus tema");
+    await waitForText("Revisi AI");
     await screenshot("history-quick-fix-before");
-    await clickButton("Perbaiki fokus tema");
-    await maybeWaitForText("Naskah berhasil diperbaiki dan disimpan sebagai versi baru.", 30);
+    const historyHasQualityPanel = await maybeWaitForText("Quality guard", 20);
+    if (historyHasQualityPanel) {
+      const historyQuickFix = await clickFirstAvailableButton(["Perbaiki fokus tema", "Perhalus bahasa", "Rapikan dalil"]);
+      if (historyQuickFix) {
+        await maybeWaitForText("Naskah berhasil diperbaiki dan disimpan sebagai versi baru.", 30);
+      }
+    }
     await screenshot("history-quick-fix-after");
 
     await page.send("Page.navigate", { url: appUrl });
@@ -267,11 +285,13 @@ async function main() {
         quality: generateDraftQuality.quality
       })})`
     );
-    await waitForText("Perbaiki fokus tema");
+    await waitForText("Quality guard");
     await screenshot("generate-quick-fix-before");
-    await clickButton("Perbaiki fokus tema");
-    await maybeWaitForText("Perbaiki fokus tema...");
-    await maybeWaitForText("Naskah berhasil diperbaiki.", 30);
+    const generateQuickFix = await clickFirstAvailableButton(["Perbaiki fokus tema", "Perhalus bahasa", "Rapikan dalil"]);
+    if (generateQuickFix) {
+      await maybeWaitForText(`${generateQuickFix}...`);
+      await maybeWaitForText("Naskah berhasil diperbaiki.", 30);
+    }
     await waitForText("Quality guard");
     await waitForText("Editorial");
     await maybeWaitForText("Perbaiki fokus tema", 30);

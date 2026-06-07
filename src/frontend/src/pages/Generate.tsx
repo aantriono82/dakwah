@@ -13,6 +13,28 @@ import type { Naskah, QualityReport, Template } from "../types";
 const defaultGenerateTimeoutMs = 120000;
 const manualDraftStoragePrefix = "dakwah:generate-manual-draft:";
 let generateConfigRequest: Promise<{ data: { generateClientTimeoutMs: number } }> | null = null;
+const khutbahJenisIds: JenisId[] = ["khutbah-jumat", "idul-fitri", "idul-adha", "nikah"];
+const jenisCategoryOrder = ["khutbah", "ceramah", "kultum"] as const;
+type JenisCategoryId = (typeof jenisCategoryOrder)[number];
+const jenisCategoryMeta: Record<JenisCategoryId, { label: string; description: string }> = {
+  khutbah: {
+    label: "Khutbah",
+    description: "Jumat, Idul Fitri, Idul Adha, dan Nikah"
+  },
+  ceramah: {
+    label: "Ceramah",
+    description: "Ceramah umum dengan struktur yang lebih panjang"
+  },
+  kultum: {
+    label: "Kultum",
+    description: "Materi singkat 5-7 menit untuk pengantar atau penutup"
+  }
+};
+
+function categoryForJenis(jenis: JenisId): JenisCategoryId {
+  if (khutbahJenisIds.includes(jenis)) return "khutbah";
+  return jenis === "ceramah" ? "ceramah" : "kultum";
+}
 
 declare global {
   interface Window {
@@ -32,12 +54,14 @@ export function Generate({
   initialJenis,
   allowedJenis = jenisOptions.map((item) => item.id),
   template,
-  onTemplateApplied
+  onTemplateApplied,
+  onJenisChange
 }: {
   initialJenis: JenisId;
   allowedJenis?: JenisId[];
   template: Template | null;
   onTemplateApplied: () => void;
+  onJenisChange?: (jenis: JenisId) => void;
 }) {
   const [jenis, setJenis] = useState<JenisId>(initialJenis);
   const [parameters, setParameters] = useState(defaultParameters(initialJenis));
@@ -154,6 +178,7 @@ export function Generate({
     setMobileParametersCollapsed(false);
     setFocusMode(false);
     setMessage("");
+    onJenisChange?.(next);
   }
 
   useEffect(() => {
@@ -196,6 +221,15 @@ export function Generate({
 
   const selectedLabel = useMemo(() => jenisOptions.find((item) => item.id === jenis)?.label ?? "Naskah", [jenis]);
   const visibleJenisOptions = useMemo(() => jenisOptions.filter((item) => allowedJenis.includes(item.id)), [allowedJenis]);
+  const activeCategory = useMemo(() => categoryForJenis(jenis), [jenis]);
+  const visibleCategories = useMemo(() => {
+    const categories = new Set(visibleJenisOptions.map((item) => categoryForJenis(item.id)));
+    return jenisCategoryOrder.filter((category) => categories.has(category)).map((category) => ({
+      id: category,
+      ...jenisCategoryMeta[category]
+    }));
+  }, [visibleJenisOptions]);
+  const categoryJenisOptions = useMemo(() => visibleJenisOptions.filter((item) => categoryForJenis(item.id) === activeCategory), [activeCategory, visibleJenisOptions]);
   const validationMessage = useMemo(() => validateGenerateParameters(jenis, parameters), [jenis, parameters]);
   const hasContent = content.trim().length > 0;
   const wordCount = hasContent ? content.trim().split(/\s+/).length : 0;
@@ -689,12 +723,43 @@ export function Generate({
         <div className="grid gap-3">
           <div>
             <h2 className="text-lg font-semibold">Jenis naskah</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Pilih format, isi parameter utama, lalu generate.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Pilih kategori, tentukan format, lalu isi parameter utama sebelum generate.</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-            {visibleJenisOptions.map((item) => (
-              <JenisCard key={item.id} item={item} active={jenis === item.id} onClick={changeJenis} />
-            ))}
+          <div className="grid gap-4">
+            {visibleCategories.length > 1 && (
+              <div className="grid gap-3">
+                <div className="grid grid-cols-3 gap-2 rounded-lg border border-border bg-muted/30 p-1">
+                  {visibleCategories.map((category) => (
+                    <button
+                      key={category.id}
+                      type="button"
+                      className={cn(
+                        "flex min-h-11 items-center justify-center rounded-md px-3 py-2 text-center text-sm font-semibold transition",
+                        activeCategory === category.id
+                          ? "bg-emerald-200 text-emerald-900 ring-1 ring-emerald-300"
+                          : "bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+                      )}
+                      onClick={() => {
+                        const next = visibleJenisOptions.find((item) => categoryForJenis(item.id) === category.id);
+                        if (next) changeJenis(next.id);
+                      }}
+                    >
+                      <span className="text-sm font-semibold">{category.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">
+                    {visibleCategories.find((category) => category.id === activeCategory)?.description}
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              {categoryJenisOptions.map((item) => (
+                <JenisCard key={item.id} item={item} active={jenis === item.id} onClick={changeJenis} />
+              ))}
+            </div>
           </div>
         </div>
         <Card className="p-4">
