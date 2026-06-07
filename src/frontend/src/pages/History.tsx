@@ -1,11 +1,19 @@
 import { IconCopy, IconDocx, IconDownload, IconFileDown, IconHistory, IconPdf, IconPencil, IconRotateCcw, IconSave, IconSparkles, IconTrash, IconX } from "../components/icons";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "../components/EmptyState";
 import { NaskahPreview } from "../components/NaskahPreview";
 import { QualityPanel } from "../components/QualityPanel";
 import { Badge, Button, Card, Field, IconButton, Input, Notice, Select, Textarea } from "../components/ui";
+import { completePageTransition } from "../lib/perf";
 import { api, cn, downloadBlob, jenisOptions, type JenisId } from "../lib/utils";
 import type { Naskah, NaskahVersion, User } from "../types";
+
+type NaskahContextResponse = { data: Naskah; versions: NaskahVersion[] };
+type NaskahListResponse = {
+  data: Naskah[];
+  pagination?: { page: number; pageSize: number; total: number; totalPages: number };
+};
+const historyPageSize = 25;
 
 export function History({ user, initialQuery = "", selectedId = "" }: { user: User; initialQuery?: string; selectedId?: string }) {
   const [items, setItems] = useState<Naskah[]>([]);
@@ -27,17 +35,36 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
   const [refineInstruction, setRefineInstruction] = useState("");
   const [refining, setRefining] = useState(false);
   const [quickFixLoading, setQuickFixLoading] = useState<"" | "theme_focus" | "language_flow" | "dalil_alignment">("");
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
-  async function load() {
+  useEffect(() => {
+    completePageTransition("History");
+  }, []);
+
+  async function load(nextPage = page) {
     setLoading(true);
     try {
-      const data = await api<{ data: Naskah[] }>("/api/naskah");
+      const data = await api<NaskahListResponse>(`/api/naskah?summary=1&page=${nextPage}&pageSize=${historyPageSize}`);
       setItems(data.data);
-      setSelected((current) => {
-        if (selectedId) return data.data.find((item) => item.id === selectedId) ?? current ?? data.data[0] ?? null;
-        if (!current) return data.data[0] ?? null;
-        return data.data.find((item) => item.id === current.id) ?? data.data[0] ?? null;
-      });
+      setPage(data.pagination?.page ?? nextPage);
+      setTotalItems(data.pagination?.total ?? data.data.length);
+      setTotalPages(data.pagination?.totalPages ?? 1);
+      const nextSelected =
+        (selectedId ? data.data.find((item) => item.id === selectedId) : null) ??
+        (selected ? data.data.find((item) => item.id === selected.id) : null) ??
+        data.data[0] ??
+        null;
+      setSelected((current) =>
+        nextSelected
+          ? {
+              ...(current?.id === nextSelected.id ? current : nextSelected),
+              ...nextSelected
+            }
+          : null
+      );
       setExportLinks(
         Object.fromEntries(data.data.filter((item) => item.fileUrl).map((item) => [item.id, item.fileUrl as string]))
       );
@@ -49,7 +76,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
   }
 
   useEffect(() => {
-    load();
+    void load(1);
   }, []);
 
   useEffect(() => {
@@ -60,17 +87,44 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
     if (!selectedId || items.length === 0) return;
     const item = items.find((current) => current.id === selectedId);
     if (item) {
-      setSelected(item);
+      setSelected((current) => ({ ...(current?.id === item.id ? current : item), ...item }));
       setEditing(false);
+      setLoadingVersions(true);
     }
   }, [items, selectedId]);
 
   useEffect(() => {
     if (!selected) {
       setVersions([]);
+      setLoadingDetail(false);
+      setLoadingVersions(false);
       return;
     }
-    void loadVersions(selected.id);
+
+    let cancelled = false;
+    setLoadingDetail(true);
+    setLoadingVersions(true);
+    api<NaskahContextResponse>(`/api/naskah/${selected.id}/context`)
+      .then((data) => {
+        if (cancelled) return;
+        setSelected(data.data);
+        setVersions(data.versions);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setMessage(error instanceof Error ? error.message : "Gagal memuat detail naskah.");
+        setVersions([]);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingDetail(false);
+          setLoadingVersions(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selected?.id]);
 
   useEffect(() => {
@@ -118,7 +172,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
     await api(`/api/naskah/${id}`, { method: "DELETE" });
     setSelected(null);
     setEditing(false);
-    await load();
+    await load(page);
   }
 
   async function copyLink(url: string) {
@@ -188,7 +242,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
   }
 
   async function saveEdit() {
-    if (!selected) return;
+    if (!selected || loadingDetail) return;
     if (editTitle.trim().length < 3) {
       setMessage("Judul minimal 3 karakter.");
       return;
@@ -218,7 +272,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
   }
 
   async function restoreVersion(versionId: string) {
-    if (!selected || !confirm("Kembalikan isi naskah ke versi ini? Versi saat ini tetap disimpan sebagai snapshot baru.")) return;
+    if (!selected || loadingDetail || !confirm("Kembalikan isi naskah ke versi ini? Versi saat ini tetap disimpan sebagai snapshot baru.")) return;
     setMessage("");
     const data = await api<{ data: Naskah }>(`/api/naskah/${selected.id}/versions/${versionId}/restore`, { method: "POST", body: "{}" });
     setSelected(data.data);
@@ -229,7 +283,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
   }
 
   async function refineSelected() {
-    if (!selected || refineInstruction.trim().length < 5) {
+    if (!selected || loadingDetail || refineInstruction.trim().length < 5) {
       setMessage("Isi instruksi revisi minimal 5 karakter.");
       return;
     }
@@ -270,7 +324,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
   }
 
   async function applyQuickFix(fixId: "theme_focus" | "language_flow" | "dalil_alignment") {
-    if (!selected) return;
+    if (!selected || loadingDetail) return;
     setQuickFixLoading(fixId);
     setMessage("");
     try {
@@ -291,11 +345,15 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
 
   const selectedLink = selected ? exportLinks[selected.id] || selected.fileUrl || "" : "";
   const normalizedQuery = query.trim().toLowerCase();
-  const filteredItems = items.filter((item) => {
-    const matchesJenis = jenisFilter === "all" || item.jenis === jenisFilter;
-    const searchable = [item.title, item.bahasa, item.content, item.user?.name, item.user?.username].filter(Boolean).join(" ").toLowerCase();
-    return matchesJenis && (!normalizedQuery || searchable.includes(normalizedQuery));
-  });
+  const filteredItems = useMemo(
+    () =>
+      items.filter((item) => {
+        const matchesJenis = jenisFilter === "all" || item.jenis === jenisFilter;
+        const searchable = [item.title, item.bahasa, item.user?.name, item.user?.username].filter(Boolean).join(" ").toLowerCase();
+        return matchesJenis && (!normalizedQuery || searchable.includes(normalizedQuery));
+      }),
+    [items, jenisFilter, normalizedQuery]
+  );
 
   return (
     <div className="grid min-w-0 gap-6">
@@ -327,12 +385,20 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
               ))}
             </Select>
             <p className="text-xs text-muted-foreground">
-              {filteredItems.length} dari {items.length} naskah
+              {filteredItems.length} dari {items.length} naskah di halaman ini
             </p>
           </Card>
           {loading && <EmptyState text="Memuat riwayat..." />}
           {filteredItems.map((item) => (
-            <button key={item.id} className="block w-full text-left" onClick={() => { setSelected(item); setEditing(false); }}>
+            <button
+              key={item.id}
+              className="block w-full text-left"
+              onClick={() => {
+                setSelected(item);
+                setEditing(false);
+                setLoadingVersions(true);
+              }}
+            >
               <Card className={cn("p-4 transition hover:border-primary", selected?.id === item.id && "border-primary")}>
                 <div className="grid gap-2">
                   <div className="min-w-0">
@@ -349,6 +415,31 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
           ))}
           {!loading && items.length === 0 && <EmptyState text="Belum ada riwayat." />}
           {items.length > 0 && filteredItems.length === 0 && <EmptyState text="Tidak ada naskah yang cocok." />}
+          {!loading && totalPages > 1 && (
+            <Card className="grid gap-3 p-3">
+              <p className="text-xs text-muted-foreground">
+                Halaman {page} dari {totalPages} - total {totalItems} naskah
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  className="flex-1 bg-secondary text-secondary-foreground"
+                  onClick={() => void load(page - 1)}
+                  disabled={page <= 1}
+                >
+                  Sebelumnya
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1 bg-secondary text-secondary-foreground"
+                  onClick={() => void load(page + 1)}
+                  disabled={page >= totalPages}
+                >
+                  Berikutnya
+                </Button>
+              </div>
+            </Card>
+          )}
         </section>
         <section className="min-w-0 flex-1">
         {selected ? (
@@ -366,23 +457,24 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button className="bg-muted text-foreground" onClick={() => exportFile(selected.id, "pdf")}>
+                <Button className="bg-muted text-foreground" onClick={() => exportFile(selected.id, "pdf")} disabled={loadingDetail}>
                   <IconPdf className="size-4" />
                   {exporting === "pdf" ? "PDF..." : "PDF"}
                 </Button>
-                <Button className="bg-muted text-foreground" onClick={() => exportFile(selected.id, "docx")}>
+                <Button className="bg-muted text-foreground" onClick={() => exportFile(selected.id, "docx")} disabled={loadingDetail}>
                   <IconDocx className="size-4" />
                   {exporting === "docx" ? "DOCX..." : "DOCX"}
                 </Button>
-                <IconButton onClick={() => startEdit(selected)} aria-label="Edit naskah" disabled={editing || Boolean(exporting)}>
+                <IconButton onClick={() => startEdit(selected)} aria-label="Edit naskah" disabled={loadingDetail || editing || Boolean(exporting)}>
                   <IconPencil className="size-4" />
                 </IconButton>
-                <IconButton onClick={() => remove(selected.id)} aria-label="Hapus">
+                <IconButton onClick={() => remove(selected.id)} aria-label="Hapus" disabled={loadingDetail}>
                   <IconTrash className="size-4" />
                 </IconButton>
               </div>
             </div>
             {message && <Notice className="mb-3">{message}</Notice>}
+            {loadingDetail && <Notice className="mb-3">Memuat detail naskah...</Notice>}
             {selectedLink && (
               <div className="mb-4 grid gap-2 rounded-md border border-border p-3 md:grid-cols-[1fr_auto]">
                 <Input value={selectedLink} readOnly aria-label="Link export" />
@@ -408,7 +500,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
                 </Field>
                 {autosaveStatus && <p className="text-xs text-muted-foreground">{autosaveStatus}</p>}
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={saveEdit} disabled={savingEdit}>
+                  <Button onClick={saveEdit} disabled={loadingDetail || savingEdit}>
                     <IconSave className="size-4" />
                     {savingEdit ? "Menyimpan..." : "Simpan perubahan"}
                   </Button>
@@ -433,13 +525,13 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
                     placeholder="Contoh: Perhalus bagian penutup dan tambah ajakan praktis untuk jamaah."
                   />
                   <div>
-                    <Button onClick={refineSelected} disabled={refining || Boolean(exporting)}>
+                    <Button onClick={refineSelected} disabled={loadingDetail || refining || Boolean(exporting)}>
                       <IconSparkles className="size-4" />
                       {refining ? "Merevisi..." : "Revisi dan simpan versi"}
                     </Button>
                   </div>
                 </div>
-                <NaskahPreview content={selected.content} loading={false} />
+                <NaskahPreview content={selected.content} loading={loadingDetail} />
                 <VersionsPanel versions={versions} loading={loadingVersions} onRestore={restoreVersion} />
               </div>
             )}

@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import {
   IconChevronDown,
   IconUser,
@@ -26,15 +26,40 @@ import {
   IconDakwahLogo,
 } from "./components/icons";
 import { Badge, Button, Card, IconButton, Input } from "./components/ui";
-import { Admin } from "./pages/Admin";
-import { Dashboard } from "./pages/Dashboard";
-import { Generate } from "./pages/Generate";
-import { History } from "./pages/History";
-import { Templates } from "./pages/Templates";
+import { beginPageTransition } from "./lib/perf";
 import { api, cn, jenisOptions, type JenisId } from "./lib/utils";
 import type { Naskah, Template, User } from "./types";
 
-type TabId = "home" | "about" | "generate" | "history" | "templates" | "admin" | "disclaimer" | "more";
+const loadAdminModule = () => import("./pages/Admin");
+const loadAdminMonitoringModule = () => import("./pages/AdminMonitoring");
+const loadHistoryModule = () => import("./pages/History");
+const loadGenerateModule = () => import("./pages/Generate");
+const Admin = lazy(async () => {
+  const module = await loadAdminModule();
+  return { default: module.Admin };
+});
+const AdminMonitoring = lazy(async () => {
+  const module = await loadAdminMonitoringModule();
+  return { default: module.AdminMonitoringPage };
+});
+const Dashboard = lazy(async () => {
+  const module = await import("./pages/Dashboard");
+  return { default: module.Dashboard };
+});
+const Generate = lazy(async () => {
+  const module = await loadGenerateModule();
+  return { default: module.Generate };
+});
+const History = lazy(async () => {
+  const module = await loadHistoryModule();
+  return { default: module.History };
+});
+const Templates = lazy(async () => {
+  const module = await import("./pages/Templates");
+  return { default: module.Templates };
+});
+
+type TabId = "home" | "about" | "generate" | "history" | "templates" | "admin" | "admin-monitoring" | "disclaimer" | "more";
 type CaptchaChallenge = { token: string; question: string; noise: Array<{ left: number; top: number; width: number; rotate: number }> };
 
 const authCardClass =
@@ -63,6 +88,7 @@ const tabPathById: Record<Exclude<TabId, "generate">, string> = {
   history: "/riwayat",
   templates: "/templates",
   admin: "/admin",
+  "admin-monitoring": "/admin/monitoring",
   disclaimer: "/disclaimer",
   more: "/lainnya"
 };
@@ -76,6 +102,7 @@ function routeFromPath(pathname: string): { tab: TabId; jenis?: JenisId } {
   if (normalizedPath === "/about") return { tab: "about" };
   if (normalizedPath === "/riwayat" || normalizedPath === "/history") return { tab: "history" };
   if (normalizedPath === "/templates") return { tab: "templates" };
+  if (normalizedPath === "/admin/monitoring") return { tab: "admin-monitoring" };
   if (normalizedPath === "/admin") return { tab: "admin" };
   if (normalizedPath === "/disclaimer") return { tab: "disclaimer" };
   if (normalizedPath === "/lainnya" || normalizedPath === "/more") return { tab: "more" };
@@ -103,6 +130,7 @@ export function App() {
   const [dark, setDark] = useState(() => localStorage.getItem("theme") === "dark");
   const [naskahSearch, setNaskahSearch] = useState("");
   const [naskahSearchItems, setNaskahSearchItems] = useState<Naskah[]>([]);
+  const [naskahSearchLoading, setNaskahSearchLoading] = useState(false);
   const [selectedNaskahId, setSelectedNaskahId] = useState("");
   const [showAccountPanel, setShowAccountPanel] = useState(false);
 
@@ -132,26 +160,56 @@ export function App() {
   useEffect(() => {
     if (!user) {
       setNaskahSearchItems([]);
+      setNaskahSearchLoading(false);
+      return;
+    }
+    const query = naskahSearch.trim();
+    if (!query) {
+      setNaskahSearchItems([]);
+      setNaskahSearchLoading(false);
       return;
     }
 
-    api<{ data: Naskah[] }>("/api/naskah")
-      .then((data) => setNaskahSearchItems(data.data))
-      .catch(() => setNaskahSearchItems([]));
-  }, [user]);
+    let cancelled = false;
+    setNaskahSearchLoading(true);
+    const timer = window.setTimeout(() => {
+      api<{ data: Naskah[] }>(`/api/naskah?summary=1&page=1&pageSize=6&q=${encodeURIComponent(query)}`)
+        .then((data) => {
+          if (cancelled) return;
+          setNaskahSearchItems(data.data);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setNaskahSearchItems([]);
+        })
+        .finally(() => {
+          if (!cancelled) setNaskahSearchLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [naskahSearch, user]);
 
   const openGenerate = useCallback((jenis: JenisId = "khutbah-jumat") => {
+    beginPageTransition("Generate");
     setInitialGenerateJenis(jenis);
     setActiveTab("generate");
     pushPath(generatePathByJenis[jenis]);
   }, []);
 
   const openTab = useCallback((tab: Exclude<TabId, "generate">) => {
+    if (tab === "history") beginPageTransition("History");
+    if (tab === "admin-monitoring") beginPageTransition("AdminMonitoring");
     setActiveTab(tab);
     pushPath(tabPathById[tab]);
   }, []);
 
   const useTemplate = useCallback((template: Template) => {
+    void loadGenerateModule();
+    beginPageTransition("Generate");
     setTemplateToUse(template);
     setInitialGenerateJenis(template.jenis);
     setActiveTab("generate");
@@ -159,6 +217,20 @@ export function App() {
   }, []);
 
   const clearTemplate = useCallback(() => setTemplateToUse(null), []);
+  const prefetchAdminMonitoring = useCallback(() => {
+    void loadAdminMonitoringModule();
+  }, []);
+  const prefetchHistory = useCallback(() => {
+    void loadHistoryModule();
+  }, []);
+  const prefetchGenerate = useCallback(() => {
+    void loadGenerateModule();
+  }, []);
+
+  useEffect(() => {
+    if (!naskahSearch.trim()) return;
+    prefetchHistory();
+  }, [naskahSearch, prefetchHistory]);
 
   const handleLogout = useCallback(async () => {
     await api("/api/auth/logout", { method: "POST", body: "{}" }).catch(() => null);
@@ -176,22 +248,30 @@ export function App() {
       user={user}
       setActiveTab={openTab}
       onOpenGenerate={openGenerate}
+      onPrefetchGenerate={prefetchGenerate}
       dark={dark}
       setDark={setDark}
       naskahSearch={naskahSearch}
       onNaskahSearchChange={setNaskahSearch}
       naskahSearchItems={naskahSearchItems}
+      naskahSearchLoading={naskahSearchLoading}
       showAccountPanel={showAccountPanel}
       onToggleAccountPanel={() => setShowAccountPanel((value) => !value)}
       onCloseAccountPanel={() => setShowAccountPanel(false)}
       onSelectNaskah={(item) => {
+        prefetchHistory();
         setSelectedNaskahId(item.id);
         setNaskahSearch(item.title);
         openTab("history");
       }}
+      onPrefetchHistory={prefetchHistory}
       onLogout={handleLogout}
     >
-      {activeTab === "home" && <Dashboard user={user} onCreate={openGenerate} />}
+      {activeTab === "home" && (
+        <PageSuspense>
+          <Dashboard user={user} onCreate={openGenerate} onPrefetchGenerate={prefetchGenerate} />
+        </PageSuspense>
+      )}
       {activeTab === "about" && (
         <InfoPage
           title="About"
@@ -204,16 +284,35 @@ export function App() {
         />
       )}
       {activeTab === "generate" && (
-        <Generate
-          initialJenis={initialGenerateJenis}
-          allowedJenis={[initialGenerateJenis]}
-          template={templateToUse}
-          onTemplateApplied={clearTemplate}
-        />
+        <PageSuspense>
+          <Generate
+            initialJenis={initialGenerateJenis}
+            allowedJenis={[initialGenerateJenis]}
+            template={templateToUse}
+            onTemplateApplied={clearTemplate}
+          />
+        </PageSuspense>
       )}
-      {activeTab === "history" && <History user={user} initialQuery={naskahSearch} selectedId={selectedNaskahId} />}
-      {activeTab === "templates" && <Templates onUse={useTemplate} />}
-      {activeTab === "admin" && user.role === "admin" && <Admin />}
+      {activeTab === "history" && (
+        <PageSuspense>
+          <History user={user} initialQuery={naskahSearch} selectedId={selectedNaskahId} />
+        </PageSuspense>
+      )}
+      {activeTab === "templates" && (
+        <PageSuspense>
+          <Templates onUse={useTemplate} onPrefetchGenerate={prefetchGenerate} />
+        </PageSuspense>
+      )}
+      {activeTab === "admin" && user.role === "admin" && (
+        <PageSuspense>
+          <Admin onOpenMonitoring={() => openTab("admin-monitoring")} onPrefetchMonitoring={prefetchAdminMonitoring} />
+        </PageSuspense>
+      )}
+      {activeTab === "admin-monitoring" && user.role === "admin" && (
+        <PageSuspense>
+          <AdminMonitoring onBack={() => openTab("admin")} />
+        </PageSuspense>
+      )}
       {activeTab === "disclaimer" && (
         <InfoPage
           title="Disclaimer"
@@ -344,6 +443,16 @@ function MoreMenuPanel({
 
 function ShellLoader() {
   return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">Memuat Dakwah...</div>;
+}
+
+function PageSuspense({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense
+      fallback={<div className="flex min-h-[240px] items-center justify-center text-sm text-muted-foreground">Memuat halaman...</div>}
+    >
+      {children}
+    </Suspense>
+  );
 }
 
 function Login({
@@ -947,15 +1056,18 @@ function MainLayout({
   user,
   setActiveTab,
   onOpenGenerate,
+  onPrefetchGenerate,
   dark,
   setDark,
   naskahSearch,
   onNaskahSearchChange,
   naskahSearchItems,
+  naskahSearchLoading,
   showAccountPanel,
   onToggleAccountPanel,
   onCloseAccountPanel,
   onSelectNaskah,
+  onPrefetchHistory,
   onLogout,
   children
 }: {
@@ -964,32 +1076,24 @@ function MainLayout({
   user: User;
   setActiveTab: (tab: Exclude<TabId, "generate">) => void;
   onOpenGenerate: (jenis?: JenisId) => void;
+  onPrefetchGenerate: () => void;
   dark: boolean;
   setDark: (value: boolean) => void;
   naskahSearch: string;
   onNaskahSearchChange: (value: string) => void;
   naskahSearchItems: Naskah[];
+  naskahSearchLoading: boolean;
   showAccountPanel: boolean;
   onToggleAccountPanel: () => void;
   onCloseAccountPanel: () => void;
   onSelectNaskah: (item: Naskah) => void;
+  onPrefetchHistory: () => void;
   onLogout: () => void;
   children: React.ReactNode;
 }) {
   const isKhutbahActive = activeTab === "generate" && khutbahJenis.has(activeJenis);
   const normalizedNaskahSearch = naskahSearch.trim().toLowerCase();
-  const naskahSearchResults = normalizedNaskahSearch
-    ? naskahSearchItems
-        .filter((item) => {
-          const jenisLabel = jenisLabelById(item.jenis);
-          return [item.title, jenisLabel, item.jenis, item.bahasa, item.duration, item.content, item.user?.name, item.user?.username]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase()
-            .includes(normalizedNaskahSearch);
-        })
-        .slice(0, 6)
-    : [];
+  const naskahSearchResults = normalizedNaskahSearch ? naskahSearchItems.slice(0, 6) : [];
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground pb-20 lg:pb-0">
@@ -1010,14 +1114,19 @@ function MainLayout({
             <DesktopTab active={activeTab === "about"} onClick={() => setActiveTab("about")} label="About" />
             <DesktopDropdown label="Khutbah" active={isKhutbahActive}>
               {khutbahItems.map((item) => (
-                <DropdownItem key={item.jenis} active={activeTab === "generate" && activeJenis === item.jenis} onClick={() => onOpenGenerate(item.jenis)}>
+                <DropdownItem
+                  key={item.jenis}
+                  active={activeTab === "generate" && activeJenis === item.jenis}
+                  onClick={() => onOpenGenerate(item.jenis)}
+                  onPrefetch={onPrefetchGenerate}
+                >
                   {item.label}
                 </DropdownItem>
               ))}
             </DesktopDropdown>
-            <DesktopTab active={activeTab === "generate" && activeJenis === "ceramah"} onClick={() => onOpenGenerate("ceramah")} label="Ceramah" />
-            <DesktopTab active={activeTab === "generate" && activeJenis === "kultum"} onClick={() => onOpenGenerate("kultum")} label="Kultum" />
-            <DesktopTab active={activeTab === "history"} onClick={() => setActiveTab("history")} label="Riwayat" />
+            <DesktopTab active={activeTab === "generate" && activeJenis === "ceramah"} onClick={() => onOpenGenerate("ceramah")} onPrefetch={onPrefetchGenerate} label="Ceramah" />
+            <DesktopTab active={activeTab === "generate" && activeJenis === "kultum"} onClick={() => onOpenGenerate("kultum")} onPrefetch={onPrefetchGenerate} label="Kultum" />
+            <DesktopTab active={activeTab === "history"} onClick={() => setActiveTab("history")} onPrefetch={onPrefetchHistory} label="Riwayat" />
             <DesktopTab active={activeTab === "templates"} onClick={() => setActiveTab("templates")} label="Template" />
             <DesktopTab active={activeTab === "disclaimer"} onClick={() => setActiveTab("disclaimer")} label="Disclaimer" />
             <div className="relative w-44 xl:w-56">
@@ -1037,6 +1146,8 @@ function MainLayout({
                     <button
                       key={item.id}
                       className="block w-full rounded-md px-3 py-2 text-left transition hover:bg-accent"
+                      onMouseEnter={onPrefetchHistory}
+                      onFocus={onPrefetchHistory}
                       onClick={() => onSelectNaskah(item)}
                       type="button"
                     >
@@ -1046,7 +1157,10 @@ function MainLayout({
                       </span>
                     </button>
                   ))}
-                  {naskahSearchResults.length === 0 && (
+                  {naskahSearchLoading && (
+                    <p className="px-3 py-2 text-sm text-muted-foreground">Mencari naskah...</p>
+                  )}
+                  {!naskahSearchLoading && naskahSearchResults.length === 0 && (
                     <p className="px-3 py-2 text-sm text-muted-foreground">Tidak ada naskah tersimpan yang cocok.</p>
                   )}
                 </div>
@@ -1105,6 +1219,9 @@ function MainLayout({
           {/* Buat - Indigo */}
           <button
             onClick={() => onOpenGenerate(activeJenis)}
+            onMouseEnter={onPrefetchGenerate}
+            onFocus={onPrefetchGenerate}
+            onTouchStart={onPrefetchGenerate}
             className="flex flex-col items-center justify-center flex-1 py-1 gap-1 text-[10px] font-medium transition-all duration-200"
             type="button"
           >
@@ -1122,6 +1239,9 @@ function MainLayout({
           {/* Riwayat - Amber */}
           <button
             onClick={() => setActiveTab("history")}
+            onMouseEnter={onPrefetchHistory}
+            onFocus={onPrefetchHistory}
+            onTouchStart={onPrefetchHistory}
             className="flex flex-col items-center justify-center flex-1 py-1 gap-1 text-[10px] font-medium transition-all duration-200"
             type="button"
           >
@@ -1238,10 +1358,12 @@ function AccountPanel({
 function DesktopTab({
   active,
   onClick,
+  onPrefetch,
   label
 }: {
   active: boolean;
   onClick: () => void;
+  onPrefetch?: () => void;
   label: string;
 }) {
   return (
@@ -1251,6 +1373,8 @@ function DesktopTab({
         active && "text-primary"
       )}
       onClick={onClick}
+      onMouseEnter={onPrefetch}
+      onFocus={onPrefetch}
     >
       {label}
     </button>
@@ -1288,10 +1412,12 @@ function DesktopDropdown({
 function DropdownItem({
   active,
   onClick,
+  onPrefetch,
   children
 }: {
   active: boolean;
   onClick: () => void;
+  onPrefetch?: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -1301,6 +1427,8 @@ function DropdownItem({
         active && "bg-accent text-accent-foreground"
       )}
       onClick={onClick}
+      onMouseEnter={onPrefetch}
+      onFocus={onPrefetch}
       type="button"
     >
       {children}

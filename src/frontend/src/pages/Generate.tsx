@@ -5,12 +5,14 @@ import { JenisCard } from "../components/JenisCard";
 import { NaskahPreview } from "../components/NaskahPreview";
 import { QualityPanel } from "../components/QualityPanel";
 import { Badge, Button, Card, Field, Input, Notice, Textarea } from "../components/ui";
+import { completePageTransition } from "../lib/perf";
 import { api, cn, downloadBlob, jenisOptions, type JenisId } from "../lib/utils";
 import { validateGenerateParameters } from "../lib/validation";
 import type { Naskah, QualityReport, Template } from "../types";
 
 const defaultGenerateTimeoutMs = 120000;
 const manualDraftStoragePrefix = "dakwah:generate-manual-draft:";
+let generateConfigRequest: Promise<{ data: { generateClientTimeoutMs: number } }> | null = null;
 
 declare global {
   interface Window {
@@ -67,6 +69,10 @@ export function Generate({
   const [focusMode, setFocusMode] = useState(false);
 
   useEffect(() => {
+    completePageTransition("Generate");
+  }, []);
+
+  useEffect(() => {
     changeJenis(initialJenis);
   }, [initialJenis]);
 
@@ -95,7 +101,11 @@ export function Generate({
   }, [onTemplateApplied, template]);
 
   useEffect(() => {
-    api<{ data: { generateClientTimeoutMs: number } }>("/api/config")
+    (generateConfigRequest ??=
+      api<{ data: { generateClientTimeoutMs: number } }>("/api/config").catch((error) => {
+        generateConfigRequest = null;
+        throw error;
+      }))
       .then((data) => {
         if (Number.isFinite(data.data.generateClientTimeoutMs)) {
           setGenerateTimeoutMs(data.data.generateClientTimeoutMs);
@@ -290,6 +300,15 @@ export function Generate({
     setTitle(makeTitle());
     setLastQuickFixDiff(null);
     const controller = new AbortController();
+    let pendingChunk = "";
+    let flushFrame = 0;
+    const flushPendingChunk = () => {
+      flushFrame = 0;
+      if (!pendingChunk) return;
+      const chunk = pendingChunk;
+      pendingChunk = "";
+      setContent((current) => current + chunk);
+    };
     const waitingTimer = window.setTimeout(() => {
       setMessageTone("neutral");
       setMessage("Menunggu respons dari provider AI. Jika model pertama penuh, aplikasi akan mencoba model berikutnya...");
@@ -317,12 +336,21 @@ export function Generate({
         setMessage("");
         const chunk = decoder.decode(value, { stream: true });
         nextContent += chunk;
-        setContent((current) => current + chunk);
+        pendingChunk += chunk;
+        if (!flushFrame) {
+          flushFrame = window.requestAnimationFrame(flushPendingChunk);
+        }
       }
       const remainder = decoder.decode();
       if (remainder) {
         nextContent += remainder;
-        setContent((current) => current + remainder);
+        pendingChunk += remainder;
+      }
+      if (flushFrame) {
+        window.cancelAnimationFrame(flushFrame);
+      }
+      if (pendingChunk) {
+        flushPendingChunk();
       }
       await reviewGeneratedContent(nextContent);
       setManualEditDirty(false);
@@ -353,6 +381,9 @@ export function Generate({
     } finally {
       window.clearTimeout(waitingTimer);
       window.clearTimeout(timeoutTimer);
+      if (flushFrame) {
+        window.cancelAnimationFrame(flushFrame);
+      }
       setLoading(false);
     }
   }

@@ -4,7 +4,7 @@ import { IconQuran, IconMicrophone, IconCrescent, IconFileText, IconPhone, IconM
 import { Badge, Button } from "../components/ui";
 import { api, jenisOptions, type JenisId } from "../lib/utils";
 import type { Template, User } from "../types";
-import mosqueHero from "../assets/dashboard-mosque-hero.png";
+import mosqueHero from "../assets/dashboard-mosque-hero.webp";
 
 const featureCards: Array<{
   title: string;
@@ -45,10 +45,12 @@ const featureCards: Array<{
 ];
 
 export function Dashboard({
-  onCreate
+  onCreate,
+  onPrefetchGenerate
 }: {
   user: User;
   onCreate: (jenis?: JenisId) => void;
+  onPrefetchGenerate: () => void;
 }) {
   const [templates, setTemplates] = useState<Template[]>([]);
 
@@ -83,22 +85,24 @@ export function Dashboard({
         </div>
         <div className="grid gap-5 md:grid-cols-3">
           {featureCards.map((item) => (
-            <FeatureCard key={item.title} item={item} onCreate={onCreate} />
+            <FeatureCard key={item.title} item={item} onCreate={onCreate} onPrefetchGenerate={onPrefetchGenerate} />
           ))}
         </div>
       </section>
 
-      <HomeFooter templates={templates} onCreate={onCreate} />
+      <HomeFooter templates={templates} onCreate={onCreate} onPrefetchGenerate={onPrefetchGenerate} />
     </div>
   );
 }
 
 function FeatureCard({
   item,
-  onCreate
+  onCreate,
+  onPrefetchGenerate
 }: {
   item: (typeof featureCards)[number];
   onCreate: (jenis?: JenisId) => void;
+  onPrefetchGenerate: () => void;
 }) {
   const Icon = item.icon;
 
@@ -112,6 +116,9 @@ function FeatureCard({
         <p className="mt-5 text-sm font-medium leading-6 text-white/90">{item.body}</p>
         <button
           className="mt-7 inline-flex h-10 items-center justify-center bg-white px-5 text-xs font-extrabold uppercase text-zinc-950 transition hover:bg-secondary"
+          onMouseEnter={onPrefetchGenerate}
+          onFocus={onPrefetchGenerate}
+          onTouchStart={onPrefetchGenerate}
           onClick={() => onCreate(item.jenis)}
         >
           {item.cta}
@@ -123,10 +130,12 @@ function FeatureCard({
 
 function HomeFooter({
   templates,
-  onCreate
+  onCreate,
+  onPrefetchGenerate
 }: {
   templates: Template[];
   onCreate: (jenis?: JenisId) => void;
+  onPrefetchGenerate: () => void;
 }) {
   const featured = templates.slice(0, 2);
   const links: Array<{ label: string; onClick: () => void }> = [
@@ -176,7 +185,14 @@ function HomeFooter({
           <h3 className="text-lg font-semibold">Link Cepat</h3>
           <div className="mt-6 grid gap-2">
             {links.map((link) => (
-              <button key={link.label} className="flex items-center gap-2 text-left text-sm text-white/75 transition hover:text-white" onClick={link.onClick}>
+              <button
+                key={link.label}
+                className="flex items-center gap-2 text-left text-sm text-white/75 transition hover:text-white"
+                onMouseEnter={onPrefetchGenerate}
+                onFocus={onPrefetchGenerate}
+                onTouchStart={onPrefetchGenerate}
+                onClick={link.onClick}
+              >
                 <span className="text-primary">&rsaquo;</span>
                 {link.label}
               </button>

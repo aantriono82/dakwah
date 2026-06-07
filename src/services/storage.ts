@@ -80,6 +80,48 @@ export async function uploadFile(key: string, body: Uint8Array, contentType: str
   }
 }
 
+export async function getFileUrl(key: string) {
+  await ensureBucket();
+  return getSignedUrl(publicClient, new GetObjectCommand({ Bucket: bucket, Key: key }), {
+    expiresIn: signedUrlExpires
+  });
+}
+
+export async function downloadFile(key: string) {
+  await ensureBucket();
+  const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  return new Uint8Array(await response.Body!.transformToByteArray());
+}
+
+export async function streamFile(key: string) {
+  await ensureBucket();
+  const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  const body = response.Body as
+    | ReadableStream<Uint8Array>
+    | { transformToWebStream?: () => ReadableStream<Uint8Array> }
+    | undefined;
+
+  if (!body) {
+    throw new Error("Body file storage kosong.");
+  }
+
+  if (body instanceof ReadableStream) {
+    return {
+      stream: body,
+      contentLength: response.ContentLength
+    };
+  }
+
+  if (typeof body.transformToWebStream === "function") {
+    return {
+      stream: body.transformToWebStream(),
+      contentLength: response.ContentLength
+    };
+  }
+
+  throw new Error("Body file storage tidak mendukung streaming.");
+}
+
 export function isStorageRequired() {
   return required;
 }

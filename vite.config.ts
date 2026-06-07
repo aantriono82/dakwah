@@ -6,7 +6,19 @@ export default defineConfig({
   root: "src/frontend",
   build: {
     outDir: "../../dist/public",
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/react") || id.includes("node_modules/react-dom")) {
+            return "react-vendor";
+          }
+          if (id.includes("node_modules/clsx") || id.includes("node_modules/tailwind-merge")) {
+            return "ui-vendor";
+          }
+        }
+      }
+    }
   },
   server: {
     port: 5173,

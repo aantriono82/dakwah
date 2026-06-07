@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
+import { exportPdfTimeoutMs } from "../config";
 
 const arabicPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
 const latinLetterPattern = /[A-Za-z]/;
@@ -192,7 +193,8 @@ async function convertHtmlToPdfViaChrome(title: string, content: string) {
           ...process.env,
           HOME: tempDir,
           XDG_RUNTIME_DIR: tempDir
-        }
+        },
+        timeout: exportPdfTimeoutMs
       }
     );
     const pdf = await readFile(pdfPath);
@@ -208,6 +210,11 @@ export async function createPdf(title: string, content: string) {
       return await convertHtmlToPdfViaChrome(title, content);
     } catch (error) {
       const chromeError = error instanceof Error ? error.message : String(error);
+      if (chromeError.includes("timed out")) {
+        throw new Error(
+          `Export PDF teks Arab melebihi batas waktu ${Math.ceil(exportPdfTimeoutMs / 1000)} detik. Coba DOCX atau ringkas isi naskah.`
+        );
+      }
       console.warn(`[exporters] HTML->PDF (Chrome) failed: ${chromeError}`);
       throw new Error(
         `Export PDF teks Arab gagal karena Chrome/Chromium tidak berhasil dipakai. ${chromeError} Export DOCX masih tersedia.`
@@ -215,38 +222,48 @@ export async function createPdf(title: string, content: string) {
     }
   }
 
-  const doc = new PDFDocument({ margin: 56, size: "A4" });
-  const chunks: Buffer[] = [];
-  const unicodeFontPath = resolveUnicodeFontPath();
+  return new Promise<Uint8Array>((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 56, size: "A4" });
+    const chunks: Buffer[] = [];
+    const unicodeFontPath = resolveUnicodeFontPath();
+    const timeout = setTimeout(() => {
+      doc.removeAllListeners();
+      (doc as unknown as { destroy?: () => void }).destroy?.();
+      reject(new Error(`Export PDF melebihi batas waktu ${Math.ceil(exportPdfTimeoutMs / 1000)} detik.`));
+    }, exportPdfTimeoutMs);
 
-  doc.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-  const done = new Promise<Buffer>((resolve) => {
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
-  });
-
-  if (unicodeFontPath) {
-    doc.font(unicodeFontPath);
-  } else {
-    console.warn("[exporters] Unicode font for PDF not found. Arabic rendering may degrade.");
-  }
-
-  doc.fontSize(18).text(title, { align: "center" });
-  doc.moveDown();
-
-  const paragraphs = content.split(/\n{2,}/);
-  for (const paragraph of paragraphs) {
-    const text = paragraph.trim();
-    if (!text) continue;
-    doc.fontSize(11).text(text, {
-      align: containsArabic(text) ? "right" : "left",
-      lineGap: 4
+    doc.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    doc.on("end", () => {
+      clearTimeout(timeout);
+      resolve(new Uint8Array(Buffer.concat(chunks)));
     });
-    doc.moveDown(0.5);
-  }
+    doc.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
 
-  doc.end();
+    if (unicodeFontPath) {
+      doc.font(unicodeFontPath);
+    } else {
+      console.warn("[exporters] Unicode font for PDF not found. Arabic rendering may degrade.");
+    }
 
-  return new Uint8Array(await done);
+    doc.fontSize(18).text(title, { align: "center" });
+    doc.moveDown();
+
+    const paragraphs = content.split(/\n{2,}/);
+    for (const paragraph of paragraphs) {
+      const text = paragraph.trim();
+      if (!text) continue;
+      doc.fontSize(11).text(text, {
+        align: containsArabic(text) ? "right" : "left",
+        lineGap: 4
+      });
+      doc.moveDown(0.5);
+    }
+
+    doc.end();
+  });
 }
 
 export async function createDocx(title: string, content: string) {

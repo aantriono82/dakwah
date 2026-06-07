@@ -383,8 +383,12 @@ describe("API auth and roles", () => {
     expect(hadithCreate.status).toBe(201);
 
     const list = await request("/api/admin/dalil?q=ujian-khusus&status=all", {}, adminCookie);
+    const listBody = await list.json();
     expect(list.status).toBe(200);
-    expect((await list.json()).data.length).toBeGreaterThanOrEqual(2);
+    expect(listBody.data.length).toBeGreaterThanOrEqual(2);
+    expect(listBody.pagination.page).toBe(1);
+    expect(listBody.pagination.pageSize).toBe(25);
+    expect(listBody.pagination.total).toBeGreaterThanOrEqual(2);
 
     const retrieval = await request(
       "/api/dalil/search",
@@ -410,6 +414,46 @@ describe("API auth and roles", () => {
 
     expect((await request(`/api/admin/dalil/${quran.data.id}`, { method: "DELETE" }, adminCookie)).status).toBe(200);
     expect((await request(`/api/admin/dalil/${hadith.data.id}`, { method: "DELETE" }, adminCookie)).status).toBe(200);
+  });
+
+  test("frontend perf metrics can be recorded for authenticated users", async () => {
+    const unauthorized = await request("/api/stats/frontend-perf", {
+      method: "POST",
+      body: JSON.stringify({ page: "History", durationMs: 123.45, recordedAt: new Date().toISOString() })
+    });
+    expect(unauthorized.status).toBe(401);
+
+    const recordedAt = new Date().toISOString();
+    const response = await request(
+      "/api/stats/frontend-perf",
+      {
+        method: "POST",
+        body: JSON.stringify({ page: "History", durationMs: 123.45, recordedAt })
+      },
+      userCookie
+    );
+    expect(response.status).toBe(200);
+
+    const adminStats = await request("/api/admin/stats?scope=monitoring&perfWindow=24h", {}, adminCookie);
+    const adminStatsBody = await adminStats.json();
+    expect(adminStats.status).toBe(200);
+    expect(adminStatsBody.data.frontendPerfWindow).toBe("24h");
+    expect(
+      adminStatsBody.data.recentUsage.some(
+        (event: { eventType: string; route?: string | null; durationMs?: number | null; user?: { username?: string } | null }) =>
+          event.eventType === "frontend_page_load" && event.route === "History" && event.durationMs === 123 && event.user?.username === "user"
+      )
+    ).toBe(true);
+    expect(
+      adminStatsBody.data.frontendPerfSummary.some(
+        (item: { page?: string | null; count?: number; avgDurationMs?: number; previousAvgDurationMs?: number | null; previousCount?: number }) =>
+          item.page === "History" &&
+          item.count === 1 &&
+          item.avgDurationMs === 123 &&
+          item.previousAvgDurationMs === null &&
+          item.previousCount === 0
+      )
+    ).toBe(true);
   });
 });
 
@@ -662,6 +706,27 @@ describe("API naskah, template, generate, and export", () => {
     expect(listBody.data.some((item: { id: string }) => item.id === createdNaskahId)).toBe(true);
     expect(listBody.data[0].user).not.toHaveProperty("passwordHash");
 
+    const summaryList = await request("/api/naskah?summary=1", {}, userCookie);
+    const summaryBody = await summaryList.json();
+    expect(summaryList.status).toBe(200);
+    expect(summaryBody.data[0].content).toBe("");
+    expect(summaryBody.data[0].parameters).toEqual({});
+    expect(summaryBody.data[0].qualityReport).toBeNull();
+
+    const pagedSummaryList = await request("/api/naskah?summary=1&page=1&pageSize=10", {}, userCookie);
+    const pagedSummaryBody = await pagedSummaryList.json();
+    expect(pagedSummaryList.status).toBe(200);
+    expect(pagedSummaryBody.pagination.page).toBe(1);
+    expect(pagedSummaryBody.pagination.pageSize).toBe(10);
+    expect(typeof pagedSummaryBody.pagination.total).toBe("number");
+    expect(typeof pagedSummaryBody.pagination.totalPages).toBe("number");
+
+    const searchedSummaryList = await request("/api/naskah?summary=1&page=1&pageSize=10&q=Amanah", {}, userCookie);
+    const searchedSummaryBody = await searchedSummaryList.json();
+    expect(searchedSummaryList.status).toBe(200);
+    expect(searchedSummaryBody.data.length).toBeGreaterThanOrEqual(1);
+    expect(searchedSummaryBody.data[0].title).toContain("Amanah");
+
     const update = await request(
       `/api/naskah/${createdNaskahId}`,
       { method: "PUT", body: JSON.stringify({ title: "Ceramah Amanah Updated" }) },
@@ -673,6 +738,8 @@ describe("API naskah, template, generate, and export", () => {
     expect(updatedBody.data.version).toBe(2);
     expect(updatedBody.data.user).toMatchObject({ username: "user", role: "user" });
     expect(updatedBody.data.user).not.toHaveProperty("passwordHash");
+    expect(updatedBody.data.qualityScore).toBe(created.data.qualityScore);
+    expect(updatedBody.data.qualityReport?.generatedAt).toBe(created.data.qualityReport?.generatedAt);
 
     const autosave = await request(
       `/api/naskah/${createdNaskahId}`,
@@ -689,11 +756,23 @@ describe("API naskah, template, generate, and export", () => {
     expect(autosave.status).toBe(200);
     expect(autosavedBody.data.version).toBe(2);
     expect(typeof autosavedBody.data.autosavedAt).toBe("string");
+    expect(autosavedBody.data.qualityScore).toBe(updatedBody.data.qualityScore);
+    expect(autosavedBody.data.qualityReport?.generatedAt).toBe(updatedBody.data.qualityReport?.generatedAt);
 
     const versions = await request(`/api/naskah/${createdNaskahId}/versions`, {}, userCookie);
     const versionsBody = await versions.json();
     expect(versions.status).toBe(200);
     expect(versionsBody.data.length).toBeGreaterThanOrEqual(2);
+    expect(versionsBody.data[0].content).toBeUndefined();
+    expect(versionsBody.data[0].qualityReport).toBeUndefined();
+
+    const context = await request(`/api/naskah/${createdNaskahId}/context`, {}, userCookie);
+    const contextBody = await context.json();
+    expect(context.status).toBe(200);
+    expect(contextBody.data.id).toBe(createdNaskahId);
+    expect(contextBody.versions.length).toBeGreaterThanOrEqual(2);
+    expect(contextBody.versions[0].content).toBeUndefined();
+    expect(contextBody.versions[0].qualityReport).toBeUndefined();
 
     const refine = await request(
       `/api/naskah/${createdNaskahId}/refine`,

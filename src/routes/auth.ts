@@ -18,7 +18,10 @@ export const authRoutes = new Hono<AppEnv>();
 const authCookieMaxAge = 60 * 60 * 24 * 7;
 const captchaTtlMs = 5 * 60 * 1000;
 const passwordResetTtlMs = 30 * 60 * 1000;
+const authCleanupIntervalMs = 5 * 60 * 1000;
 const captchaChallenges = new Map<string, { answer: number; expiresAt: number }>();
+let nextCaptchaCleanupAt = 0;
+let nextExpiredAuthCleanupAt = 0;
 
 authRoutes.use(
   "/login",
@@ -43,9 +46,11 @@ authRoutes.use(
 
 function cleanupCaptchaChallenges() {
   const now = Date.now();
+  if (now < nextCaptchaCleanupAt) return;
   for (const [token, challenge] of captchaChallenges) {
     if (challenge.expiresAt <= now) captchaChallenges.delete(token);
   }
+  nextCaptchaCleanupAt = now + Math.min(captchaTtlMs, 60 * 1000);
 }
 
 function createCaptchaChallenge() {
@@ -76,6 +81,7 @@ function verifyCaptcha(token: string, answer: string) {
   captchaChallenges.delete(token);
 
   if (!challenge) return false;
+  if (challenge.expiresAt <= Date.now()) return false;
   return Number(answer) === challenge.answer;
 }
 
@@ -96,8 +102,10 @@ async function createSession(c: Context<AppEnv>, userId: string) {
 
 async function cleanupExpiredAuthRows() {
   const now = new Date();
+  if (now.getTime() < nextExpiredAuthCleanupAt) return;
   await db.delete(sessions).where(lte(sessions.expiresAt, now));
   await db.delete(passwordResetTokens).where(lte(passwordResetTokens.expiresAt, now));
+  nextExpiredAuthCleanupAt = now.getTime() + authCleanupIntervalMs;
 }
 
 authRoutes.post("/login", async (c) => {

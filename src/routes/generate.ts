@@ -6,6 +6,7 @@ import { generateRateLimitMax, generateRateLimitWindowMs } from "../config";
 import { recordUsageEvent, assertGenerateQuota } from "../services/usage";
 import { authRequired, type AppEnv } from "../utils/http";
 import { CONTENT_TYPES, titleFromParameters, validateContentParameters } from "../utils/content";
+import { logInfo } from "../utils/observability";
 import { qualityReportFor } from "../utils/quality";
 import { rateLimit } from "../utils/rate-limit";
 import { generateText, reviseNaskahContent, streamGeneratedText } from "../services/openai";
@@ -49,8 +50,21 @@ generateRoutes.post("/", zValidator("json", generateSchema), async (c) => {
 
   const startedAt = Date.now();
   const dalilContext = await retrieveDalilContext(jenis, parameters);
+  const dalilRetrievedAt = Date.now();
   const content = await generateText(jenis, parameters, dalilContext);
+  const generatedAt = Date.now();
   const quality = qualityReportFor(jenis, content, parameters, dalilContext);
+  logInfo("generate.request", {
+    route: "/api/generate",
+    jenis,
+    userId: user.id,
+    dalilMs: dalilRetrievedAt - startedAt,
+    generateMs: generatedAt - dalilRetrievedAt,
+    qualityMs: Date.now() - generatedAt,
+    totalMs: Date.now() - startedAt,
+    qualityScore: quality.score,
+    wordCount: quality.wordCount
+  });
   await recordUsageEvent({
     userId: user.id,
     eventType: "generate",
@@ -91,12 +105,23 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
   return streamText(c, async (stream) => {
     const startedAt = Date.now();
     const dalilContext = await retrieveDalilContext(jenis, parameters);
+    const dalilRetrievedAt = Date.now();
     let content = "";
     for await (const chunk of streamGeneratedText(jenis, parameters, dalilContext)) {
       content += chunk;
       await stream.write(chunk);
     }
-    const quality = qualityReportFor(jenis, content, parameters, dalilContext);
+    const generatedAt = Date.now();
+    const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+    logInfo("generate.request", {
+      route: "/api/generate/stream",
+      jenis,
+      userId: user.id,
+      dalilMs: dalilRetrievedAt - startedAt,
+      generateMs: generatedAt - dalilRetrievedAt,
+      totalMs: Date.now() - startedAt,
+      wordCount
+    });
     await recordUsageEvent({
       userId: user.id,
       eventType: "generate",
@@ -105,8 +130,7 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
       route: "/api/generate/stream",
       durationMs: Date.now() - startedAt,
       metadata: {
-        qualityScore: quality.score,
-        wordCount: quality.wordCount,
+        wordCount,
         quotaUsed: quota.used + 1,
         quotaLimit: quota.limit,
         dalilSource: dalilContext.source,
@@ -122,8 +146,15 @@ generateRoutes.post("/review", zValidator("json", reviewSchema), async (c) => {
   const validationMessage = validateContentParameters(jenis, parameters);
   if (validationMessage) return c.json({ message: validationMessage }, 400);
 
+  const startedAt = Date.now();
   const dalilContext = await retrieveDalilContext(jenis, parameters);
   const quality = qualityReportFor(jenis, content, parameters, dalilContext);
+  logInfo("generate.review", {
+    jenis,
+    dalilMs: Date.now() - startedAt,
+    qualityScore: quality.score,
+    wordCount: quality.wordCount
+  });
   return c.json({ quality });
 });
 
@@ -141,6 +172,7 @@ generateRoutes.post("/refine", zValidator("json", refineDraftSchema), async (c) 
 
   const startedAt = Date.now();
   const dalilContext = await retrieveDalilContext(jenis, parameters);
+  const dalilRetrievedAt = Date.now();
   const revisedContent = await reviseNaskahContent({
     jenis,
     parameters,
@@ -149,7 +181,19 @@ generateRoutes.post("/refine", zValidator("json", refineDraftSchema), async (c) 
     targetSection,
     dalilContext
   });
+  const revisedAt = Date.now();
   const quality = qualityReportFor(jenis, revisedContent, parameters, dalilContext);
+  logInfo("generate.refine", {
+    route: "/api/generate/refine",
+    jenis,
+    userId: user.id,
+    dalilMs: dalilRetrievedAt - startedAt,
+    reviseMs: revisedAt - dalilRetrievedAt,
+    qualityMs: Date.now() - revisedAt,
+    totalMs: Date.now() - startedAt,
+    qualityScore: quality.score,
+    wordCount: quality.wordCount
+  });
 
   await recordUsageEvent({
     userId: user.id,

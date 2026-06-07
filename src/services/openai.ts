@@ -21,6 +21,7 @@ import {
 import { qualityReportFor } from "../utils/quality";
 import { retrieveDalilContext } from "./myquran";
 import { registerThemeClassifier } from "../utils/themeClassifier";
+import { logInfo } from "../utils/observability";
 
 const apiKey = process.env.OPENAI_API_KEY;
 const aiProvider = String(process.env.AI_PROVIDER ?? "openai").trim().toLowerCase();
@@ -343,6 +344,43 @@ function needsEditorialRepair(jenis: string, text: string, parameters: Record<st
   return report.checks.some((item) => !item.passed && (item.id === "template_language" || item.id === "theme_focus_keywords"));
 }
 
+function createQualityInspector(jenis: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
+  const cache = new Map<string, ReturnType<typeof qualityReportFor>>();
+
+  function report(text: string) {
+    const cached = cache.get(text);
+    if (cached) return cached;
+    const next = qualityReportFor(jenis, text, parameters, dalilContext);
+    cache.set(text, next);
+    return next;
+  }
+
+  return {
+    report,
+    failedDetails(text: string) {
+      return report(text)
+        .checks
+        .filter((item) => !item.passed && item.severity !== "info")
+        .map((item) => `${item.label}: ${item.detail}`)
+        .join("\n");
+    },
+    needsDalilRepair(text: string) {
+      return report(text).checks.some(
+        (item) =>
+          !item.passed &&
+          (item.severity === "critical" ||
+            item.id.includes("dalil") ||
+            item.id.includes("quran") ||
+            item.id.includes("hadith") ||
+            item.id === "arabic_diacritics")
+      );
+    },
+    needsEditorialRepair(text: string) {
+      return report(text).checks.some((item) => !item.passed && (item.id === "template_language" || item.id === "theme_focus_keywords"));
+    }
+  };
+}
+
 function repairInstructionFor(jenis: string, parameters: Record<string, unknown>, text: string, dalilContext?: PromptDalilContext) {
   const failures = failedQualityDetails(jenis, text, parameters, dalilContext) || "Validasi quality report belum memadai.";
   return `Perbaiki naskah final berikut agar lolos validasi. Kembalikan naskah final lengkap saja.
@@ -531,9 +569,10 @@ async function finalizeOpenAIText(
   dalilContext: PromptDalilContext | undefined,
   traceId: string
 ) {
+  const quality = createQualityInspector(jenis, parameters, dalilContext);
   let output = injectRetrievedDalil(normalizeProviderText(jenis, text, parameters), dalilContext);
 
-  if (needsDalilRepair(jenis, output, parameters, dalilContext)) {
+  if (quality.needsDalilRepair(output)) {
     try {
       const repaired = await createOpenAITextPass(
         modelName,
@@ -550,7 +589,7 @@ async function finalizeOpenAIText(
     }
   }
 
-  if (needsEditorialRepair(jenis, output, parameters, dalilContext)) {
+  if (quality.needsEditorialRepair(output)) {
     try {
       const editorialRewrite = await createOpenAITextPass(
         modelName,
@@ -563,8 +602,8 @@ async function finalizeOpenAIText(
       const cleanEditorialRewrite = injectRetrievedDalil(normalizeProviderText(jenis, editorialRewrite, parameters), dalilContext);
       if (
         providerTextIsClean(jenis, cleanEditorialRewrite, parameters) &&
-        !needsDalilRepair(jenis, cleanEditorialRewrite, parameters, dalilContext) &&
-        !needsEditorialRepair(jenis, cleanEditorialRewrite, parameters, dalilContext)
+        !quality.needsDalilRepair(cleanEditorialRewrite) &&
+        !quality.needsEditorialRepair(cleanEditorialRewrite)
       ) {
         output = cleanEditorialRewrite;
       }
@@ -585,8 +624,8 @@ async function finalizeOpenAIText(
     const cleanRewrite = injectRetrievedDalil(normalizeProviderText(jenis, rewritten, parameters), dalilContext);
     if (
       providerTextIsClean(jenis, cleanRewrite, parameters) &&
-      !needsDalilRepair(jenis, cleanRewrite, parameters, dalilContext) &&
-      !needsEditorialRepair(jenis, cleanRewrite, parameters, dalilContext)
+      !quality.needsDalilRepair(cleanRewrite) &&
+      !quality.needsEditorialRepair(cleanRewrite)
     ) {
       output = cleanRewrite;
     }
@@ -595,6 +634,60 @@ async function finalizeOpenAIText(
   }
 
   return output;
+}
+
+async function retryOpenAITextAfterInvalidPass(input: {
+  modelName: string;
+  prompt: string;
+  outline: string;
+  invalidText: string;
+  jenis: string;
+  parameters: Record<string, unknown>;
+  dalilContext?: PromptDalilContext;
+  traceId: string;
+}) {
+  const generationSettings = generationSettingsFor(input.jenis, input.parameters);
+  const baseMessages = messagesWithOutline(input.prompt, input.traceId, input.outline);
+  const invalidReason = providerTextFailureReason(input.jenis, input.invalidText, input.parameters);
+
+  const retryResponse = await createCompletionWithCreditRetry(
+    {
+      model: input.modelName,
+      messages: [
+        ...baseMessages,
+        {
+          role: "user",
+          content: retryInstruction(input.jenis, input.parameters, invalidReason)
+        }
+      ],
+      ...generationSettings
+    },
+    input.traceId,
+    "retry"
+  );
+
+  const retryPass = normalizeProviderText(input.jenis, retryResponse.choices[0]?.message.content ?? "", input.parameters);
+  if (!providerTextIsClean(input.jenis, retryPass, input.parameters)) {
+    return {
+      ok: false as const,
+      retryPass,
+      invalidReason: providerTextFailureReason(input.jenis, retryPass, input.parameters)
+    };
+  }
+
+  return {
+    ok: true as const,
+    finalText: await finalizeOpenAIText(
+      input.modelName,
+      input.prompt,
+      input.outline,
+      retryPass,
+      input.jenis,
+      input.parameters,
+      input.dalilContext,
+      input.traceId
+    )
+  };
 }
 
 async function createGeminiOutline(modelName: string, prompt: string, jenis: string, parameters: Record<string, unknown>, traceId: string) {
@@ -617,10 +710,11 @@ async function finalizeGeminiText(
   dalilContext: PromptDalilContext | undefined,
   traceId: string
 ) {
+  const quality = createQualityInspector(jenis, parameters, dalilContext);
   let output = injectRetrievedDalil(normalizeProviderText(jenis, text, parameters), dalilContext);
   const contextualPrompt = `${prompt}\n\nKerangka internal yang wajib diikuti tetapi jangan ditampilkan:\n${outline}`;
 
-  if (needsDalilRepair(jenis, output, parameters, dalilContext)) {
+  if (quality.needsDalilRepair(output)) {
     try {
       const response = await createGeminiCompletion(
         modelName,
@@ -635,7 +729,7 @@ async function finalizeGeminiText(
     }
   }
 
-  if (needsEditorialRepair(jenis, output, parameters, dalilContext)) {
+  if (quality.needsEditorialRepair(output)) {
     try {
       const response = await createGeminiCompletion(
         modelName,
@@ -646,8 +740,8 @@ async function finalizeGeminiText(
       const cleanEditorialRewrite = injectRetrievedDalil(normalizeProviderText(jenis, geminiTextFromResponse(response), parameters), dalilContext);
       if (
         providerTextIsClean(jenis, cleanEditorialRewrite, parameters) &&
-        !needsDalilRepair(jenis, cleanEditorialRewrite, parameters, dalilContext) &&
-        !needsEditorialRepair(jenis, cleanEditorialRewrite, parameters, dalilContext)
+        !quality.needsDalilRepair(cleanEditorialRewrite) &&
+        !quality.needsEditorialRepair(cleanEditorialRewrite)
       ) {
         output = cleanEditorialRewrite;
       }
@@ -661,8 +755,8 @@ async function finalizeGeminiText(
     const cleanRewrite = injectRetrievedDalil(normalizeProviderText(jenis, geminiTextFromResponse(response), parameters), dalilContext);
     if (
       providerTextIsClean(jenis, cleanRewrite, parameters) &&
-      !needsDalilRepair(jenis, cleanRewrite, parameters, dalilContext) &&
-      !needsEditorialRepair(jenis, cleanRewrite, parameters, dalilContext)
+      !quality.needsDalilRepair(cleanRewrite) &&
+      !quality.needsEditorialRepair(cleanRewrite)
     ) output = cleanRewrite;
   } catch (error) {
     console.warn(`[generateText:${traceId}] provider=gemini model=${modelName} pass=natural_rewrite_failed message=${providerMessage(error)}`);
@@ -722,6 +816,7 @@ async function generateTextWithGemini(
 
 export async function generateText(jenis: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
   const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const startedAt = Date.now();
   if (aiProvider === "gemini") return generateTextWithGemini(jenis, parameters, traceId, dalilContext);
   if (!client) return fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
   const generationSettings = generationSettingsFor(jenis, parameters);
@@ -744,7 +839,16 @@ export async function generateText(jenis: string, parameters: Record<string, unk
       const firstPass = normalizeProviderText(jenis, response.choices[0]?.message.content ?? "", parameters);
       if (providerTextIsClean(jenis, firstPass, parameters)) {
         console.info(`[generateText:${traceId}] model=${modelName} pass=first jenis=${jenis} status=ok`);
-        return finalizeOpenAIText(modelName, prompt, outline, firstPass, jenis, parameters, dalilContext, traceId);
+        const finalText = await finalizeOpenAIText(modelName, prompt, outline, firstPass, jenis, parameters, dalilContext, traceId);
+        logInfo("openai.generate", {
+          traceId,
+          jenis,
+          provider: aiProvider,
+          model: modelName,
+          pass: "first",
+          durationMs: Date.now() - startedAt
+        });
+        return finalText;
       }
 
       const firstPassReason = providerTextFailureReason(jenis, firstPass, parameters);
@@ -771,7 +875,16 @@ export async function generateText(jenis: string, parameters: Record<string, unk
       const retryPass = normalizeProviderText(jenis, retryResponse.choices[0]?.message.content ?? "", parameters);
       if (providerTextIsClean(jenis, retryPass, parameters)) {
         console.info(`[generateText:${traceId}] model=${modelName} pass=retry jenis=${jenis} status=ok`);
-        return finalizeOpenAIText(modelName, prompt, outline, retryPass, jenis, parameters, dalilContext, traceId);
+        const finalText = await finalizeOpenAIText(modelName, prompt, outline, retryPass, jenis, parameters, dalilContext, traceId);
+        logInfo("openai.generate", {
+          traceId,
+          jenis,
+          provider: aiProvider,
+          model: modelName,
+          pass: "retry",
+          durationMs: Date.now() - startedAt
+        });
+        return finalText;
       }
 
       console.warn(
@@ -783,6 +896,14 @@ export async function generateText(jenis: string, parameters: Record<string, unk
     }
   }
 
+  logInfo("openai.generate", {
+    traceId,
+    jenis,
+    provider: aiProvider,
+    model: "fallback",
+    pass: "local",
+    durationMs: Date.now() - startedAt
+  });
   console.warn(`[generateText:${traceId}] provider_failed_all fallback=local models=${models.join(",")}`);
   return fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
 }
@@ -807,9 +928,9 @@ export async function* streamGeneratedText(jenis: string, parameters: Record<str
   }
 
   const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const startedAt = Date.now();
   const generationSettings = generationSettingsFor(jenis, parameters);
   const prompt = await buildPromptWithRetrievedDalil(jenis, parameters, traceId, dalilContext);
-  let hadProviderOutput = false;
 
   for (const modelName of models) {
     try {
@@ -835,15 +956,49 @@ export async function* streamGeneratedText(jenis: string, parameters: Record<str
       if (providerTextIsClean(jenis, clean, parameters)) {
         console.info(`[streamGeneratedText:${traceId}] model=${modelName} jenis=${jenis} status=ok`);
         const finalText = await finalizeOpenAIText(modelName, prompt, outline, clean, jenis, parameters, dalilContext, traceId);
+        logInfo("openai.stream", {
+          traceId,
+          jenis,
+          model: modelName,
+          pass: "first",
+          durationMs: Date.now() - startedAt
+        });
         for (const chunk of finalText.match(/[\s\S]{1,160}/g) ?? []) {
           yield chunk;
         }
         return;
       }
 
-      hadProviderOutput = Boolean(clean);
+      const invalidReason = providerTextFailureReason(jenis, clean, parameters);
+      console.warn(`[streamGeneratedText:${traceId}] model=${modelName} jenis=${jenis} status=invalid reason=${invalidReason}`);
+
+      const retryResult = await retryOpenAITextAfterInvalidPass({
+        modelName,
+        prompt,
+        outline,
+        invalidText: clean,
+        jenis,
+        parameters,
+        dalilContext,
+        traceId
+      });
+      if (retryResult.ok) {
+        console.info(`[streamGeneratedText:${traceId}] model=${modelName} jenis=${jenis} status=retry_ok`);
+        logInfo("openai.stream", {
+          traceId,
+          jenis,
+          model: modelName,
+          pass: "retry",
+          durationMs: Date.now() - startedAt
+        });
+        for (const chunk of retryResult.finalText.match(/[\s\S]{1,160}/g) ?? []) {
+          yield chunk;
+        }
+        return;
+      }
+
       console.warn(
-        `[streamGeneratedText:${traceId}] model=${modelName} jenis=${jenis} status=invalid reason=${providerTextFailureReason(jenis, clean, parameters)}`
+        `[streamGeneratedText:${traceId}] model=${modelName} jenis=${jenis} status=retry_invalid reason=${retryResult.invalidReason}`
       );
     } catch (error) {
       const message = providerMessage(error);
@@ -851,13 +1006,18 @@ export async function* streamGeneratedText(jenis: string, parameters: Record<str
     }
   }
 
-  const finalText = hadProviderOutput ? await generateText(jenis, parameters, dalilContext) : fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
-  if (!hadProviderOutput) console.warn(`[streamGeneratedText:${traceId}] provider_failed_all fallback=local models=${models.join(",")}`);
+  const finalText = fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
+  logInfo("openai.stream", {
+    traceId,
+    jenis,
+    model: "fallback",
+    pass: "local",
+    durationMs: Date.now() - startedAt
+  });
+  console.warn(`[streamGeneratedText:${traceId}] provider_failed_all fallback=local models=${models.join(",")}`);
   for (const chunk of finalText.match(/[\s\S]{1,240}/g) ?? []) {
     yield chunk;
-    if (!hadProviderOutput) {
-      await Bun.sleep(3);
-    }
+    await Bun.sleep(3);
   }
 }
 
@@ -991,7 +1151,9 @@ export async function reviseNaskahContent(input: {
   }
 
   const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const startedAt = Date.now();
   const prompt = revisionPrompt(input);
+  const quality = createQualityInspector(input.jenis, input.parameters, input.dalilContext);
 
   if (aiProvider === "gemini" && geminiApiKey) {
     for (const modelName of geminiModels) {
@@ -1001,9 +1163,19 @@ export async function reviseNaskahContent(input: {
         if (
           providerTextIsClean(input.jenis, text, input.parameters) &&
           isMeaningfullyDifferentRevision(input.currentContent, text) &&
-          !needsDalilRepair(input.jenis, text, input.parameters, input.dalilContext) &&
-          !needsEditorialRepair(input.jenis, text, input.parameters, input.dalilContext)
-        ) return text;
+          !quality.needsDalilRepair(text) &&
+          !quality.needsEditorialRepair(text)
+        ) {
+          logInfo("openai.revise", {
+            traceId,
+            jenis: input.jenis,
+            provider: "gemini",
+            model: modelName,
+            pass: "first",
+            durationMs: Date.now() - startedAt
+          });
+          return text;
+        }
 
         const retryResponse = await createGeminiCompletion(
           modelName,
@@ -1015,9 +1187,19 @@ export async function reviseNaskahContent(input: {
         if (
           providerTextIsClean(input.jenis, retryText, input.parameters) &&
           isMeaningfullyDifferentRevision(input.currentContent, retryText) &&
-          !needsDalilRepair(input.jenis, retryText, input.parameters, input.dalilContext) &&
-          !needsEditorialRepair(input.jenis, retryText, input.parameters, input.dalilContext)
-        ) return retryText;
+          !quality.needsDalilRepair(retryText) &&
+          !quality.needsEditorialRepair(retryText)
+        ) {
+          logInfo("openai.revise", {
+            traceId,
+            jenis: input.jenis,
+            provider: "gemini",
+            model: modelName,
+            pass: "retry",
+            durationMs: Date.now() - startedAt
+          });
+          return retryText;
+        }
         console.warn(
           `[reviseNaskahContent:${traceId}] provider=gemini model=${modelName} invalid_revision reason=${providerTextFailureReason(input.jenis, retryText, input.parameters)}`
         );
@@ -1048,9 +1230,19 @@ export async function reviseNaskahContent(input: {
         if (
           providerTextIsClean(input.jenis, text, input.parameters) &&
           isMeaningfullyDifferentRevision(input.currentContent, text) &&
-          !needsDalilRepair(input.jenis, text, input.parameters, input.dalilContext) &&
-          !needsEditorialRepair(input.jenis, text, input.parameters, input.dalilContext)
-        ) return text;
+          !quality.needsDalilRepair(text) &&
+          !quality.needsEditorialRepair(text)
+        ) {
+          logInfo("openai.revise", {
+            traceId,
+            jenis: input.jenis,
+            provider: aiProvider,
+            model: modelName,
+            pass: "first",
+            durationMs: Date.now() - startedAt
+          });
+          return text;
+        }
 
         const retryResponse = await createCompletionWithCreditRetry(
           {
@@ -1071,9 +1263,19 @@ export async function reviseNaskahContent(input: {
         if (
           providerTextIsClean(input.jenis, retryText, input.parameters) &&
           isMeaningfullyDifferentRevision(input.currentContent, retryText) &&
-          !needsDalilRepair(input.jenis, retryText, input.parameters, input.dalilContext) &&
-          !needsEditorialRepair(input.jenis, retryText, input.parameters, input.dalilContext)
-        ) return retryText;
+          !quality.needsDalilRepair(retryText) &&
+          !quality.needsEditorialRepair(retryText)
+        ) {
+          logInfo("openai.revise", {
+            traceId,
+            jenis: input.jenis,
+            provider: aiProvider,
+            model: modelName,
+            pass: "retry",
+            durationMs: Date.now() - startedAt
+          });
+          return retryText;
+        }
         console.warn(
           `[reviseNaskahContent:${traceId}] model=${modelName} invalid_revision reason=${providerTextFailureReason(input.jenis, retryText, input.parameters)}`
         );
@@ -1083,6 +1285,14 @@ export async function reviseNaskahContent(input: {
     }
   }
 
+  logInfo("openai.revise", {
+    traceId,
+    jenis: input.jenis,
+    provider: "fallback",
+    model: "local",
+    pass: "local",
+    durationMs: Date.now() - startedAt
+  });
   return localRevisionFallback(input.currentContent, input.instruction);
 }
 

@@ -46,3 +46,4 @@ export const myQuranEnabled = parseBoolean(process.env.MYQURAN_ENABLED, true);
 export const myQuranApiBaseUrl = String(process.env.MYQURAN_API_BASE_URL ?? "https://api.myquran.com/v3").replace(/\/+$/, "");
 export const myQuranTimeoutMs = optionalPositiveInteger(process.env.MYQURAN_TIMEOUT_MS, 2500);
 export const myQuranCacheTtlSeconds = optionalPositiveInteger(process.env.MYQURAN_CACHE_TTL_SECONDS, 30 * 24 * 60 * 60);
+export const exportPdfTimeoutMs = optionalPositiveInteger(process.env.EXPORT_PDF_TIMEOUT_MS, 20_000);

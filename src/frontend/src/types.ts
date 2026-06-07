@@ -60,9 +60,7 @@ export type NaskahVersion = {
   naskahId: string;
   versionNumber: number;
   title: string;
-  content: string;
   qualityScore?: number | null;
-  qualityReport?: QualityReport | null;
   changeSummary: string;
   createdAt: string;
 };

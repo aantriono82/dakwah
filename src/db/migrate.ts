@@ -32,6 +32,12 @@ export async function migrate() {
       content TEXT NOT NULL,
       file_url TEXT,
       file_key TEXT,
+      pdf_file_url TEXT,
+      pdf_file_key TEXT,
+      pdf_exported_at TEXT,
+      docx_file_url TEXT,
+      docx_file_key TEXT,
+      docx_exported_at TEXT,
       status TEXT NOT NULL DEFAULT 'draft',
       version INTEGER NOT NULL DEFAULT 1,
       autosaved_at TEXT,
@@ -144,6 +150,15 @@ export async function migrate() {
     CREATE INDEX IF NOT EXISTS curated_dalil_kind_idx ON curated_dalil(kind);
     CREATE INDEX IF NOT EXISTS curated_dalil_active_idx ON curated_dalil(is_active);
     CREATE INDEX IF NOT EXISTS curated_dalil_reference_idx ON curated_dalil(reference);
+
+    CREATE VIRTUAL TABLE IF NOT EXISTS naskah_search USING fts5(
+      id UNINDEXED,
+      title,
+      jenis,
+      bahasa,
+      duration,
+      tokenize = 'unicode61 remove_diacritics 2'
+    );
   `);
 
   ensureColumn("users", "daily_generate_limit", "INTEGER");
@@ -152,9 +167,21 @@ export async function migrate() {
   ensureColumn("naskah", "autosaved_at", "TEXT");
   ensureColumn("naskah", "quality_score", "INTEGER");
   ensureColumn("naskah", "quality_report", "TEXT");
+  ensureColumn("naskah", "pdf_file_url", "TEXT");
+  ensureColumn("naskah", "pdf_file_key", "TEXT");
+  ensureColumn("naskah", "pdf_exported_at", "TEXT");
+  ensureColumn("naskah", "docx_file_url", "TEXT");
+  ensureColumn("naskah", "docx_file_key", "TEXT");
+  ensureColumn("naskah", "docx_exported_at", "TEXT");
   ensureColumn("curated_dalil", "status", "TEXT NOT NULL DEFAULT 'approved'");
   sqlite.run("UPDATE curated_dalil SET status = 'approved' WHERE status IS NULL OR status = ''");
   sqlite.run("CREATE INDEX IF NOT EXISTS curated_dalil_status_idx ON curated_dalil(status)");
+  sqlite.run("DELETE FROM naskah_search");
+  sqlite.run(`
+    INSERT INTO naskah_search (id, title, jenis, bahasa, duration)
+    SELECT id, title, jenis, bahasa, COALESCE(duration, '')
+    FROM naskah
+  `);
 
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "admin123";
   const userPassword = process.env.SEED_USER_PASSWORD ?? "user123";

@@ -14,6 +14,8 @@ type Bucket = {
 };
 
 const buckets = new Map<string, Bucket>();
+const cleanupIntervalMs = 60 * 1000;
+let nextCleanupAt = 0;
 
 function clientAddress(c: Context<AppEnv>) {
   const forwarded = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
@@ -25,9 +27,11 @@ function defaultKey(c: Context<AppEnv>) {
 }
 
 function cleanup(now: number) {
+  if (now < nextCleanupAt) return;
   for (const [key, bucket] of buckets) {
     if (bucket.resetAt <= now) buckets.delete(key);
   }
+  nextCleanupAt = now + cleanupIntervalMs;
 }
 
 export function rateLimit(options: RateLimitOptions) {

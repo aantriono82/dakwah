@@ -6,6 +6,7 @@ import {
   type PromptDalilContext,
   type PromptDalilItem
 } from "../utils/content";
+import { logInfo } from "../utils/observability";
 import { classifyThemeSemantically } from "../utils/themeClassifier";
 
 type MyQuranApiEnvelope<T> = {
@@ -70,6 +71,13 @@ type CuratedDalilRow = {
 const defaultBaseUrl = "https://api.myquran.com/v3";
 const defaultCacheTtlSeconds = 30 * 24 * 60 * 60;
 const defaultTimeoutMs = 2500;
+const dalilContextCacheTtlMs = 5 * 60 * 1000;
+const myQuranEnabled = parseBooleanEnv(process.env.MYQURAN_ENABLED, true);
+const myQuranBaseUrl = String(process.env.MYQURAN_API_BASE_URL ?? defaultBaseUrl).replace(/\/+$/, "");
+const myQuranTimeoutMs = positiveIntegerEnv(process.env.MYQURAN_TIMEOUT_MS, defaultTimeoutMs);
+const myQuranCacheTtlSeconds = positiveIntegerEnv(process.env.MYQURAN_CACHE_TTL_SECONDS, defaultCacheTtlSeconds);
+const dalilContextCache = new Map<string, { expiresAt: number; value: PromptDalilContext }>();
+const dalilContextInflight = new Map<string, Promise<PromptDalilContext>>();
 
 const surahNumbers: Record<string, number> = {
   alankabut: 29,
@@ -154,23 +162,13 @@ function positiveIntegerEnv(value: string | undefined, fallback: number) {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
-function baseUrl() {
-  return String(process.env.MYQURAN_API_BASE_URL ?? defaultBaseUrl).replace(/\/+$/, "");
-}
-
 export function isMyQuranEnabled() {
-  return parseBooleanEnv(process.env.MYQURAN_ENABLED, true);
+  return myQuranEnabled;
 }
 
-function timeoutMs() {
-  return positiveIntegerEnv(process.env.MYQURAN_TIMEOUT_MS, defaultTimeoutMs);
-}
-
-function cacheTtlSeconds() {
-  return positiveIntegerEnv(process.env.MYQURAN_CACHE_TTL_SECONDS, defaultCacheTtlSeconds);
-}
-
+let cacheTableReady = false;
 function ensureCacheTable() {
+  if (cacheTableReady) return;
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS myquran_cache (
       cache_key TEXT PRIMARY KEY NOT NULL,
@@ -184,9 +182,12 @@ function ensureCacheTable() {
 
     CREATE INDEX IF NOT EXISTS myquran_cache_expires_idx ON myquran_cache(expires_at);
   `);
+  cacheTableReady = true;
 }
 
+let curatedDalilTableReady = false;
 function ensureCuratedDalilTable() {
+  if (curatedDalilTableReady) return;
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS curated_dalil (
       id TEXT PRIMARY KEY NOT NULL,
@@ -213,6 +214,7 @@ function ensureCuratedDalilTable() {
   ensureColumn("curated_dalil", "status", "TEXT NOT NULL DEFAULT 'approved'");
   sqlite.run("UPDATE curated_dalil SET status = 'approved' WHERE status IS NULL OR status = ''");
   sqlite.run("CREATE INDEX IF NOT EXISTS curated_dalil_status_idx ON curated_dalil(status)");
+  curatedDalilTableReady = true;
 }
 
 function ensureColumn(tableName: string, columnName: string, definition: string) {
@@ -249,19 +251,19 @@ function cacheSet(cacheKey: string, url: string, payload: unknown, status: numbe
          expires_at = excluded.expires_at,
          updated_at = CURRENT_TIMESTAMP`
     )
-    .run(cacheKey, url, JSON.stringify(payload), status, Date.now() + cacheTtlSeconds() * 1000);
+    .run(cacheKey, url, JSON.stringify(payload), status, Date.now() + myQuranCacheTtlSeconds * 1000);
 }
 
 async function cachedFetchJson<T>(path: string) {
   if (!isMyQuranEnabled()) return null;
 
-  const url = `${baseUrl()}/${path.replace(/^\/+/, "")}`;
+  const url = `${myQuranBaseUrl}/${path.replace(/^\/+/, "")}`;
   const cacheKey = `GET ${url}`;
   const cached = cacheGet<T>(cacheKey);
   if (cached) return cached;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs());
+  const timeout = setTimeout(() => controller.abort(), myQuranTimeoutMs);
 
   try {
     const response = await fetch(url, {
@@ -293,6 +295,25 @@ function normalizeSurahName(value: string) {
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "");
+}
+
+function stableSerialize(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map((item) => stableSerialize(item)).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${stableSerialize(item)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function dalilContextCacheKey(jenis: string, parameters: Record<string, unknown>) {
+  return `${jenis}:${stableSerialize(parameters)}`;
+}
+
+function cleanupDalilContextCache(now: number) {
+  for (const [key, entry] of dalilContextCache) {
+    if (entry.expiresAt <= now) dalilContextCache.delete(key);
+  }
 }
 
 export function parseQuranReference(reference: string): QuranReference | null {
@@ -552,47 +573,90 @@ async function fetchHadithItem(theme: string, fallback: DalilText, label: string
 }
 
 export async function retrieveDalilContext(jenis: string, parameters: Record<string, unknown>): Promise<PromptDalilContext> {
-  const theme = topicFromParameters(parameters);
-  const warnings: string[] = [];
+  const now = Date.now();
+  cleanupDalilContextCache(now);
 
-  let queryTheme = theme;
-  const semanticLabel = await classifyThemeSemantically(theme);
-  if (semanticLabel) {
-    console.info(`[retrieveDalilContext] Tema "${theme}" dipetakan secara semantik ke kategori: "${semanticLabel}"`);
-    queryTheme = semanticLabel;
+  const cacheKey = dalilContextCacheKey(jenis, parameters);
+  const cached = dalilContextCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    logInfo("dalil.retrieve", { jenis, cache: "hit", source: cached.value.source });
+    return cached.value;
   }
 
-  const selected = selectedDalilFor(jenis, queryTheme, `${jenis}:${queryTheme}`);
-  const curated = findCuratedDalil(queryTheme);
+  const inflight = dalilContextInflight.get(cacheKey);
+  if (inflight) {
+    logInfo("dalil.retrieve", { jenis, cache: "inflight" });
+    return inflight;
+  }
 
-  if (!isMyQuranEnabled()) {
-    const quran = curated.quran ?? localQuranItem(selected.ayat, selected.label);
-    const hadith = curated.hadith ?? localHadithItem(selected.hadith, selected.label);
+  const pending = (async () => {
+    const startedAt = Date.now();
+    const theme = topicFromParameters(parameters);
+    const warnings: string[] = [];
 
-    if (!curated.quran || !curated.hadith) warnings.push("MYQURAN_ENABLED=false, memakai paket dalil tematik lokal untuk dalil yang belum ada di database curated.");
-    return {
+    let queryTheme = theme;
+    const semanticLabel = await classifyThemeSemantically(theme);
+    if (semanticLabel) {
+      logInfo("dalil.semantic_map", { jenis, theme, semanticLabel });
+      queryTheme = semanticLabel;
+    }
+
+    const selected = selectedDalilFor(jenis, queryTheme, `${jenis}:${queryTheme}`);
+    const curated = findCuratedDalil(queryTheme);
+
+    if (!isMyQuranEnabled()) {
+      const quran = curated.quran ?? localQuranItem(selected.ayat, selected.label);
+      const hadith = curated.hadith ?? localHadithItem(selected.hadith, selected.label);
+
+      if (!curated.quran || !curated.hadith) warnings.push("MYQURAN_ENABLED=false, memakai paket dalil tematik lokal untuk dalil yang belum ada di database curated.");
+      const result = {
+        theme,
+        source: [...new Set([quran.source, hadith.source])].join(" + "),
+        quran: [quran],
+        hadith: [hadith],
+        warnings
+      };
+      dalilContextCache.set(cacheKey, { value: result, expiresAt: Date.now() + dalilContextCacheTtlMs });
+      logInfo("dalil.retrieve", {
+        jenis,
+        cache: "miss",
+        source: result.source,
+        warnings: result.warnings.length,
+        durationMs: Date.now() - startedAt
+      });
+      return result;
+    }
+
+    const [quran, hadith] = await Promise.all([
+      curated.quran ? Promise.resolve(curated.quran) : fetchQuranItem(selected.ayat.rujukan, selected.ayat, selected.label),
+      curated.hadith ? Promise.resolve(curated.hadith) : fetchHadithItem(queryTheme, selected.hadith, selected.label)
+    ]);
+
+    if (quran.fallback) warnings.push("Ayat memakai fallback lokal karena rujukan tidak bisa diverifikasi dari myQuran.");
+    if (hadith.fallback) warnings.push("Hadits memakai fallback lokal karena pencarian myQuran tidak menemukan hasil yang cukup relevan.");
+
+    const result = {
       theme,
       source: [...new Set([quran.source, hadith.source])].join(" + "),
       quran: [quran],
       hadith: [hadith],
       warnings
     };
+    dalilContextCache.set(cacheKey, { value: result, expiresAt: Date.now() + dalilContextCacheTtlMs });
+    logInfo("dalil.retrieve", {
+      jenis,
+      cache: "miss",
+      source: result.source,
+      warnings: result.warnings.length,
+      durationMs: Date.now() - startedAt
+    });
+    return result;
+  })();
+
+  dalilContextInflight.set(cacheKey, pending);
+  try {
+    return await pending;
+  } finally {
+    dalilContextInflight.delete(cacheKey);
   }
-
-  const [quran, hadith] = await Promise.all([
-    curated.quran ? Promise.resolve(curated.quran) : fetchQuranItem(selected.ayat.rujukan, selected.ayat, selected.label),
-    curated.hadith ? Promise.resolve(curated.hadith) : fetchHadithItem(queryTheme, selected.hadith, selected.label)
-  ]);
-
-  if (quran.fallback) warnings.push("Ayat memakai fallback lokal karena rujukan tidak bisa diverifikasi dari myQuran.");
-  if (hadith.fallback) warnings.push("Hadits memakai fallback lokal karena pencarian myQuran tidak menemukan hasil yang cukup relevan.");
-
-  const sources = [...new Set([quran.source, hadith.source])].join(" + ");
-  return {
-    theme,
-    source: sources,
-    quran: [quran],
-    hadith: [hadith],
-    warnings
-  };
 }

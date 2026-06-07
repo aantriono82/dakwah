@@ -5,7 +5,7 @@ import { Badge, Button, Card, IconButton, Input, Notice } from "../components/ui
 import { api, jenisOptions } from "../lib/utils";
 import type { Template } from "../types";
 
-export function Templates({ onUse }: { onUse: (template: Template) => void }) {
+export function Templates({ onUse, onPrefetchGenerate }: { onUse: (template: Template) => void; onPrefetchGenerate: () => void }) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [message, setMessage] = useState("");
   const [query, setQuery] = useState("");
@@ -80,7 +80,13 @@ export function Templates({ onUse }: { onUse: (template: Template) => void }) {
                 </div>
               ))}
             </dl>
-            <Button className="mt-4 w-full bg-secondary text-secondary-foreground" onClick={() => onUse(item)}>
+            <Button
+              className="mt-4 w-full bg-secondary text-secondary-foreground"
+              onMouseEnter={onPrefetchGenerate}
+              onFocus={onPrefetchGenerate}
+              onTouchStart={onPrefetchGenerate}
+              onClick={() => onUse(item)}
+            >
               <IconSendToBack className="size-4" />
               Pakai template
             </Button>
