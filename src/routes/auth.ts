@@ -9,6 +9,7 @@ import { db } from "../db/client";
 import { passwordResetTokens, sessions, users } from "../db/schema";
 import { appPublicUrl, authCookieDomain, authCookieSameSite, authCookieSecure, authRateLimitMax, authRateLimitWindowMs } from "../config";
 import { sendPasswordResetEmail } from "../services/email";
+import { createWordProblemCaptcha } from "../utils/captcha";
 import { authRequired, isUniqueConstraintError, publicUser, type AppEnv } from "../utils/http";
 import { hashPassword, sha256, verifyPassword } from "../utils/password";
 import { rateLimit, rateLimitKeyByIp } from "../utils/rate-limit";
@@ -22,6 +23,7 @@ const authCleanupIntervalMs = 5 * 60 * 1000;
 const captchaChallenges = new Map<string, { answer: number; expiresAt: number }>();
 let nextCaptchaCleanupAt = 0;
 let nextExpiredAuthCleanupAt = 0;
+let lastCaptchaQuestion: string | null = null;
 
 authRoutes.use(
   "/login",
@@ -56,22 +58,12 @@ function cleanupCaptchaChallenges() {
 function createCaptchaChallenge() {
   cleanupCaptchaChallenges();
 
-  const a = Math.floor(Math.random() * 8) + 3;
-  const b = Math.floor(Math.random() * 6) + 2;
-  const c = Math.floor(Math.random() * 15) + 6;
-  const d = Math.floor(Math.random() * 7) + 3;
-  const variants = [
-    { question: `${a} x ${b} + ${c}`, answer: a * b + c },
-    { question: `${c} + ${a} x ${b}`, answer: c + a * b },
-    { question: `(${a} + ${b}) x ${d}`, answer: (a + b) * d },
-    { question: `${a} x (${b} + ${d})`, answer: a * (b + d) },
-    { question: `${a} + ${b} + ${c}`, answer: a + b + c }
-  ];
-  const selected = variants[Math.floor(Math.random() * variants.length)];
+  const selected = createWordProblemCaptcha(lastCaptchaQuestion);
   const token = nanoid(32);
+  lastCaptchaQuestion = selected.question;
 
   captchaChallenges.set(token, { answer: selected.answer, expiresAt: Date.now() + captchaTtlMs });
-  return { token, question: selected.question };
+  return { token, question: selected.question, difficulty: selected.difficulty };
 }
 
 function verifyCaptcha(token: string, answer: string) {
@@ -80,6 +72,15 @@ function verifyCaptcha(token: string, answer: string) {
   const challenge = captchaChallenges.get(token);
   captchaChallenges.delete(token);
 
+  if (!challenge) return false;
+  if (challenge.expiresAt <= Date.now()) return false;
+  return Number(answer) === challenge.answer;
+}
+
+function isCaptchaAnswerValid(token: string, answer: string) {
+  cleanupCaptchaChallenges();
+
+  const challenge = captchaChallenges.get(token);
   if (!challenge) return false;
   if (challenge.expiresAt <= Date.now()) return false;
   return Number(answer) === challenge.answer;
@@ -124,6 +125,21 @@ authRoutes.post("/login", async (c) => {
 });
 
 authRoutes.get("/captcha", (c) => c.json(createCaptchaChallenge()));
+
+authRoutes.post(
+  "/captcha/verify",
+  zValidator(
+    "json",
+    z.object({
+      captchaToken: z.string().min(1, "Captcha tidak valid."),
+      captchaAnswer: z.string().regex(/^-?\d+$/, "Jawaban captcha harus berupa angka.")
+    })
+  ),
+  (c) => {
+    const body = c.req.valid("json");
+    return c.json({ valid: isCaptchaAnswerValid(body.captchaToken, body.captchaAnswer) });
+  }
+);
 
 authRoutes.post(
   "/forgot-password",

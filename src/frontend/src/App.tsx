@@ -63,7 +63,7 @@ type TabId = "home" | "about" | "generate" | "history" | "templates" | "admin" |
 type CaptchaChallenge = { token: string; question: string; noise: Array<{ left: number; top: number; width: number; rotate: number }> };
 
 const authCardClass =
-  "relative w-full max-w-[590px] rounded-lg border border-border bg-card px-5 py-8 text-card-foreground shadow-2xl sm:px-9 sm:py-11";
+  "relative w-full max-w-[620px] rounded-lg border border-border bg-card px-5 py-8 text-card-foreground shadow-2xl sm:px-9 sm:py-11";
 
 const khutbahItems: Array<{ label: string; jenis: JenisId }> = [
   { label: "Jumat", jenis: "khutbah-jumat" },
@@ -561,7 +561,7 @@ function Login({
           </button>
         </label>
         <button
-          className="w-max text-base font-medium text-blue-600 hover:text-blue-700"
+          className="w-max text-base font-medium text-blue-600 hover:text-blue-700 sm:text-lg"
           onClick={() => {
             setError("");
             setNotice("");
@@ -576,6 +576,48 @@ function Login({
           {loading ? "Memproses..." : "Masuk"}
         </Button>
       </form>
+
+      <p className="mt-6 text-center text-base text-foreground sm:mt-7 sm:text-lg">
+        Belum punya akun?{" "}
+        <button
+          className="font-bold text-primary"
+          onClick={() => {
+            setError("");
+            setNotice("");
+            setAuthPanel("register");
+          }}
+          type="button"
+        >
+          Daftar
+        </button>
+      </p>
+      <p className="mx-auto mt-4 max-w-[420px] text-center text-[15px] leading-7 text-muted-foreground sm:max-w-[460px] sm:text-base">
+        Dengan menekan tombol masuk, Anda menyatakan telah membaca, memahami, dan menyetujui{" "}
+        <button
+          className="underline"
+          onClick={() => {
+            setError("");
+            setNotice("");
+            setAuthPanel("terms");
+          }}
+          type="button"
+        >
+          Syarat Ketentuan
+        </button>{" "}
+        serta{" "}
+        <button
+          className="underline"
+          onClick={() => {
+            setError("");
+            setNotice("");
+            setAuthPanel("privacy");
+          }}
+          type="button"
+        >
+          Kebijakan Privasi
+        </button>{" "}
+        yang berlaku.
+      </p>
     </div>
   ) : authPanel === "register" ? (
 	    <RegisterPanel
@@ -625,7 +667,8 @@ function Login({
   return (
     <main
       className={cn(
-        "grid place-items-center overflow-y-auto px-4 py-6 text-foreground sm:py-10",
+        "grid justify-items-center overflow-y-auto px-3 py-3 text-foreground sm:px-4 sm:py-10",
+        "items-start sm:place-items-center",
         variant === "page" ? "min-h-screen bg-background" : "fixed inset-0 z-50 bg-slate-950/95"
       )}
     >
@@ -634,7 +677,10 @@ function Login({
           {dark ? <IconSun className="size-4" /> : <IconMoon className="size-4" />}
         </IconButton>
       </div>
-      {content}
+      <div className="mx-auto flex w-full max-w-[620px] flex-col items-center">
+        {content}
+        <FooterCredit className="mt-6 w-full justify-center border-t-0 bg-transparent px-4 py-4 text-center sm:mt-8" />
+      </div>
     </main>
   );
 }
@@ -688,7 +734,7 @@ function ForgotPasswordPanel({ onBack }: { onBack: () => void }) {
         <Button className="h-11 rounded-full bg-primary text-base font-bold hover:bg-primary/90" disabled={loading}>
           {loading ? "Mengirim..." : "Kirim Link Reset"}
         </Button>
-        <button className="text-sm font-medium text-muted-foreground transition hover:text-foreground" onClick={onBack} type="button">
+        <button className="text-base font-medium text-muted-foreground transition hover:text-foreground sm:text-lg" onClick={onBack} type="button">
           Kembali ke Masuk
         </button>
       </form>
@@ -780,7 +826,7 @@ function ResetPasswordPanel({ token, onBack, onSuccess }: { token: string; onBac
         <Button className="h-11 rounded-full bg-primary text-base font-bold hover:bg-primary/90" disabled={loading}>
           {loading ? "Menyimpan..." : "Simpan Kata Sandi"}
         </Button>
-        <button className="text-sm font-medium text-muted-foreground transition hover:text-foreground" onClick={onBack} type="button">
+        <button className="text-base font-medium text-muted-foreground transition hover:text-foreground sm:text-lg" onClick={onBack} type="button">
           Kembali ke Masuk
         </button>
       </form>
@@ -799,6 +845,7 @@ function RegisterPanel({
   onShowTerms: () => void;
   onShowPrivacy: () => void;
 }) {
+  const [captchaStatus, setCaptchaStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -807,10 +854,11 @@ function RegisterPanel({
   const [captchaAnswer, setCaptchaAnswer] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const captchaIsReady = Boolean(captcha && captchaAnswer);
+  const captchaIsReady = captchaStatus === "valid";
 
   const refreshCaptcha = useCallback(async () => {
     setCaptchaAnswer("");
+    setCaptchaStatus("idle");
     try {
       const challenge = await api<{ token: string; question: string }>("/api/auth/captcha");
       setCaptcha({ ...challenge, noise: createCaptchaNoise() });
@@ -823,6 +871,36 @@ function RegisterPanel({
   useEffect(() => {
     void refreshCaptcha();
   }, [refreshCaptcha]);
+
+  useEffect(() => {
+    if (!captcha || !captchaAnswer) {
+      setCaptchaStatus("idle");
+      return;
+    }
+
+    if (!/^-?\d+$/.test(captchaAnswer)) {
+      setCaptchaStatus("invalid");
+      return;
+    }
+
+    let cancelled = false;
+    setCaptchaStatus("checking");
+
+    void api<{ valid: boolean }>("/api/auth/captcha/verify", {
+      method: "POST",
+      body: JSON.stringify({ captchaToken: captcha.token, captchaAnswer })
+    })
+      .then((result) => {
+        if (!cancelled) setCaptchaStatus(result.valid ? "valid" : "invalid");
+      })
+      .catch(() => {
+        if (!cancelled) setCaptchaStatus("invalid");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [captcha, captchaAnswer]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -849,15 +927,20 @@ function RegisterPanel({
   }
 
   return (
-    <div className={cn(authCardClass, "my-auto max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-h-[calc(100vh-5rem)]")}>
+    <div
+      className={cn(
+        authCardClass,
+        "self-start max-w-[640px] overflow-visible px-4 py-6 sm:my-auto sm:max-h-[calc(100vh-4rem)] sm:self-auto sm:overflow-y-auto sm:px-8 sm:py-8 lg:px-10 lg:py-9"
+      )}
+    >
       <div className="text-center">
         <h1 className="text-2xl font-black tracking-normal text-foreground sm:text-3xl">Daftar</h1>
-        <div className="mx-auto mt-5 grid size-14 place-items-center rounded-full bg-muted text-muted-foreground shadow-inner ring-4 ring-border sm:mt-6 sm:size-16">
+        <div className="mx-auto mt-4 grid size-14 place-items-center rounded-full bg-muted text-muted-foreground shadow-inner ring-4 ring-border sm:mt-5 sm:size-16">
           <IconUser className="size-10 sm:size-12" />
         </div>
       </div>
 
-      <form className="mt-6 grid gap-4 sm:mt-7" onSubmit={submit}>
+      <form className="mx-auto mt-5 grid max-w-[520px] gap-3.5 sm:mt-6 sm:gap-4" onSubmit={submit}>
         <label className="relative block">
           <IconUser className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -903,31 +986,11 @@ function RegisterPanel({
           </button>
         </label>
 
-        <div className="grid gap-2 rounded-2xl border border-border bg-muted/30 p-3">
+        <div className="grid gap-3 rounded-2xl border border-border bg-muted/30 p-3 sm:p-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase text-muted-foreground">Verifikasi keamanan</p>
-              <div className="relative mt-2 flex h-11 w-64 max-w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-card px-3 sm:h-12" aria-label={captcha ? `Soal captcha ${captcha.question}` : "Memuat captcha"}>
-                {captcha?.noise.map((line, index) => (
-                  <span
-                    key={`${line.left}-${index}`}
-                    className="pointer-events-none absolute h-px rounded-full bg-muted-foreground/35"
-                    style={{
-                      left: `${line.left}%`,
-                      top: `${line.top}%`,
-                      width: `${line.width}px`,
-                      transform: `rotate(${line.rotate}deg)`
-                    }}
-                  />
-                ))}
-                <span className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--muted-foreground)/0.22)_1px,transparent_0)] bg-[length:8px_8px] opacity-60" />
-                <span className="relative select-none text-center font-mono text-sm font-black tracking-normal text-foreground sm:text-base">
-                  {captcha?.question ?? "Memuat..."}
-                </span>
-              </div>
-            </div>
+            <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">Verifikasi keamanan</p>
             <button
-              className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition hover:bg-accent"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition hover:bg-accent"
               onClick={() => void refreshCaptcha()}
               type="button"
               aria-label="Ganti captcha"
@@ -935,6 +998,27 @@ function RegisterPanel({
             >
               <IconRefresh className="size-4" />
             </button>
+          </div>
+          <div
+            className="relative flex w-full items-start overflow-visible rounded-xl border border-border bg-card px-4 py-4 sm:px-4"
+            aria-label={captcha ? `Soal captcha ${captcha.question}` : "Memuat captcha"}
+          >
+            {captcha?.noise.map((line, index) => (
+              <span
+                key={`${line.left}-${index}`}
+                className="pointer-events-none absolute h-px rounded-full bg-muted-foreground/35"
+                style={{
+                  left: `${line.left}%`,
+                  top: `${line.top}%`,
+                  width: `${line.width}px`,
+                  transform: `rotate(${line.rotate}deg)`
+                }}
+              />
+            ))}
+            <span className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--muted-foreground)/0.22)_1px,transparent_0)] bg-[length:8px_8px] opacity-60" />
+            <span className="relative z-10 block w-full max-w-full select-none whitespace-normal break-words py-1 text-left font-mono text-sm font-semibold leading-6 tracking-normal text-foreground sm:text-[15px]">
+              {captcha?.question ?? "Memuat..."}
+            </span>
           </div>
           <Input
             className="h-10 rounded-full border-border bg-card px-4 text-base text-foreground placeholder:text-muted-foreground sm:h-11"
@@ -944,24 +1028,29 @@ function RegisterPanel({
             aria-label="Jawaban captcha"
             inputMode="numeric"
           />
+          {captchaStatus === "checking" && <p className="text-xs text-muted-foreground">Memeriksa jawaban captcha...</p>}
+          {captchaStatus === "invalid" && <p className="text-xs text-destructive">Jawaban captcha belum benar.</p>}
         </div>
 
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
-        <div className="relative mt-1 flex items-center justify-center">
-          <Button className="h-11 min-w-28 rounded-full bg-primary px-5 text-base font-bold hover:bg-primary/90" disabled={!captchaIsReady || loading}>
+        <div className="relative mt-2 flex items-center justify-center">
+          <Button
+            className="h-11 w-full rounded-full bg-primary px-5 text-base font-bold hover:bg-primary/90 sm:w-auto sm:min-w-36"
+            disabled={!captchaIsReady || loading}
+          >
             {loading ? "Mendaftar..." : "Daftar"}
           </Button>
         </div>
       </form>
 
-      <p className="mt-4 text-center text-sm text-foreground sm:text-base">
+      <p className="mt-6 text-center text-base text-foreground sm:mt-7 sm:text-lg">
         Sudah punya akun?{" "}
         <button className="font-medium text-primary" onClick={onShowLogin} type="button">
           Masuk sekarang
         </button>
       </p>
-      <p className="mx-auto mt-2 max-w-[300px] text-center text-[11px] leading-4 text-muted-foreground">
+      <p className="mx-auto mt-4 max-w-[420px] text-center text-[15px] leading-7 text-muted-foreground sm:max-w-[460px] sm:text-base">
         Dengan menekan tombol daftar, Anda menyatakan telah membaca, memahami, dan menyetujui{" "}
         <button className="underline" onClick={onShowTerms} type="button">
           Syarat Ketentuan
@@ -1253,11 +1342,11 @@ function MainLayout({
   );
 }
 
-function FooterCredit() {
+function FooterCredit({ className = "" }: { className?: string }) {
   return (
-    <footer className="flex flex-wrap items-center justify-center gap-1.5 border-t border-border bg-muted/30 px-6 py-6 text-center text-xs text-muted-foreground">
+    <footer className={cn("flex flex-wrap items-center justify-center gap-2 border-t border-border bg-muted/30 px-6 py-6 text-center text-sm text-muted-foreground sm:text-base", className)}>
       <span>Dakwah &copy; 2026. Dibuat dengan</span>
-      <IconHeart className="size-3.5 fill-[#800020] text-[#800020]" aria-label="cinta" />
+      <IconHeart className="size-4 fill-[#800020] text-[#800020] sm:size-[18px]" aria-label="cinta" />
       <span>oleh Aan Triono.</span>
     </footer>
   );

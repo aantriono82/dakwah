@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Hono } from "hono";
+import { createWordProblemCaptcha, solveWordProblemCaptcha } from "./utils/captcha";
 import type { AppEnv } from "./utils/http";
 
 const databaseUrl = join("/tmp", `khutbah-ai-test-${Date.now()}.sqlite`);
@@ -61,20 +62,8 @@ async function login(username: string, password: string) {
 }
 
 function solveCaptcha(question: string) {
-  let match = question.match(/^(\d+) x (\d+) \+ (\d+)$/);
-  if (match) return String(Number(match[1]) * Number(match[2]) + Number(match[3]));
-
-  match = question.match(/^(\d+) \+ (\d+) x (\d+)$/);
-  if (match) return String(Number(match[1]) + Number(match[2]) * Number(match[3]));
-
-  match = question.match(/^\((\d+) \+ (\d+)\) x (\d+)$/);
-  if (match) return String((Number(match[1]) + Number(match[2])) * Number(match[3]));
-
-  match = question.match(/^(\d+) x \((\d+) \+ (\d+)\)$/);
-  if (match) return String(Number(match[1]) * (Number(match[2]) + Number(match[3])));
-
-  match = question.match(/^(\d+) \+ (\d+) \+ (\d+)$/);
-  if (match) return String(Number(match[1]) + Number(match[2]) + Number(match[3]));
+  const answer = solveWordProblemCaptcha(question);
+  if (answer !== null) return String(answer);
 
   throw new Error(`Unknown captcha question: ${question}`);
 }
@@ -185,6 +174,68 @@ describe("API auth and roles", () => {
 
     expect(response.status).toBe(400);
     expect((await response.json()).message).toBe("Jawaban captcha belum benar.");
+  });
+
+  test("captcha refresh returns a different follow-up question", async () => {
+    const first = await request("/api/auth/captcha");
+    const second = await request("/api/auth/captcha");
+    const firstBody = (await first.json()) as { token: string; question: string; difficulty: "ringan" | "sedang" };
+    const secondBody = (await second.json()) as { token: string; question: string; difficulty: "ringan" | "sedang" };
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(firstBody.token).not.toBe(secondBody.token);
+    expect(firstBody.question).not.toBe(secondBody.question);
+    expect(["ringan", "sedang"]).toContain(firstBody.difficulty);
+    expect(["ringan", "sedang"]).toContain(secondBody.difficulty);
+    expect(solveWordProblemCaptcha(firstBody.question)).not.toBeNull();
+    expect(solveWordProblemCaptcha(secondBody.question)).not.toBeNull();
+  });
+
+  test("captcha verify reports valid answers without consuming the token", async () => {
+    const captchaResponse = await request("/api/auth/captcha");
+    const captchaBody = (await captchaResponse.json()) as { token: string; question: string };
+    const captchaAnswer = solveCaptcha(captchaBody.question);
+
+    const verifyValid = await request("/api/auth/captcha/verify", {
+      method: "POST",
+      body: JSON.stringify({ captchaToken: captchaBody.token, captchaAnswer })
+    });
+    expect(verifyValid.status).toBe(200);
+    expect((await verifyValid.json()).valid).toBe(true);
+
+    const verifyInvalid = await request("/api/auth/captcha/verify", {
+      method: "POST",
+      body: JSON.stringify({ captchaToken: captchaBody.token, captchaAnswer: String(Number(captchaAnswer) + 1) })
+    });
+    expect(verifyInvalid.status).toBe(200);
+    expect((await verifyInvalid.json()).valid).toBe(false);
+
+    const register = await request("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        email: `verify-${Date.now()}@example.com`,
+        name: "Verify Captcha",
+        password: "password123",
+        captchaToken: captchaBody.token,
+        captchaAnswer
+      })
+    });
+    expect(register.status).toBe(201);
+  });
+
+  test("captcha templates stay short and solvable", () => {
+    let previousQuestion: string | null = null;
+
+    for (let index = 0; index < 50; index += 1) {
+      const challenge = createWordProblemCaptcha(previousQuestion);
+      const solved = solveWordProblemCaptcha(challenge.question);
+
+      expect(challenge.question.length).toBeLessThanOrEqual(120);
+      expect(solved).toBe(challenge.answer);
+
+      previousQuestion = challenge.question;
+    }
   });
 
   test("forgot and reset password update credentials", async () => {
