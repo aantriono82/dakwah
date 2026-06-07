@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useState } from "react";
-import { IconChevronDown, IconChevronUp } from "../components/icons";
+import { IconChevronDown, IconChevronUp, IconTrash } from "../components/icons";
 import { Badge, Button, Card, Input, Select } from "../components/ui";
 import { completePageTransition, getFrontendPerfMetrics, isFrontendPerfDebugEnabled, type FrontendPerfMetric } from "../lib/perf";
 import { api } from "../lib/utils";
@@ -40,9 +40,20 @@ type AdminMonitoring = {
 };
 
 type MetricsSortMode = "slowest" | "most-frequent" | "event";
+type MonitoringView = "overview" | "usage" | "performance" | "metrics";
+type MonitoringPanelId =
+  | "stats-today-generates"
+  | "stats-today-exports"
+  | "stats-blocked-generates"
+  | "frontend-aggregate-summary"
+  | "frontend-session-summary"
+  | "usage-monitoring"
+  | "metrics-highlights"
+  | "metrics-summary";
 
 const adminMonitoringRefreshIntervalMs = 60_000;
 const metricsPageSize = 12;
+const monitoringHiddenPanelsStorageKey = "admin-monitoring-hidden-panels";
 
 export function AdminMonitoringPage({ onBack }: { onBack: () => void }) {
   const [monitoring, setMonitoring] = useState<AdminMonitoring | null>(null);
@@ -55,12 +66,33 @@ export function AdminMonitoringPage({ onBack }: { onBack: () => void }) {
   const [lastLoadedAt, setLastLoadedAt] = useState<string>("");
   const [frontendPerfEnabled, setFrontendPerfEnabled] = useState(() => isFrontendPerfDebugEnabled());
   const [frontendPerfMetrics, setFrontendPerfMetrics] = useState<FrontendPerfMetric[]>(() => getFrontendPerfMetrics());
+  const [hiddenPanels, setHiddenPanels] = useState<MonitoringPanelId[]>([]);
+  const [activeView, setActiveView] = useState<MonitoringView>("overview");
 
   useEffect(() => {
     completePageTransition("AdminMonitoring");
     setFrontendPerfEnabled(isFrontendPerfDebugEnabled());
     setFrontendPerfMetrics(getFrontendPerfMetrics());
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedPanels = window.localStorage.getItem(monitoringHiddenPanelsStorageKey);
+    if (!savedPanels) return;
+    try {
+      const parsed = JSON.parse(savedPanels);
+      if (Array.isArray(parsed)) {
+        setHiddenPanels(parsed.filter((item): item is MonitoringPanelId => typeof item === "string"));
+      }
+    } catch {
+      window.localStorage.removeItem(monitoringHiddenPanelsStorageKey);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(monitoringHiddenPanelsStorageKey, JSON.stringify(hiddenPanels));
+  }, [hiddenPanels]);
 
   const loadMonitoring = useCallback(async () => {
     try {
@@ -100,6 +132,27 @@ export function AdminMonitoringPage({ onBack }: { onBack: () => void }) {
     return () => window.clearInterval(timer);
   }, [autoRefresh, loadMonitoring, pageVisible]);
 
+  const hidePanel = useCallback((panelId: MonitoringPanelId) => {
+    setHiddenPanels((current) => (current.includes(panelId) ? current : [...current, panelId]));
+  }, []);
+
+  const restorePanels = useCallback(() => {
+    setHiddenPanels([]);
+  }, []);
+
+  const isHidden = useCallback((panelId: MonitoringPanelId) => hiddenPanels.includes(panelId), [hiddenPanels]);
+  const statCards = [
+    { id: "stats-today-generates" as const, label: "Generate hari ini", value: monitoring?.todayGenerates ?? 0 },
+    { id: "stats-today-exports" as const, label: "Export hari ini", value: monitoring?.todayExports ?? 0 },
+    { id: "stats-blocked-generates" as const, label: "Generate diblokir", value: monitoring?.blockedGenerates ?? 0 }
+  ].filter((item) => !isHidden(item.id));
+  const monitoringViews: Array<{ id: MonitoringView; label: string; meta: string }> = [
+    { id: "overview", label: "Overview", meta: "KPI dan highlight" },
+    { id: "usage", label: "Usage", meta: "Pemakaian dan event" },
+    { id: "performance", label: "Performance", meta: "Frontend timing" },
+    { id: "metrics", label: "Metrics", meta: "Agregat dan filter" }
+  ];
+
   return (
     <div className="grid gap-6">
       <section>
@@ -125,29 +178,131 @@ export function AdminMonitoringPage({ onBack }: { onBack: () => void }) {
           <Button type="button" className="h-8 bg-secondary px-3 text-xs text-secondary-foreground" onClick={() => void loadMonitoring()}>
             Refresh sekarang
           </Button>
+          {hiddenPanels.length ? (
+            <Button type="button" className="h-8 bg-secondary px-3 text-xs text-secondary-foreground" onClick={restorePanels}>
+              Reset tampilan
+            </Button>
+          ) : null}
         </div>
       </section>
-      {message ? <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">{message}</p> : null}
-      <section className="grid gap-4 md:grid-cols-3">
-        <Stat label="Generate hari ini" value={monitoring?.todayGenerates ?? 0} />
-        <Stat label="Export hari ini" value={monitoring?.todayExports ?? 0} />
-        <Stat label="Generate diblokir" value={monitoring?.blockedGenerates ?? 0} />
+      <section className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+        <Card className="h-fit p-3">
+          <div className="mb-3 border-b border-border pb-3">
+            <p className="text-sm font-semibold">Workspace monitoring</p>
+            <p className="mt-1 text-xs text-muted-foreground">Masuk ke domain observability yang relevan, bukan melihat semua kartu sekaligus.</p>
+          </div>
+          <nav className="grid gap-2">
+            {monitoringViews.map((item) => (
+              <MonitoringNavButton
+                key={item.id}
+                active={activeView === item.id}
+                label={item.label}
+                meta={item.meta}
+                onClick={() => setActiveView(item.id)}
+              />
+            ))}
+          </nav>
+        </Card>
+        <div className="grid gap-4 min-w-0">
+          {message ? <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">{message}</p> : null}
+          {activeView === "overview" ? (
+            <>
+              <Card className="p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold">Monitoring overview</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">KPI utama dan highlight sistem untuk penilaian cepat.</p>
+                  </div>
+                  <Badge>Overview</Badge>
+                </div>
+              </Card>
+              {statCards.length ? (
+                <section className="grid gap-4 md:grid-cols-3">
+                  {statCards.map((item) => (
+                    <Stat key={item.id} label={item.label} value={item.value} onDismiss={() => hidePanel(item.id)} />
+                  ))}
+                </section>
+              ) : null}
+              {monitoring?.metrics?.length && !isHidden("metrics-highlights") ? (
+                <MetricsHighlights metrics={monitoring.metrics} onDismiss={() => hidePanel("metrics-highlights")} />
+              ) : null}
+            </>
+          ) : null}
+          {activeView === "usage" ? (
+            <>
+              <Card className="p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold">Usage monitoring</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Lihat pemakaian per user dan event terbaru dalam area khusus.</p>
+                  </div>
+                  <Badge>{monitoring?.recentUsage.length ?? 0} event</Badge>
+                </div>
+              </Card>
+              {monitoring && !isHidden("usage-monitoring") ? <UsageMonitoring stats={monitoring} onDismiss={() => hidePanel("usage-monitoring")} /> : null}
+            </>
+          ) : null}
+          {activeView === "performance" ? (
+            <>
+              <Card className="p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold">Performance monitoring</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Pisahkan analisis performa frontend dari data usage dan metrics agregat.</p>
+                  </div>
+                  <Badge>{perfWindowLabel(perfWindow)}</Badge>
+                </div>
+              </Card>
+              {monitoring?.frontendPerfSummary?.length && !isHidden("frontend-aggregate-summary") ? (
+                <FrontendPerfAggregateSummary items={monitoring.frontendPerfSummary} windowLabel={perfWindowLabel(perfWindow)} onDismiss={() => hidePanel("frontend-aggregate-summary")} />
+              ) : null}
+              {frontendPerfEnabled && !isHidden("frontend-session-summary") ? (
+                <FrontendPerfSummary metrics={frontendPerfMetrics} onRefresh={() => setFrontendPerfMetrics(getFrontendPerfMetrics())} onDismiss={() => hidePanel("frontend-session-summary")} />
+              ) : null}
+            </>
+          ) : null}
+          {activeView === "metrics" ? (
+            <>
+              <Card className="p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold">Metrics explorer</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Fokuskan filter dan agregasi metric pada workspace tersendiri.</p>
+                  </div>
+                  <Badge>{monitoring?.metrics.length ?? 0} agregat</Badge>
+                </div>
+              </Card>
+              {monitoring?.metrics?.length && !isHidden("metrics-summary") ? (
+                <MetricsSummary
+                  metrics={monitoring.metrics}
+                  query={metricQuery}
+                  onQueryChange={setMetricQuery}
+                  slowOnly={slowOnly}
+                  onSlowOnlyChange={setSlowOnly}
+                  onDismiss={() => hidePanel("metrics-summary")}
+                />
+              ) : null}
+            </>
+          ) : null}
+          {hiddenPanels.length >= 8 ? (
+            <Card className="p-4">
+              <p className="text-sm text-muted-foreground">Semua panel monitoring disembunyikan.</p>
+            </Card>
+          ) : null}
+        </div>
       </section>
-      {monitoring?.frontendPerfSummary?.length ? <FrontendPerfAggregateSummary items={monitoring.frontendPerfSummary} windowLabel={perfWindowLabel(perfWindow)} /> : null}
-      {frontendPerfEnabled ? <FrontendPerfSummary metrics={frontendPerfMetrics} onRefresh={() => setFrontendPerfMetrics(getFrontendPerfMetrics())} /> : null}
-      {monitoring ? <UsageMonitoring stats={monitoring} /> : null}
-      {monitoring?.metrics?.length ? <MetricsHighlights metrics={monitoring.metrics} /> : null}
-      {monitoring?.metrics?.length ? <MetricsSummary metrics={monitoring.metrics} query={metricQuery} onQueryChange={setMetricQuery} slowOnly={slowOnly} onSlowOnlyChange={setSlowOnly} /> : null}
     </div>
   );
 }
 
 const FrontendPerfSummary = memo(function FrontendPerfSummary({
   metrics,
-  onRefresh
+  onRefresh,
+  onDismiss
 }: {
   metrics: FrontendPerfMetric[];
   onRefresh: () => void;
+  onDismiss: () => void;
 }) {
   const latestByPage = Array.from(
     metrics.reduce((map, metric) => {
@@ -163,9 +318,12 @@ const FrontendPerfSummary = memo(function FrontendPerfSummary({
           <h2 className="text-lg font-semibold">Frontend page timing</h2>
           <p className="mt-1 text-sm text-muted-foreground">Snapshot client-side untuk transisi page lazy terbaru.</p>
         </div>
-        <Button type="button" className="h-8 bg-secondary px-3 text-xs text-secondary-foreground" onClick={onRefresh}>
-          Refresh snapshot
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button type="button" className="h-8 bg-secondary px-3 text-xs text-secondary-foreground" onClick={onRefresh}>
+            Refresh snapshot
+          </Button>
+          <DismissPanelButton onClick={onDismiss} label="Hapus card frontend timing" />
+        </div>
       </div>
       <div className="grid gap-2">
         {latestByPage.length === 0 && <p className="text-sm text-muted-foreground">Belum ada metric client-side yang tercatat pada sesi ini.</p>}
@@ -185,10 +343,12 @@ const FrontendPerfSummary = memo(function FrontendPerfSummary({
 
 const FrontendPerfAggregateSummary = memo(function FrontendPerfAggregateSummary({
   items,
-  windowLabel
+  windowLabel,
+  onDismiss
 }: {
   items: AdminMonitoring["frontendPerfSummary"];
   windowLabel: string;
+  onDismiss: () => void;
 }) {
   const slowest = [...items].sort((left, right) => right.avgDurationMs - left.avgDurationMs)[0] ?? null;
   const busiest = [...items].sort((left, right) => right.count - left.count)[0] ?? null;
@@ -220,9 +380,12 @@ const FrontendPerfAggregateSummary = memo(function FrontendPerfAggregateSummary(
 
   return (
     <Card className="p-4">
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold">Frontend page load summary</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Agregat sampling backend untuk {windowLabel} terakhir.</p>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Frontend page load summary</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Agregat sampling backend untuk {windowLabel} terakhir.</p>
+        </div>
+        <DismissPanelButton onClick={onDismiss} label="Hapus card frontend summary" />
       </div>
       <div className="mb-4 grid gap-4 md:grid-cols-2">
         <div className="rounded-md border border-border px-3 py-3">
@@ -308,7 +471,7 @@ function perfWindowLabel(window: AdminMonitoring["frontendPerfWindow"]) {
   return "7 hari";
 }
 
-const UsageMonitoring = memo(function UsageMonitoring({ stats }: { stats: AdminMonitoring }) {
+const UsageMonitoring = memo(function UsageMonitoring({ stats, onDismiss }: { stats: AdminMonitoring; onDismiss: () => void }) {
   const [eventFilter, setEventFilter] = useState<"all" | "frontend_page_load" | "generate" | "blocked">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "ok" | "blocked" | "error">("all");
   const filteredRecentUsage = stats.recentUsage.filter((event) => {
@@ -322,7 +485,10 @@ const UsageMonitoring = memo(function UsageMonitoring({ stats }: { stats: AdminM
   return (
     <section className="grid gap-4 xl:grid-cols-2">
       <Card className="p-4">
-        <h2 className="mb-4 text-lg font-semibold">Generate per user hari ini</h2>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">Generate per user hari ini</h2>
+          <DismissPanelButton onClick={onDismiss} label="Hapus section usage monitoring" />
+        </div>
         <div className="grid gap-2">
           {stats.usageByUser.length === 0 && <p className="text-sm text-muted-foreground">Belum ada generate hari ini.</p>}
           {stats.usageByUser.map((item) => (
@@ -378,13 +544,15 @@ const MetricsSummary = memo(function MetricsSummary({
   query,
   onQueryChange,
   slowOnly,
-  onSlowOnlyChange
+  onSlowOnlyChange,
+  onDismiss
 }: {
   metrics: AdminMonitoring["metrics"];
   query: string;
   onQueryChange: (value: string) => void;
   slowOnly: boolean;
   onSlowOnlyChange: (value: boolean) => void;
+  onDismiss: () => void;
 }) {
   const [visibleCount, setVisibleCount] = useState(metricsPageSize);
   const [sortMode, setSortMode] = useState<MetricsSortMode>("slowest");
@@ -420,7 +588,10 @@ const MetricsSummary = memo(function MetricsSummary({
     <Card className="p-4">
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Metric summary</h2>
-        <Badge>{filteredMetrics.length}/{metrics.length} agregat</Badge>
+        <div className="flex items-center gap-2">
+          <Badge>{filteredMetrics.length}/{metrics.length} agregat</Badge>
+          <DismissPanelButton onClick={onDismiss} label="Hapus card metric summary" />
+        </div>
       </div>
       <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
         <Input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Filter event atau dimensi" />
@@ -469,7 +640,7 @@ const MetricsSummary = memo(function MetricsSummary({
   );
 });
 
-const MetricsHighlights = memo(function MetricsHighlights({ metrics }: { metrics: AdminMonitoring["metrics"] }) {
+const MetricsHighlights = memo(function MetricsHighlights({ metrics, onDismiss }: { metrics: AdminMonitoring["metrics"]; onDismiss: () => void }) {
   const slowest = [...metrics]
     .map((metric) => ({
       metric,
@@ -492,7 +663,10 @@ const MetricsHighlights = memo(function MetricsHighlights({ metrics }: { metrics
   return (
     <section className="grid gap-4 xl:grid-cols-3">
       <Card className="p-4">
-        <p className="text-sm text-muted-foreground">Hit rate cache dalil</p>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm text-muted-foreground">Hit rate cache dalil</p>
+          <DismissPanelButton onClick={onDismiss} label="Hapus section metrics highlights" />
+        </div>
         <p className="mt-2 text-3xl font-semibold">{dalilHitRate}%</p>
         <p className="mt-2 text-xs text-muted-foreground">
           hit {dalilHits} - inflight {dalilInflight} - total {dalilTotal}
@@ -521,11 +695,54 @@ const MetricsHighlights = memo(function MetricsHighlights({ metrics }: { metrics
   );
 });
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+function Stat({ label, value, onDismiss }: { label: string; value: string | number; onDismiss: () => void }) {
   return (
     <Card className="p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <DismissPanelButton onClick={onDismiss} label={`Hapus card ${label}`} />
+      </div>
       <p className="mt-2 text-3xl font-semibold">{value}</p>
     </Card>
+  );
+}
+
+function DismissPanelButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition hover:bg-accent hover:text-destructive"
+    >
+      <IconTrash className="size-4" />
+    </button>
+  );
+}
+
+function MonitoringNavButton({
+  active,
+  label,
+  meta,
+  onClick
+}: {
+  active: boolean;
+  label: string;
+  meta: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "flex min-h-[72px] w-full flex-col items-start justify-center rounded-md border px-3 py-2 text-left transition",
+        active ? "border-primary/30 bg-primary/10 text-foreground" : "border-transparent bg-background text-foreground hover:bg-accent"
+      ].join(" ")}
+    >
+      <span className="font-medium text-sm">{label}</span>
+      <span className="mt-1 text-xs text-muted-foreground">{meta}</span>
+    </button>
   );
 }

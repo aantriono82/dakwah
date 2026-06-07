@@ -37,6 +37,8 @@ type DalilFormState = {
   isActive: boolean;
 };
 
+type AdminSection = "overview" | "dalil" | "users";
+
 const emptyDalilForm: DalilFormState = {
   kind: "quran",
   reference: "",
@@ -63,6 +65,7 @@ export function Admin({ onOpenMonitoring, onPrefetchMonitoring }: { onOpenMonito
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [pageVisible, setPageVisible] = useState(() => (typeof document === "undefined" ? true : !document.hidden));
   const [lastLoadedAt, setLastLoadedAt] = useState<string>("");
+  const [activeSection, setActiveSection] = useState<AdminSection>("overview");
 
   const loadStats = useCallback(async () => {
     try {
@@ -172,6 +175,12 @@ export function Admin({ onOpenMonitoring, onPrefetchMonitoring }: { onOpenMonito
     }
   }, [loadStats, loadUsers]);
 
+  const adminSections: Array<{ id: AdminSection; label: string; meta: string }> = [
+    { id: "overview", label: "Ringkasan", meta: "Statistik aplikasi" },
+    { id: "users", label: "Pengguna", meta: `${users.length} akun` },
+    { id: "dalil", label: "Dalil", meta: "Kurasi dan pencarian" }
+  ];
+
   return (
     <div className="grid gap-6">
       <section>
@@ -202,40 +211,100 @@ export function Admin({ onOpenMonitoring, onPrefetchMonitoring }: { onOpenMonito
           </Button>
         </div>
       </section>
-      {message && <Notice>{message}</Notice>}
-      <section className="grid gap-4 md:grid-cols-3">
-        <Stat label="User" value={overview?.users ?? 0} />
-        <Stat label="Semua naskah" value={overview?.naskah ?? 0} />
-        <Stat label="Semua template" value={overview?.templates ?? 0} />
-        <Stat label="Dalil curated" value={overview?.dalil ?? 0} />
-      </section>
-      {overview?.byJenis?.length ? (
-        <Card className="p-4">
-          <h2 className="mb-4 text-lg font-semibold">Distribusi naskah</h2>
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {overview.byJenis.map((item) => (
-              <div key={item.jenis} className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
-                <span className="text-sm text-muted-foreground">{item.jenis}</span>
-                <Badge>{item.total}</Badge>
-              </div>
-            ))}
+      <section className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)]">
+        <Card className="h-fit p-3">
+          <div className="mb-3 border-b border-border pb-3">
+            <p className="text-sm font-semibold">Workspace admin</p>
+            <p className="mt-1 text-xs text-muted-foreground">Pilih area kerja agar halaman tetap fokus.</p>
           </div>
+          <nav className="grid gap-2">
+            {adminSections.map((item) => (
+              <AdminSectionButton
+                key={item.id}
+                active={activeSection === item.id}
+                label={item.label}
+                meta={item.meta}
+                onClick={() => setActiveSection(item.id)}
+              />
+            ))}
+          </nav>
         </Card>
-      ) : null}
-      <MemoDalilManagement />
-      <MemoUserManagementSection
-        users={users}
-        form={form}
-        editingUserId={editingUserId}
-        editForm={editForm}
-        onFormChange={setForm}
-        onEditFormChange={setEditForm}
-        onCreateUser={createUser}
-        onStartEdit={startEdit}
-        onCancelEdit={cancelEdit}
-        onUpdateUser={updateUser}
-        onRemoveUser={removeUser}
-      />
+        <div className="grid gap-4 min-w-0">
+          {message && <Notice>{message}</Notice>}
+          {activeSection === "overview" ? (
+            <>
+              <Card className="p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold">Ringkasan admin</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Pantau volume data dan distribusi naskah tanpa membuka modul detail.</p>
+                  </div>
+                  <Badge>Overview</Badge>
+                </div>
+              </Card>
+              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <Stat label="User" value={overview?.users ?? 0} />
+                <Stat label="Semua naskah" value={overview?.naskah ?? 0} />
+                <Stat label="Semua template" value={overview?.templates ?? 0} />
+                <Stat label="Dalil curated" value={overview?.dalil ?? 0} />
+              </section>
+              {overview?.byJenis?.length ? (
+                <Card className="p-4">
+                  <h2 className="mb-4 text-lg font-semibold">Distribusi naskah</h2>
+                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {overview.byJenis.map((item) => (
+                      <div key={item.jenis} className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+                        <span className="text-sm text-muted-foreground">{item.jenis}</span>
+                        <Badge>{item.total}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ) : null}
+            </>
+          ) : null}
+          {activeSection === "dalil" ? (
+            <>
+              <Card className="p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold">Manajemen dalil</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Tambah, kurasi, cari, dan edit database dalil tanpa mencampurnya dengan modul lain.</p>
+                  </div>
+                  <Badge>{overview?.dalil ?? 0} item</Badge>
+                </div>
+              </Card>
+              <MemoDalilManagement />
+            </>
+          ) : null}
+          {activeSection === "users" ? (
+            <>
+              <Card className="p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold">Manajemen pengguna</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Kelola akun, role, dan kuota harian dalam workspace terpisah.</p>
+                  </div>
+                  <Badge>{users.length} akun</Badge>
+                </div>
+              </Card>
+              <MemoUserManagementSection
+                users={users}
+                form={form}
+                editingUserId={editingUserId}
+                editForm={editForm}
+                onFormChange={setForm}
+                onEditFormChange={setEditForm}
+                onCreateUser={createUser}
+                onStartEdit={startEdit}
+                onCancelEdit={cancelEdit}
+                onUpdateUser={updateUser}
+                onRemoveUser={removeUser}
+              />
+            </>
+          ) : null}
+        </div>
+      </section>
     </div>
   );
 }
@@ -391,7 +460,7 @@ const DalilManagement = memo(function DalilManagement() {
           <h2 className="text-lg font-semibold">Daftar dalil</h2>
           <Badge>{total} item</Badge>
         </div>
-        <div className="grid gap-3">
+        <div className="grid max-h-[72vh] gap-3 overflow-y-auto pr-1">
           {items.length === 0 && <p className="text-sm text-muted-foreground">Belum ada dalil curated.</p>}
           {items.map((item) => (
             <div key={item.id} className="rounded-md border border-border p-3">
@@ -513,7 +582,7 @@ const UserManagementSection = memo(function UserManagementSection({
           <h2 className="text-lg font-semibold">Daftar user</h2>
           <Badge>{users.length} akun</Badge>
         </div>
-        <div className="grid gap-2">
+        <div className="grid max-h-[72vh] gap-2 overflow-y-auto pr-1">
           {users.map((item) => (
             <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
               {editingUserId === item.id ? (
@@ -718,5 +787,31 @@ function Stat({ label, value }: { label: string | number; value: string | number
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-2 text-3xl font-semibold">{value}</p>
     </Card>
+  );
+}
+
+function AdminSectionButton({
+  active,
+  label,
+  meta,
+  onClick
+}: {
+  active: boolean;
+  label: string;
+  meta: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "flex min-h-[72px] w-full flex-col items-start justify-center rounded-md border px-3 py-2 text-left transition",
+        active ? "border-primary/30 bg-primary/10 text-foreground" : "border-transparent bg-background text-foreground hover:bg-accent"
+      ].join(" ")}
+    >
+      <span className="font-medium text-sm">{label}</span>
+      <span className="mt-1 text-xs text-muted-foreground">{meta}</span>
+    </button>
   );
 }
