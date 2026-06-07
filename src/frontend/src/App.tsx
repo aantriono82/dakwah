@@ -381,34 +381,6 @@ function MoreMenuPanel({
             </div>
           </button>
 
-          <button
-            onClick={() => setActiveTab("about")}
-            className="flex items-center gap-4 w-full rounded-lg p-3 text-left transition hover:bg-accent text-foreground"
-            type="button"
-          >
-            <div className="grid size-10 place-items-center rounded-full bg-emerald-500/10 text-emerald-500">
-              <IconInfo className="size-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm">Tentang Aplikasi</p>
-              <p className="text-xs text-muted-foreground truncate font-normal">Informasi umum mengenai platform Dakwah</p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("disclaimer")}
-            className="flex items-center gap-4 w-full rounded-lg p-3 text-left transition hover:bg-accent text-foreground"
-            type="button"
-          >
-            <div className="grid size-10 place-items-center rounded-full bg-amber-500/10 text-amber-500">
-              <IconShield className="size-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm">Disclaimer</p>
-              <p className="text-xs text-muted-foreground truncate font-normal">Batasan tanggung jawab penggunaan AI</p>
-            </div>
-          </button>
-
           {user.role === "admin" && (
             <button
               onClick={() => setActiveTab("admin")}
@@ -1327,28 +1299,6 @@ function AccountPanel({
             Buka Admin
           </Button>
         )}
-        <Button
-          className="h-10 justify-start bg-secondary text-secondary-foreground"
-          onClick={() => {
-            setActiveTab("about");
-            onClose();
-          }}
-          type="button"
-        >
-          <IconInfo className="size-4 mr-2" />
-          Tentang Aplikasi
-        </Button>
-        <Button
-          className="h-10 justify-start bg-secondary text-secondary-foreground"
-          onClick={() => {
-            setActiveTab("disclaimer");
-            onClose();
-          }}
-          type="button"
-        >
-          <IconShield className="size-4 mr-2" />
-          Disclaimer
-        </Button>
         <Button className="h-10 justify-start bg-secondary/80 text-secondary-foreground" onClick={onLogout} type="button">
           <IconLogout className="size-4 mr-2" />
           Keluar
