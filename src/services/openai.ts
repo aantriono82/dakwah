@@ -43,7 +43,7 @@ const client = apiKey ? new OpenAI({ apiKey, baseURL, timeout: requestTimeout })
 const configuredMaxTokens = Number(process.env.OPENAI_MAX_TOKENS ?? 5500);
 const maxTokens = Number.isFinite(configuredMaxTokens) && configuredMaxTokens > 0 ? Math.floor(configuredMaxTokens) : 5500;
 const systemPrompt =
-  "Anda adalah penulis naskah dakwah Islam yang natural, hangat, peka konteks jamaah, dan menulis naskah mimbar yang utuh, bukan ringkasan. Tampilkan hanya naskah final yang siap dibacakan. Ikuti bahasa target dari user untuk semua narasi non-heading. Dilarang menampilkan reasoning, analisis, rencana, komentar proses, catatan model, atau bahasa Inggris. Jangan gunakan Markdown. Gunakan rujukan ayat/hadits secara hati-hati dan jangan mengarang sumber. Jangan menambah klaim sejarah, faedah, atau hukum bila tidak benar-benar didukung konteks dan dalil yang tersedia. Semua teks Arab wajib berharakat, khususnya pada mukadimah, syahadat, ayat Al-Qur'an, hadits, penutup khutbah pertama, pembuka khutbah kedua, dan doa.";
+  "Anda adalah penulis naskah dakwah Islam yang natural, hangat, peka konteks jamaah, dan menulis naskah mimbar yang utuh, bukan ringkasan. Tampilkan hanya naskah final yang siap dibacakan. Ikuti bahasa target dari user untuk semua narasi non-heading. Jika user memilih bahasa tertentu, seluruh narasi wajib 100% konsisten dalam bahasa itu; jangan campur dengan bahasa lain walau satu kalimat, kecuali heading struktur standar yang memang diizinkan. Dilarang menampilkan reasoning, analisis, rencana, komentar proses, catatan model, atau bahasa Inggris. Jangan gunakan Markdown. Gunakan rujukan ayat/hadits secara hati-hati dan jangan mengarang sumber. Jangan menambah klaim sejarah, faedah, atau hukum bila tidak benar-benar didukung konteks dan dalil yang tersedia. Semua teks Arab wajib berharakat, khususnya pada mukadimah, syahadat, ayat Al-Qur'an, hadits, penutup khutbah pertama, pembuka khutbah kedua, dan doa.";
 const baseGenerationSettings = {
   temperature: 0.9,
   top_p: 0.95,
@@ -383,12 +383,14 @@ function createQualityInspector(jenis: string, parameters: Record<string, unknow
 
 function repairInstructionFor(jenis: string, parameters: Record<string, unknown>, text: string, dalilContext?: PromptDalilContext) {
   const failures = failedQualityDetails(jenis, text, parameters, dalilContext) || "Validasi quality report belum memadai.";
+  const targetLanguage = normalizeLanguage(parameters.bahasa);
   return `Perbaiki naskah final berikut agar lolos validasi. Kembalikan naskah final lengkap saja.
 
 Masalah validasi:
 ${failures}
 
 Aturan repair:
+- Bahasa target wajib ${targetLanguage}. Semua narasi non-heading harus tetap 100% dalam bahasa ${targetLanguage}; jangan sisakan campuran bahasa lain.
 - Jangan menambah ayat atau hadits baru.
 - Pakai hanya dalil retrieval yang sudah ada di prompt awal.
 - Jika ada referensi, teks Arab, terjemah inti, grade, atau takhrij yang berubah, kembalikan sesuai data retrieval.
@@ -401,6 +403,7 @@ ${text}`;
 
 function editorialRewriteInstructionFor(jenis: string, parameters: Record<string, unknown>, text: string, dalilContext?: PromptDalilContext) {
   const report = qualityReportFor(jenis, text, parameters, dalilContext);
+  const targetLanguage = normalizeLanguage(parameters.bahasa);
   const editorialFailures =
     report.checks
       .filter((item) => !item.passed && (item.id === "template_language" || item.id === "theme_focus_keywords"))
@@ -416,6 +419,7 @@ ${editorialFailures}
 
 Aturan rewrite:
 - Jangan mengganti tema, jenis naskah, struktur wajib, ayat, hadits, referensi, teks Arab, terjemah inti, grade, atau takhrij.
+- Semua narasi non-heading wajib tetap 100% dalam bahasa ${targetLanguage}; jangan campur dengan bahasa Indonesia atau bahasa lain.
 - Bahasa harus natural, lisan, jelas, dan tidak terasa template.
 - Isi utama harus lebih spesifik melayani tema yang dipilih, bukan nasihat umum yang bisa dipakai untuk tema apa saja.
 - Setelah dalil disebut, jelaskan kaitannya langsung dengan tema dan kondisi jamaah.
@@ -426,10 +430,12 @@ Naskah:
 ${text}`;
 }
 
-function naturalRewriteInstructionFor(text: string) {
+function naturalRewriteInstructionFor(text: string, parameters: Record<string, unknown>) {
+  const targetLanguage = normalizeLanguage(parameters.bahasa);
   return `Haluskan naskah final berikut agar lebih natural, lisan, jernih, dan tidak terasa template.
 
 Aturan:
+- Semua narasi non-heading wajib tetap 100% dalam bahasa ${targetLanguage}; jangan campur dengan bahasa lain.
 - Jangan menambah, menghapus, atau mengganti ayat/hadits, referensi, teks Arab, terjemah inti, grade, takhrij, heading wajib, rukun khutbah, atau doa wajib.
 - Kurangi pengulangan, perbaiki transisi, dan buat paragraf lebih enak dibacakan.
 - Jangan menampilkan catatan proses, ringkasan perubahan, atau Markdown.
@@ -615,7 +621,7 @@ async function finalizeOpenAIText(
   try {
     const rewritten = await createOpenAITextPass(
       modelName,
-      [...messagesWithOutline(prompt, traceId, outline), { role: "user", content: naturalRewriteInstructionFor(output) }],
+      [...messagesWithOutline(prompt, traceId, outline), { role: "user", content: naturalRewriteInstructionFor(output, parameters) }],
       jenis,
       parameters,
       traceId,
@@ -751,7 +757,7 @@ async function finalizeGeminiText(
   }
 
   try {
-    const response = await createGeminiCompletion(modelName, `${contextualPrompt}\n\n${naturalRewriteInstructionFor(output)}`, jenis, parameters);
+    const response = await createGeminiCompletion(modelName, `${contextualPrompt}\n\n${naturalRewriteInstructionFor(output, parameters)}`, jenis, parameters);
     const cleanRewrite = injectRetrievedDalil(normalizeProviderText(jenis, geminiTextFromResponse(response), parameters), dalilContext);
     if (
       providerTextIsClean(jenis, cleanRewrite, parameters) &&
@@ -1029,6 +1035,7 @@ function revisionPrompt(input: {
   targetSection?: string;
   dalilContext?: PromptDalilContext;
 }) {
+  const targetLanguage = normalizeLanguage(input.parameters.bahasa);
   const target = input.targetSection ? `\nBagian yang difokuskan: ${input.targetSection}` : "";
   const dalilLock = input.dalilContext
     ? `\nDalil yang wajib tetap dipakai dan tidak boleh diganti:
@@ -1041,6 +1048,7 @@ function revisionPrompt(input: {
 
 Aturan:
 - Kembalikan naskah final lengkap, bukan catatan perubahan.
+- Semua narasi non-heading wajib 100% memakai bahasa ${targetLanguage}; jangan ada campuran bahasa lain, kecuali heading struktur standar yang memang diizinkan.
 - Pertahankan struktur utama naskah, heading standar, rukun khutbah, ayat, hadits, dan doa yang sudah benar.
 - Jika hanya satu bagian diminta, perbaiki bagian itu tanpa merusak bagian lain.
 - Jangan mengganti tema, jenis naskah, ayat, hadits, referensi, teks Arab, atau terjemah inti kecuali instruksi pengguna secara eksplisit meminta koreksi dalil.

@@ -160,6 +160,48 @@ describe("content utilities", () => {
     expect(matchesTargetLanguage("Hadirin yang dirahmati Allah, mari menjaga amanah.", "Ogan")).toBe(false);
   });
 
+  test("rejects mixed-language prose when target language is specific", () => {
+    expect(
+      matchesTargetLanguage(
+        "Para jamaah ingkang dipun rahmati Allah, mugi tansah eling. Setelah itu kita harus menjaga amanah dalam kehidupan sehari-hari.",
+        "Jawa"
+      )
+    ).toBe(false);
+    expect(
+      matchesTargetLanguage(
+        "Saderek sadaya mugia tiasa ngajaga amanah. Setelah itu kita perlu memperbaiki diri dalam kehidupan masyarakat.",
+        "Sunda"
+      )
+    ).toBe(false);
+    expect(
+      matchesTargetLanguage(
+        "Jamaah sekalian, kite pacak jage amanah. Setelah itu kita harus menjaga amanah dalam kehidupan sehari-hari.",
+        "Ogan (Baturaja)"
+      )
+    ).toBe(false);
+    expect(
+      matchesTargetLanguage(
+        "اَلْحَمْدُ لِلّٰهِ رَبِّ الْعَالَمِيْنَ. Setelah itu kita menjaga amanah dalam masyarakat dan kehidupan sehari-hari.",
+        "Arab"
+      )
+    ).toBe(false);
+  });
+
+  test("rejects indonesia output when local-language markers are mixed in", () => {
+    expect(
+      matchesTargetLanguage(
+        "Hadirin yang dirahmati Allah, mari menjaga amanah dalam kehidupan masyarakat dan keluarga kita.",
+        "Indonesia"
+      )
+    ).toBe(true);
+    expect(
+      matchesTargetLanguage(
+        "Hadirin yang dirahmati Allah, mari menjaga amanah. Mugi kita tansah eling lan boten sembrana.",
+        "Indonesia"
+      )
+    ).toBe(false);
+  });
+
   test("fallbackNaskah localizes Ogan Baturaja prose", () => {
     const draft = fallbackNaskah("ceramah", { bahasa: "Ogan (Baturaja)", topik: "Sabar" });
 

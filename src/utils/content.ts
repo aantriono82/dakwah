@@ -583,21 +583,85 @@ function stripArabicText(text: string) {
   return text.replace(/[\u0600-\u06FF]+/g, " ");
 }
 
+const indonesiaSignalPatterns = [
+  /\b(yang|untuk|dengan|dalam|kepada|adalah|kita|kami|agar|karena|sebagai|jangan|tetapi|semoga|hendaknya|marilah|saudara-saudaraku|hadirin)\b/gi,
+  /\b(dirahmati|kehidupan|masyarakat|menjaga|memperbaiki|menjalani|melaksanakan|kebaikan|keburukan|amanah|ketakwaan)\b/gi
+];
+const jawaStrongSignalPatterns = [
+  /\b(ingkang|menawi|boten|mugi|kagem|saking|wonten|dados|piyambak|dhumateng|dipun|saged|kedah|sampun|monggo|panjenengan)\b/gi,
+  /\b(rahmatipun|tegesipun|pitedah|pangandikan|pambuka|donga)\b/gi
+];
+const sundaStrongSignalPatterns = [
+  /\b(urang|mugia|henteu|kanggo|sangkan|anjeun|simkuring|anjeunna|kumaha|saenyana|ngajaga|ngalereskeun)\b/gi,
+  /\b(hartina|pituduh|panganteur|bubuka|panutup|kahadean)\b/gi
+];
+const oganBaturajaStrongSignalPatterns = [
+  /\b(kite|jeme|dang|nian|pacak|idak|nak|bae|galak|dusun|griye|keluarge|artinye|penganten)\b/gi,
+  /\b(penganten|pacaklah|idaklah)\b/gi
+];
+const standardHeadingLinePattern = /^(?:khutbah\s+pertama|khutbah\s+kedua|penutup\s+khutbah\s+pertama|duduk\s+di\s+antara\s+dua\s+khutbah|allah\s+swt\s+berfirman\s+dalam\s+alquran|rasulullah\s+saw\s+bersabda|doa\s+penutup|pembuka|pengantar|renungan|isi\s+utama|poin-poin\s+(?:kunci|utama|wigati)|pesan\s+praktis|pambuka|pangandikan|bubuka|panganteur|panutup|pitedah\s+praktis|pituduh\s+praktis|pokok-pokok\s+penting)\s*:?\s*$/i;
+const referenceLinePattern = /^(?:qs\.|hr\.|rujukan|reference|rujukan:|arti(?:nya|nye|na|nipun)?|tegesipun|hartina|artinye)\b/i;
+
+function languageAssessmentText(text: string) {
+  return text
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      if (standardHeadingLinePattern.test(trimmed)) return false;
+      if (referenceLinePattern.test(trimmed)) return false;
+      if (/^(?:tema|bahasa|basa|اَللُّغَةُ|اَلْمَوْضُوعُ)\s*:/i.test(trimmed)) return false;
+      return true;
+    })
+    .join("\n");
+}
+
+function countPatternMatches(text: string, patterns: RegExp[]) {
+  let total = 0;
+  for (const pattern of patterns) {
+    const matches = text.match(pattern);
+    total += matches?.length ?? 0;
+  }
+  return total;
+}
+
 export function matchesTargetLanguage(text: string, languageValue: unknown) {
   const language = normalizeLanguage(languageValue);
-  if (language === "Indonesia") return true;
+  const assessmentText = languageAssessmentText(text);
+  if (!assessmentText.trim()) return false;
 
   if (language === "Arab") {
-    const arabicLetters = (text.match(/[\u0600-\u06FF]/g) ?? []).length;
-    const latinLetters = (text.match(/[A-Za-zÀ-ÿ]/g) ?? []).length;
+    const arabicLetters = (assessmentText.match(/[\u0600-\u06FF]/g) ?? []).length;
+    const latinLetters = (assessmentText.match(/[A-Za-zÀ-ÿ]/g) ?? []).length;
     const totalLetters = arabicLetters + latinLetters;
-    return totalLetters > 0 && arabicLetters / totalLetters >= 0.45 && arabicLetters >= 120;
+    return totalLetters > 0 && arabicLetters / totalLetters >= 0.7 && arabicLetters >= 120 && latinLetters <= arabicLetters * 0.35;
   }
 
-  const nonArabicText = stripArabicText(text);
-  if (language === "Jawa") return jawaSignalPattern.test(nonArabicText);
-  if (language === "Sunda") return sundaSignalPattern.test(nonArabicText);
-  return oganBaturajaSignalPattern.test(nonArabicText);
+  const nonArabicText = stripArabicText(assessmentText).toLowerCase();
+  const indonesiaHits = countPatternMatches(nonArabicText, indonesiaSignalPatterns);
+  const jawaHits = countPatternMatches(nonArabicText, jawaStrongSignalPatterns);
+  const sundaHits = countPatternMatches(nonArabicText, sundaStrongSignalPatterns);
+  const oganHits = countPatternMatches(nonArabicText, oganBaturajaStrongSignalPatterns);
+
+  if (language === "Indonesia") {
+    const foreignHits = jawaHits + sundaHits + oganHits;
+    return indonesiaHits >= 3 && foreignHits <= 1;
+  }
+
+  const targetHits = language === "Jawa" ? jawaHits : language === "Sunda" ? sundaHits : oganHits;
+  const competingHits =
+    language === "Jawa"
+      ? indonesiaHits + sundaHits + oganHits
+      : language === "Sunda"
+        ? indonesiaHits + jawaHits + oganHits
+        : indonesiaHits + jawaHits + sundaHits;
+
+  if (language === "Ogan (Baturaja)") {
+    return targetHits >= 3 && targetHits >= Math.max(2, Math.ceil(competingHits * 0.6));
+  }
+
+  return targetHits >= 3 && targetHits > competingHits;
 }
 
 const hamdalahPattern = /(?:اَلْحَمْدُ|الْحَمْدُ|حَمْدًا|نَحْمَدُ)/;
