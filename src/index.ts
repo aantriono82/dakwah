@@ -19,7 +19,9 @@ import {
   corsOrigins,
   generateClientTimeoutMs,
   myQuranEnabled,
-  providerTimeoutMs
+  providerTimeoutMs,
+  turnstileEnabled,
+  turnstileSiteKey
 } from "./config";
 import { checkStorageHealth, isStorageRequired } from "./services/storage";
 import type { AppEnv } from "./utils/http";
@@ -57,7 +59,10 @@ api.get("/config", (c) =>
       modelCount: activeModelCount,
       aiProvider,
       myQuranEnabled,
-      storageRequired: isStorageRequired()
+      storageRequired: isStorageRequired(),
+      authCaptcha: turnstileEnabled
+        ? { provider: "turnstile", turnstileSiteKey }
+        : { provider: "manual" }
     }
   })
 );

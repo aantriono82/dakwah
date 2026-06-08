@@ -7,9 +7,18 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db } from "../db/client";
 import { passwordResetTokens, sessions, users } from "../db/schema";
-import { appPublicUrl, authCookieDomain, authCookieSameSite, authCookieSecure, authRateLimitMax, authRateLimitWindowMs } from "../config";
+import {
+  appPublicUrl,
+  authCookieDomain,
+  authCookieSameSite,
+  authCookieSecure,
+  authRateLimitMax,
+  authRateLimitWindowMs,
+  turnstileEnabled
+} from "../config";
 import { sendPasswordResetEmail } from "../services/email";
-import { createWordProblemCaptcha } from "../utils/captcha";
+import { verifyTurnstileToken } from "../services/turnstile";
+import { createWordProblemCaptcha, normalizeCaptchaAnswer } from "../utils/captcha";
 import { authRequired, isUniqueConstraintError, publicUser, type AppEnv } from "../utils/http";
 import { hashPassword, sha256, verifyPassword } from "../utils/password";
 import { rateLimit, rateLimitKeyByIp } from "../utils/rate-limit";
@@ -20,7 +29,10 @@ const authCookieMaxAge = 60 * 60 * 24 * 7;
 const captchaTtlMs = 5 * 60 * 1000;
 const passwordResetTtlMs = 30 * 60 * 1000;
 const authCleanupIntervalMs = 5 * 60 * 1000;
-const captchaChallenges = new Map<string, { answer: number; expiresAt: number }>();
+const captchaChallenges = new Map<
+  string,
+  { answer: string; expiresAt: number; inputMode: "numeric" | "text"; placeholder: string; hint?: string; difficulty: "ringan" | "sedang" }
+>();
 let nextCaptchaCleanupAt = 0;
 let nextExpiredAuthCleanupAt = 0;
 let lastCaptchaQuestion: string | null = null;
@@ -62,8 +74,22 @@ function createCaptchaChallenge() {
   const token = nanoid(32);
   lastCaptchaQuestion = selected.question;
 
-  captchaChallenges.set(token, { answer: selected.answer, expiresAt: Date.now() + captchaTtlMs });
-  return { token, question: selected.question, difficulty: selected.difficulty };
+  captchaChallenges.set(token, {
+    answer: selected.answer,
+    expiresAt: Date.now() + captchaTtlMs,
+    inputMode: selected.inputMode,
+    placeholder: selected.placeholder,
+    hint: selected.hint,
+    difficulty: selected.difficulty
+  });
+  return {
+    token,
+    question: selected.question,
+    difficulty: selected.difficulty,
+    inputMode: selected.inputMode,
+    placeholder: selected.placeholder,
+    hint: selected.hint
+  };
 }
 
 function verifyCaptcha(token: string, answer: string) {
@@ -74,7 +100,8 @@ function verifyCaptcha(token: string, answer: string) {
 
   if (!challenge) return false;
   if (challenge.expiresAt <= Date.now()) return false;
-  return Number(answer) === challenge.answer;
+  const normalizedAnswer = challenge.inputMode === "numeric" ? answer.trim() : normalizeCaptchaAnswer(answer);
+  return normalizedAnswer === challenge.answer;
 }
 
 function isCaptchaAnswerValid(token: string, answer: string) {
@@ -83,7 +110,13 @@ function isCaptchaAnswerValid(token: string, answer: string) {
   const challenge = captchaChallenges.get(token);
   if (!challenge) return false;
   if (challenge.expiresAt <= Date.now()) return false;
-  return Number(answer) === challenge.answer;
+  const normalizedAnswer = challenge.inputMode === "numeric" ? answer.trim() : normalizeCaptchaAnswer(answer);
+  return normalizedAnswer === challenge.answer;
+}
+
+function clientAddress(c: Context<AppEnv>) {
+  const forwarded = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
+  return forwarded || c.req.header("cf-connecting-ip") || c.req.header("x-real-ip") || undefined;
 }
 
 async function createSession(c: Context<AppEnv>, userId: string) {
@@ -132,7 +165,7 @@ authRoutes.post(
     "json",
     z.object({
       captchaToken: z.string().min(1, "Captcha tidak valid."),
-      captchaAnswer: z.string().regex(/^-?\d+$/, "Jawaban captcha harus berupa angka.")
+      captchaAnswer: z.string().trim().min(1, "Jawaban captcha wajib diisi.")
     })
   ),
   (c) => {
@@ -214,8 +247,9 @@ authRoutes.post(
       email: z.string().trim().email("Email tidak valid."),
       name: z.string().trim().min(3, "Nama minimal 3 karakter."),
       password: z.string().min(6, "Kata sandi minimal 6 karakter."),
-      captchaToken: z.string().min(1, "Captcha tidak valid."),
-      captchaAnswer: z.string().regex(/^-?\d+$/, "Jawaban captcha harus berupa angka.")
+      captchaToken: z.string().min(1, "Captcha tidak valid.").optional(),
+      captchaAnswer: z.string().trim().min(1, "Jawaban captcha wajib diisi.").optional(),
+      turnstileToken: z.string().trim().min(1, "Verifikasi Turnstile wajib diselesaikan.").optional()
     })
   ),
   async (c) => {
@@ -223,8 +257,14 @@ authRoutes.post(
     const id = nanoid();
     const username = body.email.toLowerCase();
 
-    if (!verifyCaptcha(body.captchaToken, body.captchaAnswer)) {
-      return c.json({ message: "Jawaban captcha belum benar." }, 400);
+    if (turnstileEnabled) {
+      if (!body.turnstileToken) return c.json({ message: "Verifikasi Turnstile wajib diselesaikan." }, 400);
+      const turnstileValid = await verifyTurnstileToken(body.turnstileToken, clientAddress(c));
+      if (!turnstileValid) return c.json({ message: "Verifikasi Turnstile gagal. Coba lagi." }, 400);
+    } else {
+      if (!body.captchaToken || !body.captchaAnswer || !verifyCaptcha(body.captchaToken, body.captchaAnswer)) {
+        return c.json({ message: "Jawaban captcha belum benar." }, 400);
+      }
     }
 
     try {

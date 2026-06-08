@@ -190,6 +190,8 @@ Variabel penting:
 | `AUTH_COOKIE_DOMAIN` | kosong | Domain cookie session jika aplikasi berjalan di subdomain tertentu |
 | `AUTH_RATE_LIMIT_WINDOW_MS` | `900000` | Window rate limit auth dalam milidetik |
 | `AUTH_RATE_LIMIT_MAX` | `30` | Maksimal request auth per window per IP |
+| `TURNSTILE_SITE_KEY` | kosong | Site key Cloudflare Turnstile. Jika ini dan secret diisi, form daftar memakai Turnstile |
+| `TURNSTILE_SECRET_KEY` | kosong | Secret key Cloudflare Turnstile untuk verifikasi token di backend |
 | `GENERATE_RATE_LIMIT_WINDOW_MS` | `60000` | Window rate limit generate dalam milidetik |
 | `GENERATE_RATE_LIMIT_MAX` | `6` | Maksimal request generate per window per user |
 | `DEFAULT_DAILY_GENERATE_LIMIT` | `50` | Quota generate harian default per user. `0` berarti unlimited |

@@ -68,6 +68,10 @@ function solveCaptcha(question: string) {
   throw new Error(`Unknown captcha question: ${question}`);
 }
 
+function createInvalidCaptchaAnswer(answer: string) {
+  return answer === "salah" ? "keliru" : "salah";
+}
+
 async function captchaPayload() {
   const response = await request("/api/auth/captcha");
   const body = (await response.json()) as { token: string; question: string };
@@ -93,6 +97,7 @@ describe("API auth and roles", () => {
     const configBody = await config.json();
     expect(config.status).toBe(200);
     expect(configBody.data.storageRequired).toBe(false);
+    expect(configBody.data.authCaptcha.provider).toBe("manual");
   });
 
   test("login, me, and logout", async () => {
@@ -168,7 +173,7 @@ describe("API auth and roles", () => {
         name: "Captcha User",
         password: "password123",
         captchaToken: captcha.captchaToken,
-        captchaAnswer: String(Number(captcha.captchaAnswer) + 1)
+        captchaAnswer: createInvalidCaptchaAnswer(captcha.captchaAnswer)
       })
     });
 
@@ -179,8 +184,22 @@ describe("API auth and roles", () => {
   test("captcha refresh returns a different follow-up question", async () => {
     const first = await request("/api/auth/captcha");
     const second = await request("/api/auth/captcha");
-    const firstBody = (await first.json()) as { token: string; question: string; difficulty: "ringan" | "sedang" };
-    const secondBody = (await second.json()) as { token: string; question: string; difficulty: "ringan" | "sedang" };
+    const firstBody = (await first.json()) as {
+      token: string;
+      question: string;
+      difficulty: "ringan" | "sedang";
+      inputMode: "numeric" | "text";
+      placeholder: string;
+      hint?: string;
+    };
+    const secondBody = (await second.json()) as {
+      token: string;
+      question: string;
+      difficulty: "ringan" | "sedang";
+      inputMode: "numeric" | "text";
+      placeholder: string;
+      hint?: string;
+    };
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
@@ -188,6 +207,10 @@ describe("API auth and roles", () => {
     expect(firstBody.question).not.toBe(secondBody.question);
     expect(["ringan", "sedang"]).toContain(firstBody.difficulty);
     expect(["ringan", "sedang"]).toContain(secondBody.difficulty);
+    expect(["numeric", "text"]).toContain(firstBody.inputMode);
+    expect(["numeric", "text"]).toContain(secondBody.inputMode);
+    expect(firstBody.placeholder.length).toBeGreaterThan(0);
+    expect(secondBody.placeholder.length).toBeGreaterThan(0);
     expect(solveWordProblemCaptcha(firstBody.question)).not.toBeNull();
     expect(solveWordProblemCaptcha(secondBody.question)).not.toBeNull();
   });
@@ -206,7 +229,7 @@ describe("API auth and roles", () => {
 
     const verifyInvalid = await request("/api/auth/captcha/verify", {
       method: "POST",
-      body: JSON.stringify({ captchaToken: captchaBody.token, captchaAnswer: String(Number(captchaAnswer) + 1) })
+      body: JSON.stringify({ captchaToken: captchaBody.token, captchaAnswer: createInvalidCaptchaAnswer(captchaAnswer) })
     });
     expect(verifyInvalid.status).toBe(200);
     expect((await verifyInvalid.json()).valid).toBe(false);
@@ -232,7 +255,7 @@ describe("API auth and roles", () => {
       const solved = solveWordProblemCaptcha(challenge.question);
 
       expect(challenge.question.length).toBeLessThanOrEqual(120);
-      expect(solved).toBe(challenge.answer);
+      expect(solved).toBe(String(challenge.answer));
 
       previousQuestion = challenge.question;
     }
