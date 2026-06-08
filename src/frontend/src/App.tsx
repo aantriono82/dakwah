@@ -5,7 +5,6 @@ import {
   IconUser,
   IconEye,
   IconEyeOff,
-  IconGithub,
   IconHeart,
   IconLock,
   IconLogout,
@@ -495,7 +494,7 @@ function Login({
     }
   }
 
-  function showSocialLoginNotice(provider: "Google" | "GitHub") {
+  function showSocialLoginNotice(provider: "Google") {
     setError("");
     setNotice(`Login dengan ${provider} belum dikonfigurasi. Gunakan email dan kata sandi, atau hubungi admin untuk mengaktifkan OAuth ${provider}.`);
   }
@@ -515,7 +514,7 @@ function Login({
       )}
       <div className="mb-6 text-center lg:mb-5">
         <h1 className="text-3xl font-black tracking-normal sm:text-4xl lg:text-[2rem]">Masuk</h1>
-        <p className="mt-3 text-base text-foreground sm:text-lg lg:text-base">Akses lebih banyak fitur pembelajaran</p>
+        <p className="mt-3 text-base text-foreground sm:text-lg lg:text-base">Masuk untuk mengelola naskah dakwah Anda</p>
         <p className="mt-4 text-base text-muted-foreground sm:text-lg lg:mt-3 lg:text-base">
           Belum punya akun?{" "}
           <button
@@ -532,14 +531,9 @@ function Login({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:gap-3" aria-label="Pilihan masuk cepat">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:gap-3" aria-label="Pilihan masuk cepat">
         <SocialLoginButton label="Google" onClick={() => showSocialLoginNotice("Google")}>
-          <span className="text-3xl font-black">
-            <span className="text-[#4285f4]">G</span>
-          </span>
-        </SocialLoginButton>
-        <SocialLoginButton label="GitHub" onClick={() => showSocialLoginNotice("GitHub")}>
-          <IconGithub className="size-9 text-foreground" />
+          <GoogleMark className="size-5" />
         </SocialLoginButton>
       </div>
 
@@ -1265,14 +1259,38 @@ function LegalPanel({
 function SocialLoginButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
-      className="flex h-16 items-center justify-center rounded-lg border border-border bg-card transition hover:bg-accent"
+      className="flex h-14 items-center justify-center gap-3 rounded-lg border border-border bg-card px-4 text-base font-semibold text-foreground transition hover:bg-accent lg:h-12 lg:text-sm"
       onClick={onClick}
       type="button"
       aria-label={`Masuk dengan ${label}`}
       title={label}
     >
       {children}
+      <span>{label}</span>
     </button>
+  );
+}
+
+function GoogleMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <path
+        d="M21.805 12.23c0-.718-.064-1.408-.184-2.07H12v3.92h5.498a4.703 4.703 0 0 1-2.04 3.086v2.562h3.305c1.935-1.782 3.042-4.412 3.042-7.498Z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 22c2.76 0 5.074-.914 6.763-2.472l-3.305-2.562c-.915.614-2.086.976-3.458.976-2.655 0-4.905-1.793-5.708-4.204H2.875V16.38A9.997 9.997 0 0 0 12 22Z"
+        fill="#34A853"
+      />
+      <path
+        d="M6.292 13.738A5.997 5.997 0 0 1 5.973 12c0-.603.109-1.19.319-1.738V7.62H2.875A9.997 9.997 0 0 0 2 12c0 1.609.384 3.13 1.075 4.38l3.217-2.642Z"
+        fill="#FBBC04"
+      />
+      <path
+        d="M12 6.058c1.5 0 2.847.516 3.907 1.529l2.93-2.93C17.07 2.995 14.756 2 12 2A9.997 9.997 0 0 0 2.875 7.62l3.417 2.642C7.095 7.851 9.345 6.058 12 6.058Z"
+        fill="#EA4335"
+      />
+    </svg>
   );
 }
 
