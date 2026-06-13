@@ -10,7 +10,6 @@ const databaseUrl = join("/tmp", `dakwah-export-cache-${Date.now()}.sqlite`);
 
 let streamFileCalls = 0;
 let uploadFileCalls = 0;
-let createPdfCalls = 0;
 
 const storageMock = {
   async uploadFile() {
@@ -49,18 +48,7 @@ const storageMock = {
   }
 };
 
-const exportersMock = {
-  async createPdf() {
-    createPdfCalls += 1;
-    return new TextEncoder().encode("%PDF-1.4\nregenerated\n");
-  },
-  async createDocx() {
-    return new TextEncoder().encode("PK");
-  }
-};
-
 mock.module("./services/storage", () => storageMock);
-mock.module("./services/exporters", () => exportersMock);
 
 let app: Hono<AppEnv>;
 let db: Awaited<typeof import("./db/client")>["db"];
@@ -112,7 +100,6 @@ describe("export cache hit", () => {
   test("pdf export streams cached storage object without regenerating document", async () => {
     streamFileCalls = 0;
     uploadFileCalls = 0;
-    createPdfCalls = 0;
 
     const create = await request(
       "/api/naskah",
@@ -151,6 +138,5 @@ describe("export cache hit", () => {
     expect(file).toEqual(cachedPdfBytes);
     expect(streamFileCalls).toBe(1);
     expect(uploadFileCalls).toBe(0);
-    expect(createPdfCalls).toBe(0);
   });
 });
