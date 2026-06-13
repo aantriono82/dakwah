@@ -1,0 +1,6 @@
+FROM alpine:3.20
+RUN apk add --no-cache bash coreutils sqlite
+COPY deploy/arcane/sqlite-backup-loop.sh /usr/local/bin/sqlite-backup-loop
+RUN chmod +x /usr/local/bin/sqlite-backup-loop
+VOLUME ["/data", "/backups"]
+CMD ["sqlite-backup-loop"]

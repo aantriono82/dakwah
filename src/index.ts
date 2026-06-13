@@ -77,7 +77,8 @@ api.route("/stats", statsRoutes);
 
 app.route("/api", api);
 
-const shouldServeFrontend = process.env.NODE_ENV === "production" || existsSync("./dist/public/index.html");
+const shouldServeFrontend =
+  process.env.SERVE_FRONTEND !== "false" && (process.env.NODE_ENV === "production" || existsSync("./dist/public/index.html"));
 
 if (shouldServeFrontend) {
   app.use("*", serveStatic({ root: "./dist/public" }));

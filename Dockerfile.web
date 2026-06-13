@@ -1,0 +1,11 @@
+FROM oven/bun:1.3 AS build
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+COPY . .
+RUN bunx vite build
+
+FROM nginx:1.27-alpine
+COPY --from=build /app/dist/public /usr/share/nginx/html
+COPY deploy/arcane/nginx.dakwah-web.conf.template /etc/nginx/templates/default.conf.template
+EXPOSE 80

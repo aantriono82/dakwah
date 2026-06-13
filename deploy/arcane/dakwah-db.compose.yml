@@ -1,0 +1,28 @@
+services:
+  db:
+    container_name: dakwah-db
+    build:
+      context: ../..
+      dockerfile: Dockerfile.sqlite-db
+    image: ${SQLITE_DB_IMAGE:-ghcr.io/aantriono82/dakwah-sqlite-db:latest}
+    environment:
+      DATABASE_PATH: ${DATABASE_PATH:-/data/dakwah.sqlite}
+      BACKUP_DIR: ${BACKUP_DIR:-/backups}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - dakwah-sqlite-data:/data
+      - dakwah-sqlite-backups:/backups
+    networks:
+      - dakwah-net
+    restart: unless-stopped
+
+volumes:
+  dakwah-sqlite-data:
+    name: dakwah-sqlite-data
+  dakwah-sqlite-backups:
+    name: dakwah-sqlite-backups
+
+networks:
+  dakwah-net:
+    external: true

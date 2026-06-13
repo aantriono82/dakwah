@@ -1,0 +1,18 @@
+services:
+  web:
+    container_name: dakwah-web
+    build:
+      context: ../..
+      dockerfile: Dockerfile.web
+    image: ${WEB_IMAGE:-ghcr.io/aantriono82/dakwah-web:latest}
+    ports:
+      - "127.0.0.1:3100:80"
+    networks:
+      - dakwah-net
+    environment:
+      API_UPSTREAM: ${API_UPSTREAM:-http://dakwah-api:3000}
+    restart: unless-stopped
+
+networks:
+  dakwah-net:
+    external: true
