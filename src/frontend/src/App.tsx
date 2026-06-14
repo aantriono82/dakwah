@@ -202,6 +202,7 @@ export function App() {
 
   const openGenerate = useCallback((jenis: JenisId = "khutbah-jumat") => {
     beginPageTransition("Generate");
+    setShowAccountPanel(false);
     setInitialGenerateJenis(jenis);
     setActiveTab("generate");
     pushPath(generatePathByJenis[jenis]);
@@ -210,6 +211,7 @@ export function App() {
   const openTab = useCallback((tab: Exclude<TabId, "generate">) => {
     if (tab === "history") beginPageTransition("History");
     if (tab === "admin-monitoring") beginPageTransition("AdminMonitoring");
+    setShowAccountPanel(false);
     setActiveTab(tab);
     pushPath(tabPathById[tab]);
   }, []);
@@ -217,6 +219,7 @@ export function App() {
   const useTemplate = useCallback((template: Template) => {
     void loadGenerateModule();
     beginPageTransition("Generate");
+    setShowAccountPanel(false);
     setTemplateToUse(template);
     setInitialGenerateJenis(template.jenis);
     setActiveTab("generate");
@@ -338,7 +341,7 @@ export function App() {
       {activeTab === "more" && (
         <MoreMenuPanel
           user={user}
-          setActiveTab={setActiveTab}
+          setActiveTab={openTab}
           onLogout={handleLogout}
         />
       )}
@@ -352,7 +355,7 @@ function MoreMenuPanel({
   onLogout
 }: {
   user: User;
-  setActiveTab: (tab: TabId) => void;
+  setActiveTab: (tab: Exclude<TabId, "generate">) => void;
   onLogout: () => void;
 }) {
   return (
@@ -378,6 +381,7 @@ function MoreMenuPanel({
             onClick={() => setActiveTab("templates")}
             className="flex items-center gap-4 w-full rounded-lg p-3 text-left transition hover:bg-accent text-foreground"
             type="button"
+            aria-label="Buka template naskah"
           >
             <div className="grid size-10 place-items-center rounded-full bg-indigo-500/10 text-indigo-500">
               <IconBookmark className="size-5" />
@@ -393,6 +397,7 @@ function MoreMenuPanel({
               onClick={() => setActiveTab("admin")}
               className="flex items-center gap-4 w-full rounded-lg p-3 text-left transition hover:bg-accent text-foreground"
               type="button"
+              aria-label="Buka admin"
             >
               <div className="grid size-10 place-items-center rounded-full bg-blue-500/10 text-blue-500">
                 <IconAdmin className="size-5" />
@@ -405,9 +410,40 @@ function MoreMenuPanel({
           )}
 
           <button
+            onClick={() => setActiveTab("about")}
+            className="flex items-center gap-4 w-full rounded-lg p-3 text-left transition hover:bg-accent text-foreground"
+            type="button"
+            aria-label="Buka informasi aplikasi"
+          >
+            <div className="grid size-10 place-items-center rounded-full bg-primary/10 text-primary">
+              <IconInfo className="size-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">Tentang Dakwah</p>
+              <p className="text-xs text-muted-foreground truncate font-normal">Informasi tujuan dan batas penggunaan aplikasi</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("disclaimer")}
+            className="flex items-center gap-4 w-full rounded-lg p-3 text-left transition hover:bg-accent text-foreground"
+            type="button"
+            aria-label="Buka disclaimer"
+          >
+            <div className="grid size-10 place-items-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-300">
+              <IconShield className="size-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">Disclaimer</p>
+              <p className="text-xs text-muted-foreground truncate font-normal">Batasan AI dan tanggung jawab peninjauan naskah</p>
+            </div>
+          </button>
+
+          <button
             onClick={onLogout}
             className="flex items-center gap-4 w-full rounded-lg p-3 text-left transition hover:bg-accent text-destructive"
             type="button"
+            aria-label="Keluar dari akun"
           >
             <div className="grid size-10 place-items-center rounded-full bg-destructive/10 text-destructive">
               <IconLogout className="size-5" />
@@ -1422,78 +1458,78 @@ function MainLayout({
       {/* Bottom Navigation for Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/90 pb-safe backdrop-blur-md lg:hidden">
         <div className="flex h-16 items-center justify-around">
-          {/* Beranda - Emerald */}
           <button
             onClick={() => setActiveTab("home")}
-            className="flex flex-col items-center justify-center flex-1 py-1 gap-1 text-[10px] font-medium transition-all duration-200"
+            className="flex flex-1 flex-col items-center justify-center gap-1 py-1 text-[10px] font-medium transition"
             type="button"
+            aria-label="Buka beranda"
           >
             <div className={cn(
-              "flex items-center justify-center size-10 rounded-full transition-all duration-200",
+              "flex size-10 items-center justify-center rounded-md transition",
               activeTab === "home"
-                ? "bg-emerald-500/10 text-emerald-600 scale-105"
+                ? "bg-primary/10 text-primary"
                 : "bg-transparent text-muted-foreground"
             )}>
               <IconMosque className="size-5" />
             </div>
-            <span className={activeTab === "home" ? "font-semibold text-emerald-600" : "text-muted-foreground"}>Beranda</span>
+            <span className={activeTab === "home" ? "font-semibold text-primary" : "text-muted-foreground"}>Beranda</span>
           </button>
 
-          {/* Buat - Indigo */}
           <button
             onClick={() => onOpenGenerate(activeJenis)}
             onMouseEnter={onPrefetchGenerate}
             onFocus={onPrefetchGenerate}
             onTouchStart={onPrefetchGenerate}
-            className="flex flex-col items-center justify-center flex-1 py-1 gap-1 text-[10px] font-medium transition-all duration-200"
+            className="flex flex-1 flex-col items-center justify-center gap-1 py-1 text-[10px] font-medium transition"
             type="button"
+            aria-label="Buat naskah"
           >
             <div className={cn(
-              "flex items-center justify-center size-10 rounded-full transition-all duration-200",
+              "flex size-10 items-center justify-center rounded-md transition",
               activeTab === "generate"
-                ? "bg-indigo-500/10 text-indigo-500 scale-105"
+                ? "bg-primary/10 text-primary"
                 : "bg-transparent text-muted-foreground"
             )}>
               <IconScroll className="size-5" />
             </div>
-            <span className={activeTab === "generate" ? "font-semibold text-indigo-500" : "text-muted-foreground"}>Buat</span>
+            <span className={activeTab === "generate" ? "font-semibold text-primary" : "text-muted-foreground"}>Buat</span>
           </button>
 
-          {/* Riwayat - Amber */}
           <button
             onClick={() => setActiveTab("history")}
             onMouseEnter={onPrefetchHistory}
             onFocus={onPrefetchHistory}
             onTouchStart={onPrefetchHistory}
-            className="flex flex-col items-center justify-center flex-1 py-1 gap-1 text-[10px] font-medium transition-all duration-200"
+            className="flex flex-1 flex-col items-center justify-center gap-1 py-1 text-[10px] font-medium transition"
             type="button"
+            aria-label="Buka riwayat"
           >
             <div className={cn(
-              "flex items-center justify-center size-10 rounded-full transition-all duration-200",
+              "flex size-10 items-center justify-center rounded-md transition",
               activeTab === "history"
-                ? "bg-amber-500/10 text-amber-500 scale-105"
+                ? "bg-primary/10 text-primary"
                 : "bg-transparent text-muted-foreground"
             )}>
               <IconHistory className="size-5" />
             </div>
-            <span className={activeTab === "history" ? "font-semibold text-amber-500" : "text-muted-foreground"}>Riwayat</span>
+            <span className={activeTab === "history" ? "font-semibold text-primary" : "text-muted-foreground"}>Riwayat</span>
           </button>
 
-          {/* Lainnya - Blue */}
           <button
             onClick={() => setActiveTab("more")}
-            className="flex flex-col items-center justify-center flex-1 py-1 gap-1 text-[10px] font-medium transition-all duration-200"
+            className="flex flex-1 flex-col items-center justify-center gap-1 py-1 text-[10px] font-medium transition"
             type="button"
+            aria-label="Buka menu lainnya"
           >
             <div className={cn(
-              "flex items-center justify-center size-10 rounded-full transition-all duration-200",
+              "flex size-10 items-center justify-center rounded-md transition",
               activeTab === "more"
-                ? "bg-blue-500/10 text-blue-500 scale-105"
+                ? "bg-primary/10 text-primary"
                 : "bg-transparent text-muted-foreground"
             )}>
               <IconCrescentStar className="size-5" />
             </div>
-            <span className={activeTab === "more" ? "font-semibold text-blue-500" : "text-muted-foreground"}>Lainnya</span>
+            <span className={activeTab === "more" ? "font-semibold text-primary" : "text-muted-foreground"}>Lainnya</span>
           </button>
         </div>
       </nav>
@@ -1653,8 +1689,8 @@ function InfoPage({ title, body }: { title: string; body: string | string[] }) {
   const paragraphs = Array.isArray(body) ? body : [body];
 
   return (
-    <section className="grid min-h-[420px] place-items-center py-12">
-      <Card className="w-full max-w-2xl p-6">
+    <section className="mx-auto grid min-h-[420px] w-full max-w-3xl content-center py-10 sm:py-14">
+      <div className="border-y border-border py-8 sm:py-10">
         <p className="text-sm font-medium uppercase text-primary">{title}</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-normal">{title}</h1>
         <div className="mt-4 space-y-4 text-base leading-7 text-muted-foreground">
@@ -1662,7 +1698,7 @@ function InfoPage({ title, body }: { title: string; body: string | string[] }) {
             <p key={paragraph}>{paragraph}</p>
           ))}
         </div>
-      </Card>
+      </div>
     </section>
   );
 }

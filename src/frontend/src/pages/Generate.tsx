@@ -736,8 +736,8 @@ export function Generate({
                       className={cn(
                         "flex min-h-11 items-center justify-center rounded-md px-3 py-2 text-center text-sm font-semibold transition",
                         activeCategory === category.id
-                          ? "bg-emerald-200 text-emerald-900 ring-1 ring-emerald-300"
-                          : "bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
                       )}
                       onClick={() => {
                         const next = visibleJenisOptions.find((item) => categoryForJenis(item.id) === category.id);
