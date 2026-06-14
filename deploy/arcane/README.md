@@ -72,6 +72,28 @@ Pastikan workflow Docker sudah publish image tersebut ke GHCR sebelum deploy. Ji
 docker login ghcr.io
 ```
 
+## Troubleshooting Dokploy/Arcane pull image
+
+Jika redeploy gagal dengan pesan seperti:
+
+```text
+failed to pull image dakwah-api:local: pull access denied
+```
+
+berarti project sedang memakai image lokal (`dakwah-api:local`) sebagai nilai `API_IMAGE` atau fallback compose. Untuk deploy registry, pastikan env project berisi:
+
+```env
+API_IMAGE=ghcr.io/aantriono82/dakwah-api:latest
+```
+
+atau tag immutable yang sudah dipublish oleh GitHub Actions:
+
+```env
+API_IMAGE=ghcr.io/aantriono82/dakwah-api:sha-<commit>
+```
+
+Jangan pakai `dakwah-api:local` kecuali image tersebut memang sudah dibuild langsung di VPS dengan nama yang sama.
+
 ## Env wajib
 
 ### `dakwah-rustfs`
@@ -97,6 +119,8 @@ Wajib diisi:
 Opsional tapi umum dipakai di production:
 
 - `AUTH_COOKIE_DOMAIN`
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
 - `TURNSTILE_SITE_KEY`
 - `TURNSTILE_SECRET_KEY`
 - `OPENAI_API_KEY` atau `GEMINI_API_KEY`

@@ -24,6 +24,11 @@ beforeAll(async () => {
   delete process.env.S3_REQUIRED;
   delete process.env.OPENAI_API_KEY;
   delete process.env.GEMINI_API_KEY;
+  delete process.env.GOOGLE_OAUTH_CLIENT_ID;
+  delete process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  delete process.env.GOOGLE_OAUTH_REDIRECT_URL;
+  delete process.env.TURNSTILE_SITE_KEY;
+  delete process.env.TURNSTILE_SECRET_KEY;
 
   const module = await import("./index");
   app = module.app;
@@ -98,6 +103,15 @@ describe("API auth and roles", () => {
     expect(config.status).toBe(200);
     expect(configBody.data.storageRequired).toBe(false);
     expect(configBody.data.authCaptcha.provider).toBe("manual");
+    expect(configBody.data.googleOAuthEnabled).toBe(false);
+  });
+
+  test("google oauth returns clear error when not configured", async () => {
+    const response = await request("/api/auth/google");
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.message).toBe("Login Google belum dikonfigurasi.");
   });
 
   test("login, me, and logout", async () => {
