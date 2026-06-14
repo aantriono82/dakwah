@@ -187,6 +187,31 @@ describe("content utilities", () => {
     ).toBe(false);
   });
 
+  test("isGeneratedTextAcceptable rejects mixed-language generated drafts", () => {
+    const mixedJawaDraft = [
+      "Judul: Amanah",
+      "Pembukaan",
+      "Para jamaah ingkang dipun rahmati Allah, mugi tansah eling marang amanah. Setelah itu kita perlu menjaga amanah dalam keluarga dan masyarakat.",
+      "Allah SWT berfirman dalam AlQuran",
+      "اِنَّ اللّٰهَ يَأْمُرُكُمْ اَنْ تُؤَدُّوا الْاَمٰنٰتِ اِلٰى اَهْلِهَا",
+      "Tegesipun: Allah dhawuh supados amanah dipun paringaken dhateng ingkang kagungan hak.",
+      "Rujukan: QS. An-Nisa: 58",
+      "Rasulullah SAW bersabda",
+      "آيَةُ الْمُنَافِقِ ثَلَاثٌ، اِذَا حَدَّثَ كَذَبَ، وَاِذَا وَعَدَ اَخْلَفَ، وَاِذَا اؤْتُمِنَ خَانَ",
+      "Tegesipun: Tandha munafik wonten tiga.",
+      "Rujukan: HR. Bukhari dan Muslim",
+      "Isi Utama",
+      "Amanah kedah dipun jaga kanthi temen. Dalam pekerjaan sehari-hari, kita harus jujur dan tidak menyia-nyiakan kepercayaan.",
+      "Pesan Praktis",
+      "Jaga lisan, jaga janji, lan jaga titipan.",
+      "Penutup",
+      "Mugi Allah paring pitulungan dhateng kita sedaya."
+    ].join("\n\n");
+
+    expect(matchesTargetLanguage(mixedJawaDraft, "Jawa")).toBe(false);
+    expect(isGeneratedTextAcceptable("ceramah", mixedJawaDraft, { bahasa: "Jawa" })).toBe(false);
+  });
+
   test("rejects indonesia output when local-language markers are mixed in", () => {
     expect(
       matchesTargetLanguage(

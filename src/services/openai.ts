@@ -114,6 +114,7 @@ function providerMessage(error: unknown) {
 function providerTextIsClean(jenis: string, text: string, parameters: Record<string, unknown>) {
   return (
     isGeneratedTextAcceptable(jenis, text, parameters) &&
+    matchesTargetLanguage(text, parameters.bahasa) &&
     meetsMinimumLength(jenis, text, parameters) &&
     hasSubstantialArabicOpening(jenis, text) &&
     hasSubstantialArabicClosingPrayer(jenis, text)

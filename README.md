@@ -89,6 +89,25 @@ Untuk rollback ke commit tertentu:
 APP_IMAGE=ghcr.io/aantriono82/dakwah:sha-<commit> docker compose -f docker-compose.prod.yml up -d
 ```
 
+## Deploy ke Arcane dengan 2 Project
+
+Untuk VPS yang menjalankan Arcane, struktur yang direkomendasikan adalah:
+
+- `dakwah-app`: aplikasi full-stack satu container
+- `dakwah-rustfs`: storage export
+
+Port yang dipakai:
+
+- app: `127.0.0.1:3100 -> 3000`
+- rustfs: `127.0.0.1:9100 -> 9000`
+
+File deploy final sudah disiapkan di [`deploy/arcane/README.md`](/home/aantriono/Dev/dakwah/deploy/arcane/README.md), termasuk:
+
+- compose terpisah untuk `dakwah-app` dan `dakwah-rustfs`
+- template env wajib
+- urutan deploy
+- catatan reverse proxy dan rollback
+
 ## Menjalankan Lokal dengan Bun
 
 Install dependency:
@@ -190,6 +209,9 @@ Variabel penting:
 | `AUTH_COOKIE_DOMAIN` | kosong | Domain cookie session jika aplikasi berjalan di subdomain tertentu |
 | `AUTH_RATE_LIMIT_WINDOW_MS` | `900000` | Window rate limit auth dalam milidetik |
 | `AUTH_RATE_LIMIT_MAX` | `30` | Maksimal request auth per window per IP |
+| `GOOGLE_OAUTH_CLIENT_ID` | kosong | Client ID Google OAuth. Jika ini dan secret diisi, tombol Google aktif |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | kosong | Client secret Google OAuth |
+| `GOOGLE_OAUTH_REDIRECT_URL` | `${APP_PUBLIC_URL}/api/auth/google/callback` | Redirect URI yang harus didaftarkan di Google Cloud Console |
 | `TURNSTILE_SITE_KEY` | kosong | Site key Cloudflare Turnstile. Jika ini dan secret diisi, form daftar memakai Turnstile |
 | `TURNSTILE_SECRET_KEY` | kosong | Secret key Cloudflare Turnstile untuk verifikasi token di backend |
 | `GENERATE_RATE_LIMIT_WINDOW_MS` | `60000` | Window rate limit generate dalam milidetik |
