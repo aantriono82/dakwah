@@ -958,7 +958,6 @@ function RegisterPanel({
   dark: boolean;
 }) {
   const turnstileEnabled = authCaptchaConfig.provider === "turnstile";
-  const [captchaStatus, setCaptchaStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -969,12 +968,15 @@ function RegisterPanel({
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const captchaIsReady = turnstileEnabled ? turnstileToken.length > 0 : captchaStatus === "valid";
+  const captchaIsReady = turnstileEnabled ? turnstileToken.length > 0 : Boolean(captcha && captchaAnswer.trim());
+  const handleTurnstileTokenChange = useCallback((token: string) => {
+    setError("");
+    setTurnstileToken(token);
+  }, []);
 
   const refreshCaptcha = useCallback(async () => {
     if (turnstileEnabled) return;
     setCaptchaAnswer("");
-    setCaptchaStatus("idle");
     try {
       const challenge = await api<{ token: string; question: string; inputMode: "numeric" | "text"; placeholder: string; hint?: string }>(
         "/api/auth/captcha"
@@ -990,40 +992,10 @@ function RegisterPanel({
     if (turnstileEnabled) {
       setCaptcha(null);
       setCaptchaAnswer("");
-      setCaptchaStatus("idle");
       return;
     }
     void refreshCaptcha();
   }, [refreshCaptcha, turnstileEnabled]);
-
-  useEffect(() => {
-    if (turnstileEnabled) return;
-    if (!captcha || !captchaAnswer.trim()) {
-      setCaptchaStatus("idle");
-      return;
-    }
-
-    let cancelled = false;
-    setCaptchaStatus("checking");
-
-    const timeoutId = window.setTimeout(() => {
-      void api<{ valid: boolean }>("/api/auth/captcha/verify", {
-        method: "POST",
-        body: JSON.stringify({ captchaToken: captcha.token, captchaAnswer })
-      })
-        .then((result) => {
-          if (!cancelled) setCaptchaStatus(result.valid ? "valid" : "invalid");
-        })
-        .catch(() => {
-          if (!cancelled) setCaptchaStatus("invalid");
-        });
-    }, 250);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
-  }, [captcha, captchaAnswer, turnstileEnabled]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -1147,10 +1119,7 @@ function RegisterPanel({
                   siteKey={authCaptchaConfig.turnstileSiteKey}
                   dark={dark}
                   resetSignal={turnstileResetSignal}
-                  onTokenChange={(token) => {
-                    setError("");
-                    setTurnstileToken(token);
-                  }}
+                  onTokenChange={handleTurnstileTokenChange}
                   onError={setError}
                 />
               </div>
@@ -1182,7 +1151,10 @@ function RegisterPanel({
                 className="h-9 rounded-full border-border bg-card px-4 text-base text-foreground placeholder:text-muted-foreground sm:h-11"
                 type="text"
                 value={captchaAnswer}
-                onChange={(event) => setCaptchaAnswer(event.target.value)}
+                onChange={(event) => {
+                  setError("");
+                  setCaptchaAnswer(event.target.value);
+                }}
                 placeholder={captcha?.placeholder ?? "Masukkan jawaban"}
                 aria-label="Jawaban captcha"
                 autoCapitalize="none"
@@ -1191,8 +1163,6 @@ function RegisterPanel({
                 inputMode={captcha?.inputMode === "numeric" ? "numeric" : "text"}
               />
               {captcha?.hint && <p className="text-xs text-muted-foreground">{captcha.hint}</p>}
-              {captchaStatus === "checking" && <p className="text-xs text-muted-foreground">Memeriksa jawaban captcha...</p>}
-              {captchaStatus === "invalid" && <p className="text-xs text-destructive">Jawaban captcha belum benar.</p>}
             </>
           )}
         </div>
