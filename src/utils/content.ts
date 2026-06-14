@@ -4263,6 +4263,94 @@ Khutbah Kedua
 ${secondKhutbahBlock}`;
 }
 
+function promptDalilItemToText(item: PromptDalilItem | undefined, fallback: DalilText): DalilText {
+  if (!item) return fallback;
+  const referenceParts = [item.reference, item.grade, item.takhrij].filter(Boolean);
+  return {
+    arab: item.arab || fallback.arab,
+    arti: item.translation || fallback.arti,
+    rujukan: referenceParts.join(" - ") || fallback.rujukan
+  };
+}
+
+function normalizeEditorialKhutbahBody(text: string) {
+  const withoutRukunHeadings = sanitizeGeneratedText(text)
+    .replace(/^\s*(?:Judul|Tema|Bahasa)\s*:?.*$/gim, "")
+    .replace(khutbahPertamaHeaderPattern, "")
+    .replace(khutbahKeduaHeaderPattern, "")
+    .replace(doaPenutupHeaderPattern, "")
+    .replace(sittingHeaderPattern, "")
+    .replace(/[^.!?\n]*(?:Allah|الله)[^.!?\n]*(?:berfirman|firman)[^.!?\n]*[.!?]?/gim, "")
+    .replace(/[^.!?\n]*(?:Rasulullah|Nabi|النبي)[^.!?\n]*(?:bersabda|sabda)[^.!?\n]*[.!?]?/gim, "")
+    .trim();
+
+  const paragraphs = withoutRukunHeadings
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  return paragraphs.length > 0 ? paragraphs.join("\n\n") : withoutRukunHeadings;
+}
+
+export function composeTemplatedRukunKhutbah(
+  jenis: string,
+  parameters: Record<string, unknown>,
+  editorialBody: string,
+  retrievedDalil?: PromptDalilContext,
+  variationSeed = ""
+) {
+  const bahasa = String(parameters.bahasa ?? "Indonesia");
+  const language = normalizeLanguage(bahasa);
+  const label = fallbackLabelFor(jenis, language);
+  const labels = fallbackLabels[language];
+  const tema = topicFromParameters(parameters);
+  const seed = `${jenis}:${bahasa}:${tema}:${variationSeed || "ai-composed"}`;
+  const takbirSembilan =
+    "اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ.";
+  const takbirTujuh =
+    "اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ.";
+  const selectedDalil = selectedDalilFor(jenis, tema, seed);
+  const ayat = promptDalilItemToText(retrievedDalil?.quran[0], selectedDalil.ayat);
+  const hadith = promptDalilItemToText(retrievedDalil?.hadith[0], selectedDalil.hadith);
+  const firstTakbir = jenis === "idul-fitri" || jenis === "idul-adha" ? `${takbirSembilan}\n\n` : "";
+  const secondTakbir = jenis === "idul-fitri" || jenis === "idul-adha" ? takbirTujuh : "";
+  const editorial = normalizeEditorialKhutbahBody(editorialBody) || khutbahDeepeningFor(jenis, language, tema, selectedDalil.label);
+  const output = `${label}
+
+${labels.topic}: ${tema}
+${labels.language}: ${bahasa}
+
+Khutbah Pertama
+${firstTakbir}${pick(khutbahArabicVariants.hamdalah, seed, 1)}
+
+${pick(khutbahArabicVariants.syahadat, seed, 12)}
+
+${pick(khutbahArabicVariants.shalawat, seed, 3)}
+
+${pick(khutbahArabicVariants.wasiat, seed, 5)}
+
+${audienceFor(jenis, language)}, ${takwaIntroFor(language)}
+
+${QURAN_HEADING}
+${ayat.arab}
+${meaningLineFor(ayat, language)}
+
+${HADITH_HEADING}
+${hadith.arab}
+${meaningLineFor(hadith, language)}
+
+Isi Khutbah
+${editorial}
+
+Penutup Khutbah Pertama
+${pick(khutbahArabicVariants.penutupPertama, seed, 9)}
+
+Khutbah Kedua
+${secondKhutbahArabicOnly(secondTakbir, seed)}`;
+
+  return language === "Ogan (Baturaja)" ? localizeOganBaturajaText(output) : output;
+}
+
 function fallbackGeneralNaskah(
   jenis: string,
   label: string,

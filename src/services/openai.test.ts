@@ -6,6 +6,7 @@ import {
   parseOpenAIModels,
   reviseNaskahContent
 } from "./openai";
+import { composeTemplatedRukunKhutbah, missingRequiredArabicSections } from "../utils/content";
 
 describe("OpenAI generation settings", () => {
   const configuredTokenLimit = Number(process.env.OPENAI_MAX_TOKENS ?? 5500);
@@ -58,5 +59,26 @@ describe("OpenAI generation settings", () => {
     expect(revised).toBe("Pernikahan Ali dan Ani adalah amanah.");
     expect(revised).not.toContain("Isi revisi");
     expect(revised).not.toContain("Redaksinya dibuat");
+  });
+
+  test("composes rukun khutbah from template around AI editorial body", () => {
+    const composed = composeTemplatedRukunKhutbah(
+      "khutbah-jumat",
+      { bahasa: "Indonesia", temaUtama: "Menjaga amanah" },
+      `Khutbah Pertama
+Allah berfirman dalam Al-Quran tentang amanah.
+
+Amanah perlu tampak dalam janji, pekerjaan, keluarga, dan cara kita menjaga hak orang lain. Ayat di atas mengingatkan bahwa kepercayaan bukan hiasan ucapan, melainkan tanggung jawab di hadapan Allah.
+
+Rasulullah bersabda tentang tanda munafik.
+
+Hadits tersebut menegaskan bahwa dusta, ingkar janji, dan khianat adalah kerusakan iman yang harus kita jauhi.`
+    );
+
+    expect(missingRequiredArabicSections("khutbah-jumat", composed)).toEqual([]);
+    expect(composed).toContain("أَشْهَدُ");
+    expect(composed).toContain("Khutbah Kedua");
+    expect(composed).not.toContain("Allah berfirman dalam Al-Quran tentang amanah.");
+    expect(composed).not.toContain("Rasulullah bersabda tentang tanda munafik.");
   });
 });

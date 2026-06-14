@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import {
   buildPrompt,
   completeMissingSecondKhutbah,
+  composeTemplatedRukunKhutbah,
   fallbackNaskah,
   hasContextLeak,
   hasSubstantialArabicClosingPrayer,
@@ -65,6 +66,14 @@ function contentTokenCeiling(jenis: string) {
   if (jenis === "khutbah-jumat" || jenis === "idul-fitri" || jenis === "idul-adha") return 4500;
   if (jenis === "nikah") return 3500;
   return 3000;
+}
+
+function isTemplatedRukunKhutbahType(jenis: string) {
+  return jenis === "khutbah-jumat" || jenis === "idul-fitri" || jenis === "idul-adha";
+}
+
+function shouldUseTemplatedRukunKhutbah(jenis: string, parameters: Record<string, unknown>) {
+  return isTemplatedRukunKhutbahType(jenis) && normalizeLanguage(parameters.bahasa) !== "Arab";
 }
 
 function durationMinutesFor(jenis: string, parameters: Record<string, unknown>) {
@@ -342,6 +351,38 @@ Parameter ringkas:
 ${Object.entries(parameters)
   .map(([key, value]) => `- ${key}: ${String(value)}`)
   .join("\n")}`;
+}
+
+function editorialKhutbahPrompt(jenis: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
+  const tema = String(parameters.temaUtama ?? parameters.tema ?? parameters.topik ?? parameters.topikSingkat ?? "ketakwaan").trim();
+  const targetLanguage = normalizeLanguage(parameters.bahasa);
+  const noArabicInstruction =
+    targetLanguage === "Arab"
+      ? "- Gunakan bahasa Arab berharakat untuk isi editorial, tetapi tetap jangan menulis rukun/template yang akan dipasang sistem."
+      : "- Jangan menulis teks Arab. Bagian Arab wajib dan dalil akan dipasang sistem dari template dan retrieval.";
+  const styleGuidance = rhetoricStyleGuidanceFor(parameters);
+  const dalilSummary = dalilContext
+    ? `Ayat yang akan dipasang sistem: ${dalilContext.quran[0]?.reference ?? "fallback tematik"} - ${dalilContext.quran[0]?.translation ?? ""}
+Hadits yang akan dipasang sistem: ${dalilContext.hadith[0]?.reference ?? "fallback tematik"} - ${dalilContext.hadith[0]?.translation ?? ""}`
+    : "Sistem akan memasang ayat dan hadits tematik yang tersedia.";
+
+  return `Tulis hanya isi editorial khutbah untuk tema "${tema}".
+
+Jenis khutbah: ${jenis}
+Bahasa target: ${targetLanguage}
+
+${dalilSummary}
+
+Tugas AI:
+- Tulis penjelasan tema, penjelasan hubungan ayat/hadits dengan tema, isi khutbah utama, contoh keseharian jamaah, dan pesan praktis.
+- Jangan menulis Judul, Khutbah Pertama, Khutbah Kedua, Penutup Khutbah Pertama, Doa Penutup, hamdalah, syahadat, shalawat, wasiat takwa, takbir, atau doa mukminin.
+${noArabicInstruction}
+- Jangan mengutip ayat atau hadits lain, jangan menulis "Allah berfirman", dan jangan menulis "Rasulullah bersabda". Cukup jelaskan makna dalil yang akan dipasang sistem dengan frasa seperti "ayat di atas mengingatkan..." atau "hadits tersebut menegaskan...".
+- Jangan memakai Markdown, bullet dekoratif, catatan proses, analisis, atau komentar model.
+- Tulis dalam paragraf mimbar yang natural, siap disisipkan ke khutbah pertama.
+- Bahasa target wajib ${targetLanguage}; jangan campur dengan bahasa lain.
+- Penuhi isi yang cukup untuk khutbah ${String(parameters.durasi ?? "sedang")}: jangan terlalu ringkas, buat beberapa paragraf mengalir.
+${styleGuidance ? `\nGaya retorika:\n${styleGuidance}` : ""}`;
 }
 
 function staticOutlineFor(jenis: string) {
@@ -833,6 +874,11 @@ async function generateTextWithGemini(
   traceId: string,
   dalilContext?: PromptDalilContext
 ) {
+  if (shouldUseTemplatedRukunKhutbah(jenis, parameters)) {
+    const generated = await generateTemplatedRukunKhutbahWithGemini(jenis, parameters, traceId, dalilContext);
+    if (generated) return generated;
+  }
+
   const prompt = await buildPromptWithRetrievedDalil(jenis, parameters, traceId, dalilContext);
   const basePromptRoot = `${prompt}\n\n${geminiStrictStructureInstruction(jenis)}\n\n${variationInstruction(traceId)}`;
 
@@ -876,11 +922,148 @@ async function generateTextWithGemini(
   return fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
 }
 
+async function generateTemplatedRukunKhutbahWithGemini(
+  jenis: string,
+  parameters: Record<string, unknown>,
+  traceId: string,
+  dalilContext?: PromptDalilContext
+) {
+  const prompt = editorialKhutbahPrompt(jenis, parameters, dalilContext);
+
+  for (const modelName of geminiModels) {
+    try {
+      const firstResponse = await createGeminiCompletion(modelName, `${prompt}\n\n${variationInstruction(traceId)}`, jenis, parameters);
+      const firstBody = sanitizeGeneratedText(geminiTextFromResponse(firstResponse));
+      const firstComposed = composeTemplatedRukunKhutbah(jenis, parametersWithVariation(parameters, traceId), firstBody, dalilContext, traceId);
+      if (providerTextIsClean(jenis, firstComposed, parameters) && meetsMinimumLength(jenis, firstComposed, parameters)) {
+        console.info(`[generateText:${traceId}] provider=gemini model=${modelName} mode=templated_rukun pass=first jenis=${jenis} status=ok`);
+        return firstComposed;
+      }
+
+      const reason = providerTextFailureReason(jenis, firstComposed, parameters);
+      console.warn(`[generateText:${traceId}] provider=gemini model=${modelName} mode=templated_rukun pass=first status=needs_retry reason=${reason}`);
+      const retryResponse = await createGeminiCompletion(
+        modelName,
+        `${prompt}
+
+Naskah hasil komposisi sistem masih bermasalah: ${reason}.
+Tulis ulang hanya isi editorialnya dengan uraian lebih utuh, bahasa target lebih konsisten, dan tanpa menulis rukun/template Arab.`,
+        jenis,
+        parameters
+      );
+      const retryBody = sanitizeGeneratedText(geminiTextFromResponse(retryResponse));
+      const retryComposed = composeTemplatedRukunKhutbah(jenis, parametersWithVariation(parameters, traceId), retryBody, dalilContext, traceId);
+      if (providerTextIsClean(jenis, retryComposed, parameters) && meetsMinimumLength(jenis, retryComposed, parameters)) {
+        console.info(`[generateText:${traceId}] provider=gemini model=${modelName} mode=templated_rukun pass=retry jenis=${jenis} status=ok`);
+        return retryComposed;
+      }
+
+      console.warn(
+        `[generateText:${traceId}] provider=gemini model=${modelName} mode=templated_rukun pass=retry status=still_invalid reason=${providerTextFailureReason(jenis, retryComposed, parameters)}`
+      );
+    } catch (error) {
+      console.warn(`[generateText:${traceId}] provider=gemini model=${modelName} mode=templated_rukun provider_failed message=${providerMessage(error)}`);
+    }
+  }
+
+  return null;
+}
+
+async function generateTemplatedRukunKhutbahWithOpenAI(
+  jenis: string,
+  parameters: Record<string, unknown>,
+  traceId: string,
+  dalilContext?: PromptDalilContext
+) {
+  const prompt = editorialKhutbahPrompt(jenis, parameters, dalilContext);
+
+  for (const modelName of models) {
+    try {
+      const firstBody = await createOpenAITextPass(
+        modelName,
+        [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+          { role: "user", content: variationInstruction(traceId) }
+        ],
+        jenis,
+        parameters,
+        traceId,
+        "templated_rukun_first"
+      );
+      const firstComposed = composeTemplatedRukunKhutbah(
+        jenis,
+        parametersWithVariation(parameters, traceId),
+        sanitizeGeneratedText(firstBody),
+        dalilContext,
+        traceId
+      );
+      if (providerTextIsClean(jenis, firstComposed, parameters) && meetsMinimumLength(jenis, firstComposed, parameters)) {
+        console.info(`[generateText:${traceId}] model=${modelName} mode=templated_rukun pass=first jenis=${jenis} status=ok`);
+        return firstComposed;
+      }
+
+      const reason = providerTextFailureReason(jenis, firstComposed, parameters);
+      console.warn(`[generateText:${traceId}] model=${modelName} mode=templated_rukun pass=first status=needs_retry reason=${reason}`);
+      const retryBody = await createOpenAITextPass(
+        modelName,
+        [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+          {
+            role: "user",
+            content: `Naskah hasil komposisi sistem masih bermasalah: ${reason}.
+Tulis ulang hanya isi editorialnya dengan uraian lebih utuh, bahasa target lebih konsisten, dan tanpa menulis rukun/template Arab.`
+          }
+        ],
+        jenis,
+        parameters,
+        traceId,
+        "templated_rukun_retry",
+        maxTokensForShortRetry(jenis, parameters, maxTokensForRequest(jenis, parameters))
+      );
+      const retryComposed = composeTemplatedRukunKhutbah(
+        jenis,
+        parametersWithVariation(parameters, traceId),
+        sanitizeGeneratedText(retryBody),
+        dalilContext,
+        traceId
+      );
+      if (providerTextIsClean(jenis, retryComposed, parameters) && meetsMinimumLength(jenis, retryComposed, parameters)) {
+        console.info(`[generateText:${traceId}] model=${modelName} mode=templated_rukun pass=retry jenis=${jenis} status=ok`);
+        return retryComposed;
+      }
+
+      console.warn(
+        `[generateText:${traceId}] model=${modelName} mode=templated_rukun pass=retry status=still_invalid reason=${providerTextFailureReason(jenis, retryComposed, parameters)}`
+      );
+    } catch (error) {
+      console.warn(`[generateText:${traceId}] model=${modelName} mode=templated_rukun provider_failed message=${providerMessage(error)}`);
+    }
+  }
+
+  return null;
+}
+
 export async function generateText(jenis: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
   const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const startedAt = Date.now();
   if (aiProvider === "gemini") return generateTextWithGemini(jenis, parameters, traceId, dalilContext);
   if (!client) return fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
+  if (shouldUseTemplatedRukunKhutbah(jenis, parameters)) {
+    const generated = await generateTemplatedRukunKhutbahWithOpenAI(jenis, parameters, traceId, dalilContext);
+    if (generated) {
+      logInfo("openai.generate", {
+        traceId,
+        jenis,
+        provider: aiProvider,
+        model: "templated-rukun",
+        pass: "composed",
+        durationMs: Date.now() - startedAt
+      });
+      return generated;
+    }
+  }
   const generationSettings = generationSettingsFor(jenis, parameters);
   const prompt = await buildPromptWithRetrievedDalil(jenis, parameters, traceId, dalilContext);
 
@@ -997,6 +1180,22 @@ export async function* streamGeneratedText(jenis: string, parameters: Record<str
 
   const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const startedAt = Date.now();
+  if (shouldUseTemplatedRukunKhutbah(jenis, parameters)) {
+    const generated = await generateTemplatedRukunKhutbahWithOpenAI(jenis, parameters, traceId, dalilContext);
+    if (generated) {
+      logInfo("openai.stream", {
+        traceId,
+        jenis,
+        model: "templated-rukun",
+        pass: "composed",
+        durationMs: Date.now() - startedAt
+      });
+      for (const chunk of generated.match(/[\s\S]{1,160}/g) ?? []) {
+        yield chunk;
+      }
+      return;
+    }
+  }
   const generationSettings = generationSettingsFor(jenis, parameters);
   const prompt = await buildPromptWithRetrievedDalil(jenis, parameters, traceId, dalilContext);
 
