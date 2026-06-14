@@ -939,7 +939,7 @@ function TurnstileWidget({
     window.turnstile.reset(widgetIdRef.current);
   }, [onTokenChange, resetSignal]);
 
-  return <div ref={containerRef} className="min-h-[65px]" />;
+  return <div ref={containerRef} className="min-h-[65px] origin-top-left scale-[0.84] sm:scale-100" />;
 }
 
 function RegisterPanel({
@@ -1069,7 +1069,7 @@ function RegisterPanel({
     <div
       className={cn(
         authCardClass,
-        "self-start max-w-[520px] overflow-visible px-4 py-4 sm:my-auto sm:max-h-[calc(100vh-4rem)] sm:self-auto sm:overflow-y-auto sm:px-8 sm:py-8 lg:max-w-[520px] lg:px-7 lg:py-7"
+        "self-start max-w-[340px] overflow-hidden px-4 py-4 sm:my-auto sm:max-h-[calc(100vh-4rem)] sm:max-w-[560px] sm:self-auto sm:overflow-y-auto sm:px-8 sm:py-8 lg:max-w-[520px] lg:px-7 lg:py-7"
       )}
     >
       <div className="text-center">
@@ -1142,7 +1142,7 @@ function RegisterPanel({
           </div>
           {turnstileEnabled ? (
             <>
-              <div className="rounded-xl border border-border bg-card px-4 py-4">
+              <div className="h-[92px] overflow-hidden rounded-lg border border-border bg-card px-2 py-3 sm:h-auto sm:rounded-xl sm:px-4 sm:py-4">
                 <TurnstileWidget
                   siteKey={authCaptchaConfig.turnstileSiteKey}
                   dark={dark}
