@@ -1,24 +1,68 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Dakwah">
   <defs>
-    <linearGradient id="bg" x1="64" x2="448" y1="48" y2="464" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#16a085" />
-      <stop offset="1" stop-color="#075f4d" />
+    <linearGradient id="outer" x1="54" x2="458" y1="32" y2="480" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#bdf3ce" />
+      <stop offset="1" stop-color="#d7f8de" />
     </linearGradient>
-    <linearGradient id="page" x1="166" x2="358" y1="286" y2="422" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" />
-      <stop offset="1" stop-color="#d7f8ec" />
+    <linearGradient id="inner" x1="104" x2="416" y1="56" y2="468" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#03977c" />
+      <stop offset="1" stop-color="#006857" />
     </linearGradient>
+    <filter id="soft-shadow" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#005447" flood-opacity=".18" />
+    </filter>
   </defs>
-  <rect width="512" height="512" fill="url(#bg)" />
+
+  <rect width="512" height="512" fill="url(#outer)" />
+  <rect x="32" y="32" width="448" height="448" rx="92" fill="url(#inner)" filter="url(#soft-shadow)" />
+
   <path
-    d="M352 118A136 136 0 1 0 410 345 152 152 0 1 1 352 118Z"
-    fill="#f7fff8"
-    opacity=".94"
+    d="M256 122 265 146 291 146 270 162 278 188 256 172 234 188 242 162 221 146 247 146Z"
+    fill="#ffc83d"
   />
-  <path d="M256 112 272.8 144.4l35.6 5.2-25.6 25 6 35.2-32.8-17.2-31.6 17.2 6-35.2-26-25 36-5.2L256 112Z" fill="#f8d46b" />
+
   <path
-    d="M154 302c0-16.4 13.4-28.4 29.8-25.4 30.6 6 55.2 18.6 74.6 38.8 19.4-20.2 44-32.8 74.6-38.8 16.4-3 29.8 9 29.8 25.4v107.4c0 10.4-8.2 17.2-17.8 15.6-34.4-6-62.8.8-86.6 21.6-23.8-20.8-52.2-27.6-86.6-21.6-9.6 1.6-17.8-5.2-17.8-15.6V302Z"
-    fill="url(#page)"
+    d="M173 192c-1 61 36 102 83 102s84-41 83-102c-15 52-45 78-83 78s-68-26-83-78Z"
+    fill="#fff"
   />
-  <path d="M258.4 315.4v130.4M189 319.8c20.2 3.8 37.4 11.2 50.8 22.4M327.8 319.8c-20.2 3.8-37.4 11.2-50.8 22.4" fill="none" stroke="#08624f" stroke-linecap="round" stroke-linejoin="round" stroke-width="15.6" />
+
+  <path d="M126 303c47-6 89 3 126 28v95c-36-25-78-35-126-29Z" fill="#fff" />
+  <path d="M260 331c37-25 79-34 126-28l2 94c-48-6-90 4-128 29Z" fill="#fff" />
+  <path
+    d="M126 397c49-5 91 5 126 29l8 10 8-10c35-24 77-34 120-29l2 16c-49-5-89 5-122 33h-24c-33-28-73-38-122-33Z"
+    fill="#fff"
+  />
+  <path
+    d="M252 331v105M260 331v105M126 303c47-6 89 3 126 28v95c-36-25-78-35-126-29ZM260 331c37-25 79-34 126-28l2 94c-48-6-90 4-128 29Z"
+    fill="none"
+    stroke="#087461"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="6"
+  />
+  <path d="M116 310 106 402M396 310 406 402" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="8" />
+  <text
+    x="192"
+    y="362"
+    fill="#087461"
+    direction="rtl"
+    dominant-baseline="middle"
+    font-family="Noto Naskh Arabic, Amiri, serif"
+    font-size="42"
+    font-weight="700"
+    text-anchor="middle"
+    unicode-bidi="plaintext"
+  >الكريم</text>
+  <text
+    x="320"
+    y="362"
+    fill="#087461"
+    direction="rtl"
+    dominant-baseline="middle"
+    font-family="Noto Naskh Arabic, Amiri, serif"
+    font-size="42"
+    font-weight="700"
+    text-anchor="middle"
+    unicode-bidi="plaintext"
+  >القرآن</text>
 </svg>
