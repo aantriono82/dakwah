@@ -694,12 +694,12 @@ function Login({
   return (
     <main
       className={cn(
-        "grid justify-items-center overflow-y-auto px-3 py-5 text-foreground sm:px-4 sm:py-10",
+        "grid justify-items-center overflow-y-auto px-3 pb-5 pt-16 text-foreground sm:px-4 sm:py-10",
         "items-start sm:place-items-center",
         variant === "page" ? "min-h-screen bg-background" : "fixed inset-0 z-50 bg-slate-950/95"
       )}
     >
-      <div className="absolute right-4 top-4">
+      <div className="absolute right-4 top-4 z-20">
         <IconButton onClick={() => setDark(!dark)} aria-label="Ganti tema">
           {dark ? <IconSun className="size-4" /> : <IconMoon className="size-4" />}
         </IconButton>
