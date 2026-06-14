@@ -1154,7 +1154,6 @@ function RegisterPanel({
                   onError={setError}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">Verifikasi berjalan melalui Cloudflare Turnstile.</p>
             </>
           ) : (
             <>
