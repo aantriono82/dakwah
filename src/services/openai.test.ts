@@ -4,6 +4,7 @@ import {
   isMeaningfullyDifferentRevision,
   maxTokensForRequest,
   parseOpenAIModels,
+  parseOpenAIWebSearchContextSize,
   reviseNaskahContent
 } from "./openai";
 import { composeTemplatedRukunKhutbah, missingRequiredArabicSections } from "../utils/content";
@@ -15,6 +16,13 @@ describe("OpenAI generation settings", () => {
   test("parses model priority list from environment values", () => {
     expect(parseOpenAIModels(" model-a , model-b ,, model-c ", "fallback")).toEqual(["model-a", "model-b", "model-c"]);
     expect(parseOpenAIModels("", "fallback")).toEqual(["fallback"]);
+  });
+
+  test("normalizes OpenAI web search context size", () => {
+    expect(parseOpenAIWebSearchContextSize("low")).toBe("low");
+    expect(parseOpenAIWebSearchContextSize("HIGH")).toBe("high");
+    expect(parseOpenAIWebSearchContextSize("unexpected")).toBe("medium");
+    expect(parseOpenAIWebSearchContextSize()).toBe("medium");
   });
 
   test("caps max tokens by content type and duration", () => {

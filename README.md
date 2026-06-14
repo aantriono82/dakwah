@@ -228,6 +228,8 @@ Variabel penting:
 | `OPENAI_BASE_URL` | kosong | Base URL provider kompatibel OpenAI, misalnya OpenRouter |
 | `OPENAI_MAX_TOKENS` | `5500` | Plafon global token output AI. Request tetap dibatasi lagi secara dinamis berdasarkan jenis naskah dan durasi |
 | `OPENAI_TIMEOUT_MS` | `30000` | Timeout request provider AI dalam milidetik |
+| `OPENAI_WEB_SEARCH_ENABLED` | `true` untuk OpenAI resmi | Aktifkan web search OpenAI Responses API saat menyusun draft awal/isi editorial. Jika `OPENAI_BASE_URL` diisi, default-nya mati kecuali env ini diset `true` |
+| `OPENAI_WEB_SEARCH_CONTEXT_SIZE` | `medium` | Ukuran konteks web search: `low`, `medium`, atau `high` |
 | `GEMINI_API_KEY` | kosong | API key Google AI Studio. Dipakai saat `AI_PROVIDER=gemini` |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Model Gemini utama |
 | `GEMINI_MODELS` | kosong | Opsional. Daftar model Gemini prioritas dipisah koma |
@@ -258,6 +260,8 @@ OPENAI_MODEL=gpt-4o-mini
 # OPENAI_MODELS=model-utama,model-cadangan-1,model-cadangan-2
 OPENAI_MAX_TOKENS=5500
 OPENAI_TIMEOUT_MS=30000
+OPENAI_WEB_SEARCH_ENABLED=true
+OPENAI_WEB_SEARCH_CONTEXT_SIZE=medium
 # Untuk OpenRouter/provider kompatibel:
 # OPENAI_BASE_URL=https://openrouter.ai/api/v1
 DATABASE_URL=./data/dakwah.sqlite
@@ -335,7 +339,8 @@ Semua endpoint berada di bawah `/api`.
 ## Catatan Produksi
 
 - Set `OPENAI_API_KEY` agar generate memakai OpenAI. Tanpa key, aplikasi tetap berjalan dengan contoh naskah fallback.
-- Untuk OpenRouter/provider kompatibel OpenAI, set juga `OPENAI_BASE_URL` dan gunakan nama model dari provider tersebut.
+- Web search aktif otomatis untuk OpenAI resmi agar model bisa mencari konteks website saat menyusun tema, isi, dan penguat dalil. Set `OPENAI_WEB_SEARCH_ENABLED=false` untuk mematikannya.
+- Untuk OpenRouter/provider kompatibel OpenAI, set juga `OPENAI_BASE_URL` dan gunakan nama model dari provider tersebut. Web search dimatikan otomatis pada mode ini kecuali `OPENAI_WEB_SEARCH_ENABLED=true`, karena tidak semua provider kompatibel mendukung tool OpenAI Responses.
 - Aplikasi tidak memakai satu `max_tokens` besar untuk semua generate. Batas efektif mengikuti durasi: kultum sekitar 1200-2000 token, ceramah 2500-4000 token, dan khutbah Jumat/Id 2500-4500 token, lalu tetap dipotong oleh `OPENAI_MAX_TOKENS`.
 - Set `SEED_ADMIN_PASSWORD` dan `SEED_USER_PASSWORD` sebelum database pertama dibuat.
 - Set `APP_PUBLIC_URL`, `CORS_ORIGINS`, dan konfigurasi cookie sesuai domain/HTTPS production.

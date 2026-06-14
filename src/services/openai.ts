@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
 import {
   buildPrompt,
   completeMissingSecondKhutbah,
@@ -43,6 +44,8 @@ const requestTimeout = Number(process.env.OPENAI_TIMEOUT_MS ?? 30_000);
 const client = apiKey ? new OpenAI({ apiKey, baseURL, timeout: requestTimeout }) : null;
 const configuredMaxTokens = Number(process.env.OPENAI_MAX_TOKENS ?? 5500);
 const maxTokens = Number.isFinite(configuredMaxTokens) && configuredMaxTokens > 0 ? Math.floor(configuredMaxTokens) : 5500;
+const openAIWebSearchEnabled = parseBooleanEnv(process.env.OPENAI_WEB_SEARCH_ENABLED, !baseURL);
+const openAIWebSearchContextSize = parseOpenAIWebSearchContextSize(process.env.OPENAI_WEB_SEARCH_CONTEXT_SIZE);
 const systemPrompt =
   "Anda adalah penulis naskah dakwah Islam yang natural, hangat, peka konteks jamaah, dan menulis naskah mimbar yang utuh, bukan ringkasan. Tampilkan hanya naskah final yang siap dibacakan. Ikuti bahasa target dari user untuk semua narasi non-heading. Jika user memilih bahasa tertentu, seluruh narasi wajib 100% konsisten dalam bahasa itu; jangan campur dengan bahasa lain walau satu kalimat, kecuali heading struktur standar yang memang diizinkan. Dilarang menampilkan reasoning, analisis, rencana, komentar proses, catatan model, atau bahasa Inggris. Jangan gunakan Markdown. Gunakan rujukan ayat/hadits secara hati-hati dan jangan mengarang sumber. Jangan menambah klaim sejarah, faedah, atau hukum bila tidak benar-benar didukung konteks dan dalil yang tersedia. Semua teks Arab wajib berharakat, khususnya pada mukadimah, syahadat, ayat Al-Qur'an, hadits, penutup khutbah pertama, pembuka khutbah kedua, dan doa.";
 const baseGenerationSettings = {
@@ -59,6 +62,21 @@ const maxTokensByDurationMinutes: Record<number, number> = {
   15: 3500,
   20: 4500
 };
+
+function parseBooleanEnv(value: string | undefined, fallback: boolean) {
+  if (value === undefined) return fallback;
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
+export function parseOpenAIWebSearchContextSize(value?: string) {
+  const normalized = String(value ?? "medium").trim().toLowerCase();
+  if (normalized === "low" || normalized === "high") return normalized;
+  return "medium";
+}
+
+function shouldUseOpenAIWebSearch() {
+  return aiProvider === "openai" && Boolean(client) && openAIWebSearchEnabled;
+}
 
 function contentTokenCeiling(jenis: string) {
   if (jenis === "kultum") return 2000;
@@ -559,6 +577,84 @@ function geminiTextFromResponse(data: GeminiResponse) {
   return data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
 }
 
+function messageContentAsText(content: OpenAI.Chat.Completions.ChatCompletionMessageParam["content"]) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => {
+      if ("text" in part && typeof part.text === "string") return part.text;
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function webSearchInstructionFor(jenis: string, parameters: Record<string, unknown>) {
+  const tema = String(parameters.temaUtama ?? parameters.tema ?? parameters.topik ?? parameters.topikSingkat ?? "tema dakwah").trim();
+  return `Akses web search aktif untuk membantu kesesuaian tema, isi, dan dalil naskah.
+Gunakan pencarian web bila perlu untuk memahami konteks tema "${tema}" pada jenis naskah ${jenis}, mencari penguat penjelasan yang relevan, dan menghindari klaim yang keliru.
+Aturan penggunaan web:
+- Tetap utamakan dalil terkurasi dari prompt sebagai sumber ayat/hadits utama.
+- Jangan menyalin artikel website secara panjang; olah menjadi narasi mimbar yang orisinal.
+- Jangan mengutip ayat, hadits, takhrij, derajat, atau klaim hukum dari web jika tidak yakin sumbernya aman.
+- Jika hasil web bertentangan dengan dalil terkurasi atau aturan prompt, ikuti dalil terkurasi dan aturan prompt.
+- Jangan tampilkan catatan pencarian, URL mentah, atau daftar sumber di naskah final kecuali benar-benar diperlukan sebagai rujukan ringkas.`;
+}
+
+function messagesWithWebSearchInstruction(
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  jenis: string,
+  parameters: Record<string, unknown>
+) {
+  if (!shouldUseOpenAIWebSearch()) return messages;
+  return [...messages, { role: "user" as const, content: webSearchInstructionFor(jenis, parameters) }];
+}
+
+function responseInputFromMessages(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) {
+  return messages
+    .filter((message) => message.role !== "system")
+    .map((message) => `${message.role.toUpperCase()}:\n${messageContentAsText(message.content)}`)
+    .join("\n\n");
+}
+
+async function createResponseWithWebSearchAndCreditRetry(input: {
+  modelName: string;
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+  jenis: string;
+  parameters: Record<string, unknown>;
+  traceId: string;
+  pass: string;
+  maxOutputTokens: number;
+}) {
+  const requestBody = (maxOutputTokens: number) => ({
+    model: input.modelName,
+    instructions: systemPrompt,
+    input: responseInputFromMessages(messagesWithWebSearchInstruction(input.messages, input.jenis, input.parameters)),
+    tools: [{ type: "web_search_preview", search_context_size: openAIWebSearchContextSize }],
+    tool_choice: "auto",
+    temperature: baseGenerationSettings.temperature,
+    top_p: baseGenerationSettings.top_p,
+    max_output_tokens: maxOutputTokens
+  });
+
+  try {
+    const response = await withProviderTimeout(client!.responses.create(requestBody(input.maxOutputTokens) as ResponseCreateParamsNonStreaming));
+    if (response.error?.message) throw new Error(response.error.message);
+    return response.output_text ?? "";
+  } catch (error) {
+    const message = providerMessage(error);
+    const retryMaxTokens = retryMaxTokensForProviderError(message, input.maxOutputTokens);
+    if (!retryMaxTokens || retryMaxTokens >= input.maxOutputTokens) throw error;
+
+    console.warn(
+      `[generateText:${input.traceId}] pass=${input.pass} provider=responses_web_search_retry=max_output_tokens requested=${input.maxOutputTokens} retry=${retryMaxTokens} message=${message}`
+    );
+    const response = await withProviderTimeout(client!.responses.create(requestBody(retryMaxTokens) as ResponseCreateParamsNonStreaming));
+    if (response.error?.message) throw new Error(response.error.message);
+    return response.output_text ?? "";
+  }
+}
+
 function geminiStrictStructureInstruction(jenis: string) {
   if (jenis !== "khutbah-jumat" && jenis !== "idul-fitri" && jenis !== "idul-adha") return "";
 
@@ -627,14 +723,30 @@ async function createOpenAITextPass(
   parameters: Record<string, unknown>,
   traceId: string,
   pass: string,
-  maxTokenOverride?: number
+  maxTokenOverride?: number,
+  allowWebSearch = false
 ) {
+  const settings = {
+    ...generationSettingsFor(jenis, parameters),
+    ...(maxTokenOverride ? { max_tokens: maxTokenOverride } : {})
+  };
+  if (allowWebSearch && shouldUseOpenAIWebSearch()) {
+    return createResponseWithWebSearchAndCreditRetry({
+      modelName,
+      messages,
+      jenis,
+      parameters,
+      traceId,
+      pass,
+      maxOutputTokens: settings.max_tokens
+    });
+  }
+
   const response = await createCompletionWithCreditRetry(
     {
       model: modelName,
       messages,
-      ...generationSettingsFor(jenis, parameters),
-      ...(maxTokenOverride ? { max_tokens: maxTokenOverride } : {})
+      ...settings
     },
     traceId,
     pass
@@ -760,23 +872,24 @@ async function retryOpenAITextAfterInvalidPass(input: {
     );
   }
 
-  const retryResponse = await createCompletionWithCreditRetry(
-    {
-      model: input.modelName,
-      messages: [
-        ...baseMessages,
-        {
-          role: "user",
-          content: retryInstruction(input.jenis, input.parameters, invalidReason)
-        }
-      ],
-      ...generationSettings
-    },
+  const retryText = await createOpenAITextPass(
+    input.modelName,
+    [
+      ...baseMessages,
+      {
+        role: "user",
+        content: retryInstruction(input.jenis, input.parameters, invalidReason)
+      }
+    ],
+    input.jenis,
+    input.parameters,
     input.traceId,
-    "retry"
+    "retry",
+    generationSettings.max_tokens,
+    true
   );
 
-  const retryPass = normalizeProviderText(input.jenis, retryResponse.choices[0]?.message.content ?? "", input.parameters);
+  const retryPass = normalizeProviderText(input.jenis, retryText, input.parameters);
   if (!providerTextIsClean(input.jenis, retryPass, input.parameters)) {
     return {
       ok: false as const,
@@ -996,7 +1109,9 @@ async function generateTemplatedRukunKhutbahWithOpenAI(
         jenis,
         parameters,
         traceId,
-        "templated_rukun_first"
+        "templated_rukun_first",
+        undefined,
+        true
       );
       const firstComposed = composeTemplatedRukunKhutbah(
         jenis,
@@ -1027,7 +1142,8 @@ Tulis ulang hanya isi editorialnya dengan uraian lebih utuh, bahasa target lebih
         parameters,
         traceId,
         "templated_rukun_retry",
-        maxTokensForShortRetry(jenis, parameters, maxTokensForRequest(jenis, parameters))
+        maxTokensForShortRetry(jenis, parameters, maxTokensForRequest(jenis, parameters)),
+        true
       );
       const retryComposed = composeTemplatedRukunKhutbah(
         jenis,
@@ -1078,17 +1194,8 @@ export async function generateText(jenis: string, parameters: Record<string, unk
     try {
       const outline = await createOpenAIOutline(modelName, prompt, jenis, parameters, traceId);
       const baseMessages = messagesWithOutline(prompt, traceId, outline);
-      const response = await createCompletionWithCreditRetry(
-        {
-          model: modelName,
-          messages: baseMessages,
-          ...generationSettings
-        },
-        traceId,
-        "first"
-      );
-
-      const firstPass = normalizeProviderText(jenis, response.choices[0]?.message.content ?? "", parameters);
+      const firstText = await createOpenAITextPass(modelName, baseMessages, jenis, parameters, traceId, "first", undefined, true);
+      const firstPass = normalizeProviderText(jenis, firstText, parameters);
       if (providerTextIsClean(jenis, firstPass, parameters)) {
         console.info(`[generateText:${traceId}] model=${modelName} pass=first jenis=${jenis} status=ok`);
         const finalText = await finalizeOpenAIText(modelName, prompt, outline, firstPass, jenis, parameters, dalilContext, traceId);
@@ -1114,23 +1221,24 @@ export async function generateText(jenis: string, parameters: Record<string, unk
           `[generateText:${traceId}] model=${modelName} pass=retry token_boost=${retryGenerationSettings.max_tokens} reason=${firstPassReason}`
         );
       }
-      const retryResponse = await createCompletionWithCreditRetry(
-        {
-          model: modelName,
-          messages: [
-            ...baseMessages,
-            {
-              role: "user",
-              content: retryInstruction(jenis, parameters, firstPassReason)
-            }
-          ],
-          ...retryGenerationSettings
-        },
+      const retryText = await createOpenAITextPass(
+        modelName,
+        [
+          ...baseMessages,
+          {
+            role: "user",
+            content: retryInstruction(jenis, parameters, firstPassReason)
+          }
+        ],
+        jenis,
+        parameters,
         traceId,
-        "retry"
+        "retry",
+        retryGenerationSettings.max_tokens,
+        true
       );
 
-      const retryPass = normalizeProviderText(jenis, retryResponse.choices[0]?.message.content ?? "", parameters);
+      const retryPass = normalizeProviderText(jenis, retryText, parameters);
       if (providerTextIsClean(jenis, retryPass, parameters)) {
         console.info(`[generateText:${traceId}] model=${modelName} pass=retry jenis=${jenis} status=ok`);
         const finalText = await finalizeOpenAIText(modelName, prompt, outline, retryPass, jenis, parameters, dalilContext, traceId);
@@ -1210,20 +1318,24 @@ export async function* streamGeneratedText(jenis: string, parameters: Record<str
     try {
       const outline = await createOpenAIOutline(modelName, prompt, jenis, parameters, traceId);
       const messages = messagesWithOutline(prompt, traceId, outline);
-      const stream = await createStreamingCompletionWithCreditRetry(
-        {
-          model: modelName,
-          stream: true,
-          messages,
-          ...generationSettings
-        },
-        traceId
-      );
-
       let text = "";
-      for await (const part of stream) {
-        const content = part.choices[0]?.delta.content;
-        if (content) text += content;
+      if (shouldUseOpenAIWebSearch()) {
+        text = await createOpenAITextPass(modelName, messages, jenis, parameters, traceId, "first", undefined, true);
+      } else {
+        const stream = await createStreamingCompletionWithCreditRetry(
+          {
+            model: modelName,
+            stream: true,
+            messages,
+            ...generationSettings
+          },
+          traceId
+        );
+
+        for await (const part of stream) {
+          const content = part.choices[0]?.delta.content;
+          if (content) text += content;
+        }
       }
 
       const clean = normalizeProviderText(jenis, text, parameters);
