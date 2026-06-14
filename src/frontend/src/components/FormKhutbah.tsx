@@ -23,6 +23,10 @@ const strategiDalilOptions = [
   { value: "relevan", label: "Relevan" },
   { value: "sangat-relevan", label: "Sangat relevan" }
 ];
+const modeSumberInternetOptions = [
+  { value: "manual", label: "Manual / tidak browsing" },
+  { value: "web-search", label: "Web search otomatis" }
+];
 
 export function defaultParameters(jenis: JenisId): Parameters {
   const common = {
@@ -31,6 +35,9 @@ export function defaultParameters(jenis: JenisId): Parameters {
     gayaBahasaNaskah: "natural-jelas",
     gayaRetorika: "standar",
     strategiDalil: "sangat-relevan",
+    haditsReferensi: "",
+    sumberInternet: "",
+    modeSumberInternet: "manual",
     catatanEditor: ""
   };
   if (jenis === "khutbah-jumat") return { ...common, temaUtama: "", subTema: "", ayatReferensi: "", durasi: "sedang" };
@@ -108,6 +115,32 @@ export function FormKhutbah({
           onChange={(event) => set("catatanEditor", event.target.value)}
           placeholder="Contoh: hindari bahasa terlalu puitis, jelaskan makna dalil dengan sederhana, fokus untuk jamaah remaja."
         />
+      </Field>
+
+      <Field label="Hadits referensi">
+        <Textarea
+          value={values.haditsReferensi ?? ""}
+          onChange={(event) => set("haditsReferensi", event.target.value)}
+          placeholder="Contoh: HR. Bukhari dan Muslim tentang berkata baik atau diam; HR. Bukhari tentang muslim yang selamat dari gangguan lisan dan tangannya."
+        />
+      </Field>
+
+      <Field label="Sumber internet">
+        <Textarea
+          value={values.sumberInternet ?? ""}
+          onChange={(event) => set("sumberInternet", event.target.value)}
+          placeholder="Isi URL, nama website, atau ringkasan artikel tepercaya. Jika mode manual, AI hanya memakai teks yang Anda tulis di sini."
+        />
+      </Field>
+
+      <Field label="Mode sumber internet">
+        <Select value={values.modeSumberInternet ?? "manual"} onChange={(event) => set("modeSumberInternet", event.target.value)}>
+          {modeSumberInternetOptions.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </Select>
       </Field>
 
       {jenis === "khutbah-jumat" && (

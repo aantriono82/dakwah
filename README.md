@@ -229,8 +229,12 @@ Variabel penting:
 | `OPENAI_BASE_URL` | kosong | Base URL provider kompatibel OpenAI, misalnya OpenRouter |
 | `OPENAI_MAX_TOKENS` | `5500` | Plafon global token output AI. Request tetap dibatasi lagi secara dinamis berdasarkan jenis naskah dan durasi |
 | `OPENAI_TIMEOUT_MS` | `30000` | Timeout request provider AI dalam milidetik |
-| `OPENAI_WEB_SEARCH_ENABLED` | `true` untuk OpenAI resmi | Aktifkan web search OpenAI Responses API saat menyusun draft awal/isi editorial. Jika `OPENAI_BASE_URL` diisi, default-nya mati kecuali env ini diset `true` |
+| `OPENAI_WEB_SEARCH_ENABLED` | `true` untuk OpenAI resmi | Izinkan web search native OpenAI Responses API ketika user memilih mode `Web search otomatis`. Fitur native ini hanya dipakai saat `OPENAI_BASE_URL` kosong |
 | `OPENAI_WEB_SEARCH_CONTEXT_SIZE` | `medium` | Ukuran konteks web search: `low`, `medium`, atau `high` |
+| `WEB_RESEARCH_ENABLED` | `true` | Aktifkan pencarian/crawl server-side untuk provider kompatibel seperti DeepSeek saat user memilih mode `Web search otomatis` |
+| `WEB_RESEARCH_SEARCH_ENABLED` | `true` | Izinkan backend melakukan pencarian web bila user tidak memberi URL langsung |
+| `WEB_RESEARCH_MAX_RESULTS` | `4` | Jumlah maksimum halaman yang diringkas untuk dikirim sebagai konteks AI |
+| `WEB_RESEARCH_TIMEOUT_MS` | `7000` | Timeout per request pencarian/crawl web dalam milidetik |
 | `GEMINI_API_KEY` | kosong | API key Google AI Studio. Dipakai saat `AI_PROVIDER=gemini` |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Model Gemini utama |
 | `GEMINI_MODELS` | kosong | Opsional. Daftar model Gemini prioritas dipisah koma |
@@ -263,6 +267,10 @@ OPENAI_MAX_TOKENS=5500
 OPENAI_TIMEOUT_MS=30000
 OPENAI_WEB_SEARCH_ENABLED=true
 OPENAI_WEB_SEARCH_CONTEXT_SIZE=medium
+WEB_RESEARCH_ENABLED=true
+WEB_RESEARCH_SEARCH_ENABLED=true
+WEB_RESEARCH_MAX_RESULTS=4
+WEB_RESEARCH_TIMEOUT_MS=7000
 # Untuk OpenRouter/provider kompatibel:
 # OPENAI_BASE_URL=https://openrouter.ai/api/v1
 DATABASE_URL=./data/dakwah.sqlite
@@ -340,8 +348,9 @@ Semua endpoint berada di bawah `/api`.
 ## Catatan Produksi
 
 - Set `OPENAI_API_KEY` agar generate memakai OpenAI. Tanpa key, aplikasi tetap berjalan dengan contoh naskah fallback.
-- Web search aktif otomatis untuk OpenAI resmi agar model bisa mencari konteks website saat menyusun tema, isi, dan penguat dalil. Set `OPENAI_WEB_SEARCH_ENABLED=false` untuk mematikannya.
-- Untuk OpenRouter/provider kompatibel OpenAI, set juga `OPENAI_BASE_URL` dan gunakan nama model dari provider tersebut. Web search dimatikan otomatis pada mode ini kecuali `OPENAI_WEB_SEARCH_ENABLED=true`, karena tidak semua provider kompatibel mendukung tool OpenAI Responses.
+- Web search tersedia untuk OpenAI resmi ketika `OPENAI_WEB_SEARCH_ENABLED=true`, `OPENAI_BASE_URL` kosong, dan user memilih mode `Web search otomatis` di kartu parameter.
+- Untuk DeepSeek/OpenRouter/provider kompatibel, aplikasi memakai crawler server-side `WEB_RESEARCH_*`: backend mencari/membuka halaman web, mengambil ringkasan, lalu mengirim ringkasan itu sebagai konteks ke model. Mode manual tidak membuka URL; field sumber internet hanya memakai teks/ringkasan yang ditulis user.
+- Untuk OpenRouter/provider kompatibel OpenAI, set juga `OPENAI_BASE_URL` dan gunakan nama model dari provider tersebut. Native OpenAI web search tidak dipakai pada mode ini; gunakan `WEB_RESEARCH_*` untuk pencarian/crawl server-side.
 - Aplikasi tidak memakai satu `max_tokens` besar untuk semua generate. Batas efektif mengikuti durasi: kultum sekitar 1200-2000 token, ceramah 2500-4000 token, dan khutbah Jumat/Id 2500-4500 token, lalu tetap dipotong oleh `OPENAI_MAX_TOKENS`.
 - Set `SEED_ADMIN_PASSWORD` dan `SEED_USER_PASSWORD` sebelum database pertama dibuat.
 - Set `APP_PUBLIC_URL`, `CORS_ORIGINS`, dan konfigurasi cookie sesuai domain/HTTPS production.

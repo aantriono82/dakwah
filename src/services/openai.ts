@@ -16,12 +16,15 @@ import {
   missingRequiredArabicSections,
   normalizeLanguage,
   type PromptDalilContext,
+  type PromptWebContext,
   rhetoricStyleGuidanceFor,
+  retrievedWebGuidanceFor,
   sanitizeGeneratedText,
   thematicDalilSets
 } from "../utils/content";
 import { qualityReportFor } from "../utils/quality";
 import { retrieveDalilContext } from "./myquran";
+import { requestWantsServerWebResearch, retrieveWebContext } from "./webResearch";
 import { registerThemeClassifier } from "../utils/themeClassifier";
 import { logInfo } from "../utils/observability";
 
@@ -75,7 +78,15 @@ export function parseOpenAIWebSearchContextSize(value?: string) {
 }
 
 function shouldUseOpenAIWebSearch() {
-  return aiProvider === "openai" && Boolean(client) && openAIWebSearchEnabled;
+  return aiProvider === "openai" && Boolean(client) && openAIWebSearchEnabled && !baseURL;
+}
+
+function requestWantsWebSearch(parameters: Record<string, unknown>) {
+  return requestWantsServerWebResearch(parameters);
+}
+
+function shouldUseServerWebResearch(parameters: Record<string, unknown>) {
+  return requestWantsWebSearch(parameters) && !shouldUseOpenAIWebSearch();
 }
 
 function contentTokenCeiling(jenis: string) {
@@ -300,15 +311,31 @@ async function buildPromptWithRetrievedDalil(
   traceId: string,
   providedDalilContext?: PromptDalilContext
 ) {
+  const webContext = await retrieveWebContextForPrompt(jenis, parameters, traceId);
+
   try {
     const dalilContext = providedDalilContext ?? (await retrieveDalilContext(jenis, parameters));
     console.info(
       `[generateText:${traceId}] dalil_source=${dalilContext.source} quran=${dalilContext.quran[0]?.reference ?? "none"} hadith=${dalilContext.hadith[0]?.reference ?? "none"}`
     );
-    return buildPrompt(jenis, parameters, dalilContext);
+    return buildPrompt(jenis, parameters, dalilContext, webContext);
   } catch (error) {
     console.warn(`[generateText:${traceId}] dalil_retrieval_failed message=${providerMessage(error)}`);
-    return buildPrompt(jenis, parameters);
+    return buildPrompt(jenis, parameters, undefined, webContext);
+  }
+}
+
+async function retrieveWebContextForPrompt(jenis: string, parameters: Record<string, unknown>, traceId: string) {
+  if (!shouldUseServerWebResearch(parameters)) return undefined;
+  try {
+    const webContext = await retrieveWebContext(jenis, parameters);
+    console.info(
+      `[generateText:${traceId}] web_research source=${webContext.source} results=${webContext.results.length} warnings=${webContext.warnings?.length ?? 0}`
+    );
+    return webContext;
+  } catch (error) {
+    console.warn(`[generateText:${traceId}] web_research_failed message=${providerMessage(error)}`);
+    return undefined;
   }
 }
 
@@ -371,7 +398,12 @@ ${Object.entries(parameters)
   .join("\n")}`;
 }
 
-function editorialKhutbahPrompt(jenis: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
+function editorialKhutbahPrompt(
+  jenis: string,
+  parameters: Record<string, unknown>,
+  dalilContext?: PromptDalilContext,
+  webContext?: PromptWebContext
+) {
   const tema = String(parameters.temaUtama ?? parameters.tema ?? parameters.topik ?? parameters.topikSingkat ?? "ketakwaan").trim();
   const targetLanguage = normalizeLanguage(parameters.bahasa);
   const noArabicInstruction =
@@ -397,6 +429,8 @@ Setiap paragraf harus mendukung tema utama.
 Jika menyebut ayat atau hadits, pilih yang relevan dengan tema.
 
 ${dalilSummary}
+
+${retrievedWebGuidanceFor(webContext)}
 
 Tugas AI:
 - Tulis penjelasan tema, penjelasan hubungan ayat/hadits dengan tema, isi khutbah utama, contoh keseharian jamaah, dan pesan praktis.
@@ -591,8 +625,13 @@ function messageContentAsText(content: OpenAI.Chat.Completions.ChatCompletionMes
 
 function webSearchInstructionFor(jenis: string, parameters: Record<string, unknown>) {
   const tema = String(parameters.temaUtama ?? parameters.tema ?? parameters.topik ?? parameters.topikSingkat ?? "tema dakwah").trim();
+  const internetSources = String(parameters.sumberInternet ?? "").trim();
+  const sourceGuidance = internetSources
+    ? `\nSumber/arah pencarian dari user:\n${internetSources}\nUtamakan sumber ini jika kredibel dan relevan, tetapi tetap jangan menyalin panjang.`
+    : "";
   return `Akses web search aktif untuk membantu kesesuaian tema, isi, dan dalil naskah.
 Gunakan pencarian web bila perlu untuk memahami konteks tema "${tema}" pada jenis naskah ${jenis}, mencari penguat penjelasan yang relevan, dan menghindari klaim yang keliru.
+${sourceGuidance}
 Aturan penggunaan web:
 - Tetap utamakan dalil terkurasi dari prompt sebagai sumber ayat/hadits utama.
 - Jangan menyalin artikel website secara panjang; olah menjadi narasi mimbar yang orisinal.
@@ -606,7 +645,7 @@ function messagesWithWebSearchInstruction(
   jenis: string,
   parameters: Record<string, unknown>
 ) {
-  if (!shouldUseOpenAIWebSearch()) return messages;
+  if (!shouldUseOpenAIWebSearch() || !requestWantsWebSearch(parameters)) return messages;
   return [...messages, { role: "user" as const, content: webSearchInstructionFor(jenis, parameters) }];
 }
 
@@ -730,7 +769,7 @@ async function createOpenAITextPass(
     ...generationSettingsFor(jenis, parameters),
     ...(maxTokenOverride ? { max_tokens: maxTokenOverride } : {})
   };
-  if (allowWebSearch && shouldUseOpenAIWebSearch()) {
+  if (allowWebSearch && shouldUseOpenAIWebSearch() && requestWantsWebSearch(parameters)) {
     return createResponseWithWebSearchAndCreditRetry({
       modelName,
       messages,
@@ -1048,7 +1087,8 @@ async function generateTemplatedRukunKhutbahWithGemini(
   traceId: string,
   dalilContext?: PromptDalilContext
 ) {
-  const prompt = editorialKhutbahPrompt(jenis, parameters, dalilContext);
+  const webContext = await retrieveWebContextForPrompt(jenis, parameters, traceId);
+  const prompt = editorialKhutbahPrompt(jenis, parameters, dalilContext, webContext);
 
   for (const modelName of geminiModels) {
     try {
@@ -1095,7 +1135,8 @@ async function generateTemplatedRukunKhutbahWithOpenAI(
   traceId: string,
   dalilContext?: PromptDalilContext
 ) {
-  const prompt = editorialKhutbahPrompt(jenis, parameters, dalilContext);
+  const webContext = await retrieveWebContextForPrompt(jenis, parameters, traceId);
+  const prompt = editorialKhutbahPrompt(jenis, parameters, dalilContext, webContext);
 
   for (const modelName of models) {
     try {
@@ -1319,7 +1360,7 @@ export async function* streamGeneratedText(jenis: string, parameters: Record<str
       const outline = await createOpenAIOutline(modelName, prompt, jenis, parameters, traceId);
       const messages = messagesWithOutline(prompt, traceId, outline);
       let text = "";
-      if (shouldUseOpenAIWebSearch()) {
+      if (shouldUseOpenAIWebSearch() && requestWantsWebSearch(parameters)) {
         text = await createOpenAITextPass(modelName, messages, jenis, parameters, traceId, "first", undefined, true);
       } else {
         const stream = await createStreamingCompletionWithCreditRetry(

@@ -20,11 +20,27 @@ export const contentTypeLabels: Record<ContentType, string> = {
 
 export type SupportedLanguage = "Indonesia" | "Jawa" | "Sunda" | "Ogan (Baturaja)" | "Arab";
 
+export type PromptWebResult = {
+  title: string;
+  url: string;
+  excerpt: string;
+};
+
+export type PromptWebContext = {
+  query: string;
+  source: string;
+  results: PromptWebResult[];
+  warnings?: string[];
+};
+
 const editorialParameterLabels: Record<string, string> = {
   fokusAkurasi: "Fokus akurasi",
   gayaBahasaNaskah: "Gaya bahasa naskah",
   gayaRetorika: "Gaya retorika",
   strategiDalil: "Strategi dalil",
+  haditsReferensi: "Hadits referensi",
+  sumberInternet: "Sumber internet",
+  modeSumberInternet: "Mode sumber internet",
   catatanEditor: "Catatan editor"
 };
 
@@ -298,6 +314,36 @@ ${dalilRule}
 ${editorNoteRule}`.trim();
 }
 
+function userReferenceGuidanceFor(parameters: Record<string, unknown>) {
+  const hadithReference = String(parameters.haditsReferensi ?? "").trim();
+  const internetSources = String(parameters.sumberInternet ?? "").trim();
+  const sourceMode = String(parameters.modeSumberInternet ?? "manual").trim().toLowerCase();
+  const sections: string[] = [];
+
+  if (hadithReference) {
+    sections.push(`Referensi hadits dari user:
+${hadithReference}
+
+Aturan:
+- Prioritaskan referensi hadits dari user jika relevan dengan tema dan aman.
+- Jika teks Arab, terjemah, takhrij, atau derajat belum tersedia dari data retrieval, jangan mengarang detailnya.
+- Jika referensi user berbeda dari hasil retrieval, jelaskan dengan redaksi aman atau gunakan hadits yang paling dapat diverifikasi.`);
+  }
+
+  if (internetSources) {
+    const automaticMode = sourceMode === "web-search" || sourceMode.includes("web");
+    sections.push(`Sumber internet dari user:
+${internetSources}
+
+Aturan:
+- Sumber internet hanya dipakai untuk penguat penjelasan sosial, contoh, atau konteks umum; jangan jadikan sumber utama ayat, hadits, takhrij, derajat hadits, atau hukum syar'i.
+- Jangan menyalin artikel panjang. Olah menjadi narasi mimbar yang orisinal dan ringkas.
+- ${automaticMode ? "Jika web search tersedia, telusuri sumber/tema ini dan utamakan website yang kredibel." : "Mode manual berarti sistem tidak otomatis membuka URL. Pakai hanya ringkasan/teks yang ditulis user di field ini, dan jangan mengarang isi halaman dari URL mentah."}`);
+  }
+
+  return sections.join("\n\n");
+}
+
 function normalizedDuration(value: unknown) {
   const duration = String(value ?? "sedang").trim().toLowerCase();
   if (duration.includes("pendek")) return "pendek";
@@ -438,7 +484,12 @@ export function rhetoricStyleGuidanceFor(parameters: Record<string, unknown>): s
   return "";
 }
 
-export function buildPrompt(jenis: string, parameters: Record<string, unknown>, retrievedDalil?: PromptDalilContext) {
+export function buildPrompt(
+  jenis: string,
+  parameters: Record<string, unknown>,
+  retrievedDalil?: PromptDalilContext,
+  retrievedWeb?: PromptWebContext
+) {
   const label = contentTypeLabels[jenis as ContentType] ?? jenis;
   const tema = topicFromParameters(parameters);
   const thematicDalil = dalilGuidanceFor(jenis, tema);
@@ -461,7 +512,11 @@ ${rhetoricStyleGuidanceFor(parameters)}
 
 ${editorialGuidanceFor(parameters)}
 
+${userReferenceGuidanceFor(parameters)}
+
 ${retrievedDalilGuidanceFor(retrievedDalil)}
+
+${retrievedWebGuidanceFor(retrievedWeb)}
 
 ${arabicVariationGuidanceFor(jenis)}
 
@@ -2112,6 +2167,32 @@ Aturan khusus dalil:
 - Jika hadits memiliki derajat, tampilkan derajat itu secara ringkas setelah rujukan atau dalam kalimat penjelas.
 - Penjelasan boleh memakai bahasa natural, tetapi kutipan dalil harus tetap terkunci pada data retrieval.
 - Isi utama harus menjelaskan hubungan dalil dengan tema "${context.theme}", bukan sekadar menempelkan kutipan.${warnings}`;
+}
+
+export function retrievedWebGuidanceFor(context?: PromptWebContext) {
+  if (!context || context.results.length === 0) return "";
+
+  const results = context.results
+    .map(
+      (item, index) => `${index + 1}. ${item.title}
+URL: ${item.url}
+Ringkasan halaman:
+${item.excerpt}`
+    )
+    .join("\n\n");
+  const warnings = context.warnings?.length ? `\nCatatan web research:\n${context.warnings.map((warning) => `- ${warning}`).join("\n")}` : "";
+
+  return `Konteks web hasil pencarian/crawl server untuk query "${context.query}".
+Sumber retrieval web: ${context.source}.
+
+${results}
+
+Aturan penggunaan konteks web:
+- Pakai konteks web hanya sebagai penguat penjelasan sosial, contoh aktual, istilah, atau latar umum.
+- Jangan jadikan artikel web sebagai sumber utama ayat, hadits, takhrij, derajat hadits, fatwa, atau klaim hukum syar'i.
+- Jangan menyalin paragraf panjang dari halaman. Ambil intinya dan tulis ulang menjadi narasi mimbar yang orisinal.
+- Jika menyebut sumber, cukup sebut nama situs/lembaga secara ringkas; jangan tampilkan daftar URL panjang di naskah final kecuali user memintanya.
+- Jika konteks web bertentangan dengan dalil terkurasi atau aturan naskah, ikuti dalil terkurasi dan aturan naskah.${warnings}`;
 }
 
 function seedIdFor(kind: "quran" | "hadith", reference: string, index: number) {

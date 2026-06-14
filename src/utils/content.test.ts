@@ -19,7 +19,8 @@ import {
   titleFromParameters,
   validateContentParameters,
   wordCount,
-  type PromptDalilContext
+  type PromptDalilContext,
+  type PromptWebContext
 } from "./content";
 
 describe("content utilities", () => {
@@ -67,6 +68,26 @@ describe("content utilities", () => {
     expect(prompt).toContain("Bahasa harus natural, jelas, dan enak dibacakan");
     expect(prompt).toContain("Dalil wajib benar-benar melayani tema yang dipilih");
     expect(prompt).toContain("- Fokus akurasi: maksimal");
+  });
+
+  test("buildPrompt includes server-side web context as supporting material", () => {
+    const webContext: PromptWebContext = {
+      query: "menjaga lisan dakwah artikel terpercaya",
+      source: "DuckDuckGo HTML + crawler server",
+      results: [
+        {
+          title: "Artikel Akhlak Menjaga Lisan",
+          url: "https://example.com/menjaga-lisan",
+          excerpt: "Menjaga lisan berarti menimbang ucapan, menghindari fitnah, dan memilih kata yang membawa kebaikan."
+        }
+      ]
+    };
+    const prompt = buildPrompt("ceramah", { bahasa: "Indonesia", topik: "Menjaga lisan", modeSumberInternet: "web-search" }, undefined, webContext);
+
+    expect(prompt).toContain('Konteks web hasil pencarian/crawl server untuk query "menjaga lisan dakwah artikel terpercaya"');
+    expect(prompt).toContain("Artikel Akhlak Menjaga Lisan");
+    expect(prompt).toContain("Pakai konteks web hanya sebagai penguat penjelasan sosial");
+    expect(prompt).toContain("Jangan jadikan artikel web sebagai sumber utama ayat, hadits");
   });
 
   test("buildPrompt aligns kultum and khutbah nikah length guidance with quality floor", () => {
