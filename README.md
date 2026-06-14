@@ -212,8 +212,9 @@ Variabel penting:
 | `GOOGLE_OAUTH_CLIENT_ID` | kosong | Client ID Google OAuth. Jika ini dan secret diisi, tombol Google aktif |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | kosong | Client secret Google OAuth |
 | `GOOGLE_OAUTH_REDIRECT_URL` | `${APP_PUBLIC_URL}/api/auth/google/callback` | Redirect URI yang harus didaftarkan di Google Cloud Console |
-| `TURNSTILE_SITE_KEY` | kosong | Site key Cloudflare Turnstile. Jika ini dan secret diisi, form daftar memakai Turnstile |
-| `TURNSTILE_SECRET_KEY` | kosong | Secret key Cloudflare Turnstile untuk verifikasi token di backend |
+| `AUTH_CAPTCHA_PROVIDER` | `manual` | Provider captcha registrasi: `manual` atau `turnstile` |
+| `TURNSTILE_SITE_KEY` | kosong | Site key Cloudflare Turnstile. Dipakai hanya jika `AUTH_CAPTCHA_PROVIDER=turnstile` |
+| `TURNSTILE_SECRET_KEY` | kosong | Secret key Cloudflare Turnstile untuk verifikasi token backend jika provider `turnstile` |
 | `GENERATE_RATE_LIMIT_WINDOW_MS` | `60000` | Window rate limit generate dalam milidetik |
 | `GENERATE_RATE_LIMIT_MAX` | `6` | Maksimal request generate per window per user |
 | `DEFAULT_DAILY_GENERATE_LIMIT` | `50` | Quota generate harian default per user. `0` berarti unlimited |

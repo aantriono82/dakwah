@@ -44,9 +44,10 @@ export const googleOAuthClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.t
 export const googleOAuthRedirectUrl =
   process.env.GOOGLE_OAUTH_REDIRECT_URL?.trim().replace(/\/+$/, "") || `${appPublicUrl}/api/auth/google/callback`;
 export const googleOAuthEnabled = Boolean(googleOAuthClientId && googleOAuthClientSecret);
+export const authCaptchaProvider = String(process.env.AUTH_CAPTCHA_PROVIDER ?? "manual").trim().toLowerCase();
 export const turnstileSiteKey = process.env.TURNSTILE_SITE_KEY?.trim() || "";
 export const turnstileSecretKey = process.env.TURNSTILE_SECRET_KEY?.trim() || "";
-export const turnstileEnabled = Boolean(turnstileSiteKey && turnstileSecretKey);
+export const turnstileEnabled = authCaptchaProvider === "turnstile" && Boolean(turnstileSiteKey && turnstileSecretKey);
 export const generateRateLimitWindowMs = optionalPositiveInteger(process.env.GENERATE_RATE_LIMIT_WINDOW_MS, 60 * 1000);
 export const generateRateLimitMax = optionalPositiveInteger(process.env.GENERATE_RATE_LIMIT_MAX, 6);
 export const defaultDailyGenerateLimit = optionalPositiveInteger(process.env.DEFAULT_DAILY_GENERATE_LIMIT, 50);
