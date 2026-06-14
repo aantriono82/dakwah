@@ -270,6 +270,24 @@ function retryLengthInstructionFor(jenis: string) {
   return "Perluas uraian utama dalam paragraf yang mengalir dan jangan mengganti uraian dengan daftar poin pendek.";
 }
 
+function retryTooShortInstructionFor(jenis: string, parameters: Record<string, unknown>, reason: string) {
+  if (!reason.startsWith("too_short:min_words_")) return "";
+
+  const minimum = minimumWordCountFor(jenis, parameters);
+  const lowerTarget = Math.ceil(Math.max(minimum + 150, minimum * 1.2) / 50) * 50;
+  const upperTarget = lowerTarget + Math.ceil(Math.max(150, minimum * 0.2) / 50) * 50;
+
+  return ` Karena masalah utama adalah naskah terlalu pendek, tulis ulang dengan target ${lowerTarget}-${upperTarget} kata, bukan sekadar melewati minimum. Jangan menyebut jumlah kata di naskah. Tambahkan pengembangan nasihat, transisi antargagasan, contoh keseharian jamaah, penjelasan hubungan dalil dengan tema, dan penutup yang lebih utuh tanpa mengulang kalimat yang sama.`;
+}
+
+function nonTargetLanguageWarning(targetLanguage: string) {
+  if (targetLanguage === "Indonesia") {
+    return "bukan bahasa Jawa, Sunda, Ogan, Arab, Inggris, atau campuran bahasa lain";
+  }
+
+  return "bukan bahasa Indonesia atau campuran bahasa lain";
+}
+
 function retryInstruction(jenis: string, parameters: Record<string, unknown>, reason: string) {
   const targetLanguage = normalizeLanguage(parameters.bahasa);
   const arabicOnlySecondInstruction = jenis === "khutbah-jumat" || jenis === "idul-fitri" || jenis === "idul-adha"
@@ -277,8 +295,9 @@ function retryInstruction(jenis: string, parameters: Record<string, unknown>, re
     : "";
   const styleGuidance = rhetoricStyleGuidanceFor(parameters);
   const styleInstruction = styleGuidance ? `\nIkuti instruksi gaya retorika berikut secara ketat:\n${styleGuidance}` : "";
+  const tooShortInstruction = retryTooShortInstructionFor(jenis, parameters, reason);
 
-  return `Ulangi naskah final dari awal. Bahasa target wajib ${targetLanguage}; semua sapaan, transisi, isi, renungan, terjemah/penjelasan ayat-hadits, pesan praktis, dan penutup harus memakai bahasa target tersebut, bukan bahasa Indonesia, kecuali heading struktur standar. Naskah sebelumnya bermasalah: ${reason}. Jangan ringkas; penuhi minimal ${minimumWordCountFor(jenis, parameters)} kata dan buat uraian utama mengalir dalam banyak paragraf. ${retryLengthInstructionFor(jenis)} Wajib ikuti rukun khutbah: hamdalah, shalawat Nabi, dan wasiat takwa harus ada di khutbah pertama dan kedua; syahadat Arab berharakat harus ada di mukadimah khutbah pertama; ayat Al-Qur'an Arab harus ada minimal di salah satu khutbah; doa untuk kaum mukminin harus ada di khutbah kedua.${arabicOnlySecondInstruction} Untuk khutbah Idul Fitri/Idul Adha, khutbah pertama diawali takbir Arab 9 kali dan khutbah kedua diawali takbir Arab 7 kali. Terapkan STYLE PROFILE: dakwah.id sesuai jenis naskah agar pembuka, isi, penutup, dan doa bervariasi, humanis, dan tidak terasa template. Pembuka Arab harus utuh, bukan satu baris pendek. Doa penutup Arab minimal 4-6 kalimat doa berharakat, memuat doa untuk kaum mukminin, dan jangan hanya satu doa pendek. Jangan tampilkan label teknis seperti Rukun 1/2/3/4/5 pada naskah final. Semua teks Arab wajib diberi harakat lengkap (tasykil), tanpa Arab gundul.${styleInstruction}`;
+  return `Ulangi naskah final dari awal. Bahasa target wajib ${targetLanguage}; semua sapaan, transisi, isi, renungan, terjemah/penjelasan ayat-hadits, pesan praktis, dan penutup harus memakai bahasa target tersebut, ${nonTargetLanguageWarning(targetLanguage)}, kecuali heading struktur standar. Naskah sebelumnya bermasalah: ${reason}. Jangan ringkas; penuhi minimal ${minimumWordCountFor(jenis, parameters)} kata dan buat uraian utama mengalir dalam banyak paragraf.${tooShortInstruction} ${retryLengthInstructionFor(jenis)} Wajib ikuti rukun khutbah: hamdalah, shalawat Nabi, dan wasiat takwa harus ada di khutbah pertama dan kedua; syahadat Arab berharakat harus ada di mukadimah khutbah pertama; ayat Al-Qur'an Arab harus ada minimal di salah satu khutbah; doa untuk kaum mukminin harus ada di khutbah kedua.${arabicOnlySecondInstruction} Untuk khutbah Idul Fitri/Idul Adha, khutbah pertama diawali takbir Arab 9 kali dan khutbah kedua diawali takbir Arab 7 kali. Terapkan STYLE PROFILE: dakwah.id sesuai jenis naskah agar pembuka, isi, penutup, dan doa bervariasi, humanis, dan tidak terasa template. Pembuka Arab harus utuh, bukan satu baris pendek. Doa penutup Arab minimal 4-6 kalimat doa berharakat, memuat doa untuk kaum mukminin, dan jangan hanya satu doa pendek. Jangan tampilkan label teknis seperti Rukun 1/2/3/4/5 pada naskah final. Semua teks Arab wajib diberi harakat lengkap (tasykil), tanpa Arab gundul.${styleInstruction}`;
 }
 
 function outlineInstruction(jenis: string, parameters: Record<string, unknown>) {
