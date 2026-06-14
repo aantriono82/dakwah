@@ -39,6 +39,11 @@ export const authCookieSameSite = parseSameSite(process.env.AUTH_COOKIE_SAMESITE
 export const authCookieDomain = process.env.AUTH_COOKIE_DOMAIN?.trim() || undefined;
 export const authRateLimitWindowMs = optionalPositiveInteger(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000);
 export const authRateLimitMax = optionalPositiveInteger(process.env.AUTH_RATE_LIMIT_MAX, 30);
+export const googleOAuthClientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim() || "";
+export const googleOAuthClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim() || "";
+export const googleOAuthRedirectUrl =
+  process.env.GOOGLE_OAUTH_REDIRECT_URL?.trim().replace(/\/+$/, "") || `${appPublicUrl}/api/auth/google/callback`;
+export const googleOAuthEnabled = Boolean(googleOAuthClientId && googleOAuthClientSecret);
 export const turnstileSiteKey = process.env.TURNSTILE_SITE_KEY?.trim() || "";
 export const turnstileSecretKey = process.env.TURNSTILE_SECRET_KEY?.trim() || "";
 export const turnstileEnabled = Boolean(turnstileSiteKey && turnstileSecretKey);

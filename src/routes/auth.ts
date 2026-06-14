@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { deleteCookie, setCookie } from "hono/cookie";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { eq, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
@@ -14,6 +14,10 @@ import {
   authCookieSecure,
   authRateLimitMax,
   authRateLimitWindowMs,
+  googleOAuthClientId,
+  googleOAuthClientSecret,
+  googleOAuthEnabled,
+  googleOAuthRedirectUrl,
   turnstileEnabled
 } from "../config";
 import { sendPasswordResetEmail } from "../services/email";
@@ -26,6 +30,7 @@ import { rateLimit, rateLimitKeyByIp } from "../utils/rate-limit";
 export const authRoutes = new Hono<AppEnv>();
 
 const authCookieMaxAge = 60 * 60 * 24 * 7;
+const googleOAuthStateMaxAge = 10 * 60;
 const captchaTtlMs = 5 * 60 * 1000;
 const passwordResetTtlMs = 30 * 60 * 1000;
 const authCleanupIntervalMs = 5 * 60 * 1000;
@@ -40,6 +45,14 @@ let lastCaptchaQuestion: string | null = null;
 authRoutes.use(
   "/login",
   rateLimit({ keyPrefix: "auth:login", windowMs: authRateLimitWindowMs, max: authRateLimitMax, key: rateLimitKeyByIp })
+);
+authRoutes.use(
+  "/google",
+  rateLimit({ keyPrefix: "auth:google", windowMs: authRateLimitWindowMs, max: authRateLimitMax, key: rateLimitKeyByIp })
+);
+authRoutes.use(
+  "/google/callback",
+  rateLimit({ keyPrefix: "auth:google", windowMs: authRateLimitWindowMs, max: authRateLimitMax, key: rateLimitKeyByIp })
 );
 authRoutes.use(
   "/captcha",
@@ -134,6 +147,47 @@ async function createSession(c: Context<AppEnv>, userId: string) {
   });
 }
 
+function redirectWithAuthError(c: Context<AppEnv>, message: string) {
+  const url = new URL(appPublicUrl);
+  url.searchParams.set("auth_error", message);
+  return c.redirect(url.toString());
+}
+
+async function fetchGoogleProfile(code: string) {
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: googleOAuthClientId,
+      client_secret: googleOAuthClientSecret,
+      code,
+      grant_type: "authorization_code",
+      redirect_uri: googleOAuthRedirectUrl
+    })
+  });
+
+  if (!tokenResponse.ok) throw new Error("Google OAuth token exchange failed.");
+  const tokenBody = (await tokenResponse.json()) as { access_token?: string };
+  if (!tokenBody.access_token) throw new Error("Google OAuth access token missing.");
+
+  const profileResponse = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+    headers: { Authorization: `Bearer ${tokenBody.access_token}` }
+  });
+
+  if (!profileResponse.ok) throw new Error("Google OAuth profile request failed.");
+  const profile = (await profileResponse.json()) as {
+    email?: string;
+    email_verified?: boolean;
+    name?: string;
+  };
+
+  if (!profile.email || profile.email_verified !== true) throw new Error("Google OAuth email is not verified.");
+  return {
+    email: profile.email.toLowerCase(),
+    name: profile.name?.trim() || profile.email.split("@")[0] || "Pengguna Google"
+  };
+}
+
 async function cleanupExpiredAuthRows() {
   const now = new Date();
   if (now.getTime() < nextExpiredAuthCleanupAt) return;
@@ -155,6 +209,71 @@ authRoutes.post("/login", async (c) => {
 
   await createSession(c, user.id);
   return c.json({ user: publicUser(user) });
+});
+
+authRoutes.get("/google", (c) => {
+  if (!googleOAuthEnabled) return c.json({ message: "Login Google belum dikonfigurasi." }, 503);
+
+  const state = nanoid(32);
+  setCookie(c, "google_oauth_state", state, {
+    httpOnly: true,
+    sameSite: authCookieSameSite,
+    secure: authCookieSecure || authCookieSameSite === "None",
+    domain: authCookieDomain,
+    path: "/api/auth/google/callback",
+    maxAge: googleOAuthStateMaxAge
+  });
+
+  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  url.searchParams.set("client_id", googleOAuthClientId);
+  url.searchParams.set("redirect_uri", googleOAuthRedirectUrl);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", "openid email profile");
+  url.searchParams.set("state", state);
+  url.searchParams.set("prompt", "select_account");
+
+  return c.redirect(url.toString());
+});
+
+authRoutes.get("/google/callback", async (c) => {
+  if (!googleOAuthEnabled) return redirectWithAuthError(c, "Login Google belum dikonfigurasi.");
+
+  const state = c.req.query("state") ?? "";
+  const expectedState = getCookie(c, "google_oauth_state") ?? "";
+  deleteCookie(c, "google_oauth_state", { path: "/api/auth/google/callback", domain: authCookieDomain });
+
+  if (!state || !expectedState || state !== expectedState) {
+    return redirectWithAuthError(c, "Sesi login Google tidak valid. Coba lagi.");
+  }
+
+  const code = c.req.query("code");
+  if (!code) return redirectWithAuthError(c, "Kode login Google tidak tersedia.");
+
+  try {
+    await cleanupExpiredAuthRows();
+    const profile = await fetchGoogleProfile(code);
+    let user = await db.query.users.findFirst({ where: eq(users.username, profile.email) });
+
+    if (!user) {
+      const id = nanoid();
+      await db.insert(users).values({
+        id,
+        username: profile.email,
+        name: profile.name,
+        role: "user",
+        passwordHash: await hashPassword(nanoid(64))
+      });
+      user = await db.query.users.findFirst({ where: eq(users.id, id) });
+    }
+
+    if (!user) return redirectWithAuthError(c, "Login Google gagal membuat akun.");
+
+    await createSession(c, user.id);
+    return c.redirect(appPublicUrl);
+  } catch (error) {
+    console.warn(error instanceof Error ? error.message : "Login Google gagal.");
+    return redirectWithAuthError(c, "Login Google gagal. Coba lagi.");
+  }
 });
 
 authRoutes.get("/captcha", (c) => c.json(createCaptchaChallenge()));

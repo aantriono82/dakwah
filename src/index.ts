@@ -18,6 +18,7 @@ import {
   appPublicUrl,
   corsOrigins,
   generateClientTimeoutMs,
+  googleOAuthEnabled,
   myQuranEnabled,
   providerTimeoutMs,
   turnstileEnabled,
@@ -60,6 +61,7 @@ api.get("/config", (c) =>
       aiProvider,
       myQuranEnabled,
       storageRequired: isStorageRequired(),
+      googleOAuthEnabled,
       authCaptcha: turnstileEnabled
         ? { provider: "turnstile", turnstileSiteKey }
         : { provider: "manual" }

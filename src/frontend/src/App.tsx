@@ -70,7 +70,7 @@ type CaptchaChallenge = {
 type AuthCaptchaConfig = { provider: "manual" } | { provider: "turnstile"; turnstileSiteKey: string };
 
 const authCardClass =
-  "relative w-full max-w-[560px] rounded-lg border border-border bg-card px-5 py-7 text-card-foreground shadow-2xl sm:px-8 sm:py-9 lg:max-w-[520px] lg:px-7 lg:py-8";
+  "relative w-full max-w-[340px] rounded-lg border border-border bg-card px-4 py-5 text-card-foreground shadow-2xl sm:max-w-[560px] sm:px-8 sm:py-9 lg:max-w-[520px] lg:px-7 lg:py-8";
 
 const khutbahItems: Array<{ label: string; jenis: JenisId }> = [
   { label: "Jumat", jenis: "khutbah-jumat" },
@@ -463,17 +463,22 @@ function Login({
   );
   const [notice, setNotice] = useState("");
   const [authCaptchaConfig, setAuthCaptchaConfig] = useState<AuthCaptchaConfig>({ provider: "manual" });
+  const [googleOAuthEnabled, setGoogleOAuthEnabled] = useState(false);
 
   useEffect(() => {
-    api<{ data: { authCaptcha?: AuthCaptchaConfig } }>("/api/config")
+    api<{ data: { authCaptcha?: AuthCaptchaConfig; googleOAuthEnabled?: boolean } }>("/api/config")
       .then((data) => {
+        setGoogleOAuthEnabled(Boolean(data.data.googleOAuthEnabled));
         if (data.data.authCaptcha?.provider === "turnstile" && data.data.authCaptcha.turnstileSiteKey) {
           setAuthCaptchaConfig({ provider: "turnstile", turnstileSiteKey: data.data.authCaptcha.turnstileSiteKey });
           return;
         }
         setAuthCaptchaConfig({ provider: "manual" });
       })
-      .catch(() => setAuthCaptchaConfig({ provider: "manual" }));
+      .catch(() => {
+        setGoogleOAuthEnabled(false);
+        setAuthCaptchaConfig({ provider: "manual" });
+      });
   }, []);
 
   async function submit(event: React.FormEvent) {
@@ -494,9 +499,14 @@ function Login({
     }
   }
 
-  function showSocialLoginNotice(provider: "Google") {
+  function startGoogleLogin() {
+    if (googleOAuthEnabled) {
+      window.location.href = "/api/auth/google";
+      return;
+    }
+
     setError("");
-    setNotice(`Login dengan ${provider} belum dikonfigurasi. Gunakan email dan kata sandi, atau hubungi admin untuk mengaktifkan OAuth ${provider}.`);
+    setNotice("Login dengan Google belum dikonfigurasi. Gunakan email dan kata sandi, atau hubungi admin untuk mengaktifkan OAuth Google.");
   }
 
   const content =
@@ -512,10 +522,10 @@ function Login({
           <IconX className="size-6" />
         </button>
       )}
-      <div className="mb-6 text-center lg:mb-5">
-        <h1 className="text-3xl font-black tracking-normal sm:text-4xl lg:text-[2rem]">Masuk</h1>
-        <p className="mt-3 text-base text-foreground sm:text-lg lg:text-base">Masuk untuk mengelola naskah dakwah Anda</p>
-        <p className="mt-4 text-base text-muted-foreground sm:text-lg lg:mt-3 lg:text-base">
+      <div className="mb-4 text-center sm:mb-6 lg:mb-5">
+        <h1 className="text-2xl font-black tracking-normal sm:text-4xl lg:text-[2rem]">Masuk</h1>
+        <p className="mt-2 text-sm text-foreground sm:mt-3 sm:text-lg lg:text-base">Masuk untuk mengelola naskah dakwah Anda</p>
+        <p className="mt-3 text-sm text-muted-foreground sm:mt-4 sm:text-lg lg:mt-3 lg:text-base">
           Belum punya akun?{" "}
           <button
             className="font-bold text-primary"
@@ -531,25 +541,25 @@ function Login({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:gap-3" aria-label="Pilihan masuk cepat">
-        <SocialLoginButton label="Google" onClick={() => showSocialLoginNotice("Google")}>
+      <div className="grid grid-cols-1 gap-2.5 sm:gap-4 lg:gap-3" aria-label="Pilihan masuk cepat">
+        <SocialLoginButton label="Google" onClick={startGoogleLogin}>
           <GoogleMark className="size-5" />
         </SocialLoginButton>
       </div>
 
       {notice && <p className="mt-4 rounded-md border border-primary/25 bg-primary/10 px-3 py-2 text-sm text-primary">{notice}</p>}
 
-      <div className="my-6 flex items-center gap-5 lg:my-5">
+      <div className="my-4 flex items-center gap-4 sm:my-6 sm:gap-5 lg:my-5">
         <div className="h-px flex-1 bg-border" />
-        <span className="text-lg text-foreground">atau</span>
+        <span className="text-sm text-foreground sm:text-lg">atau</span>
         <div className="h-px flex-1 bg-border" />
       </div>
 
-      <form onSubmit={submit} className="grid gap-4 lg:gap-3.5">
+      <form onSubmit={submit} className="grid gap-3 sm:gap-4 lg:gap-3.5">
         <label className="relative block">
-          <IconMail className="pointer-events-none absolute left-5 top-1/2 size-6 -translate-y-1/2 text-muted-foreground lg:left-4 lg:size-5" />
+          <IconMail className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground sm:left-5 sm:size-6 lg:left-4 lg:size-5" />
           <Input
-            className="h-16 rounded-md px-5 pl-16 text-lg lg:h-14 lg:px-4 lg:pl-12 lg:text-base"
+            className="h-12 rounded-md px-4 pl-12 text-base sm:h-16 sm:px-5 sm:pl-16 sm:text-lg lg:h-14 lg:px-4 lg:pl-12 lg:text-base"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             placeholder="Email"
@@ -557,9 +567,9 @@ function Login({
           />
         </label>
         <label className="relative block">
-          <IconLock className="pointer-events-none absolute left-5 top-1/2 size-6 -translate-y-1/2 text-muted-foreground lg:left-4 lg:size-5" />
+          <IconLock className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground sm:left-5 sm:size-6 lg:left-4 lg:size-5" />
           <Input
-            className="h-16 rounded-md px-5 pl-16 pr-16 text-lg lg:h-14 lg:px-4 lg:pl-12 lg:pr-12 lg:text-base"
+            className="h-12 rounded-md px-4 pl-12 pr-12 text-base sm:h-16 sm:px-5 sm:pl-16 sm:pr-16 sm:text-lg lg:h-14 lg:px-4 lg:pl-12 lg:pr-12 lg:text-base"
             type={showPassword ? "text" : "password"}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
@@ -567,16 +577,16 @@ function Login({
             autoComplete="current-password"
           />
           <button
-            className="absolute right-5 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-foreground transition hover:bg-accent lg:right-4"
+            className="absolute right-4 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-foreground transition hover:bg-accent sm:right-5 lg:right-4"
             onClick={() => setShowPassword((value) => !value)}
             type="button"
             aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
           >
-            {showPassword ? <IconEyeOff className="size-6 lg:size-5" /> : <IconEye className="size-6 lg:size-5" />}
+            {showPassword ? <IconEyeOff className="size-5 sm:size-6 lg:size-5" /> : <IconEye className="size-5 sm:size-6 lg:size-5" />}
           </button>
         </label>
         <button
-          className="w-max text-base font-medium text-blue-600 hover:text-blue-700 sm:text-lg lg:text-base"
+          className="w-max text-sm font-medium text-blue-600 hover:text-blue-700 sm:text-lg lg:text-base"
           onClick={() => {
             setError("");
             setNotice("");
@@ -587,12 +597,12 @@ function Login({
           Lupa kata sandi?
         </button>
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
-        <Button className="mt-2 h-16 rounded-md text-2xl font-bold lg:h-14 lg:text-xl" disabled={loading}>
+        <Button className="mt-1 h-12 rounded-md text-lg font-bold sm:mt-2 sm:h-16 sm:text-2xl lg:h-14 lg:text-xl" disabled={loading}>
           {loading ? "Memproses..." : "Masuk"}
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-base text-foreground sm:mt-7 sm:text-lg lg:mt-5 lg:text-base">
+      <p className="mt-4 text-center text-sm text-foreground sm:mt-7 sm:text-lg lg:mt-5 lg:text-base">
         Belum punya akun?{" "}
         <button
           className="font-bold text-primary"
@@ -606,7 +616,7 @@ function Login({
           Daftar
         </button>
       </p>
-      <p className="mx-auto mt-4 max-w-[420px] text-center text-[15px] leading-7 text-muted-foreground sm:max-w-[460px] sm:text-base lg:mt-3 lg:max-w-[400px] lg:text-[15px] lg:leading-6">
+      <p className="mx-auto mt-3 max-w-[300px] text-center text-xs leading-5 text-muted-foreground sm:mt-4 sm:max-w-[460px] sm:text-base sm:leading-7 lg:mt-3 lg:max-w-[400px] lg:text-[15px] lg:leading-6">
         Dengan menekan tombol masuk, Anda menyatakan telah membaca, memahami, dan menyetujui{" "}
         <button
           className="underline"
@@ -684,7 +694,7 @@ function Login({
   return (
     <main
       className={cn(
-        "grid justify-items-center overflow-y-auto px-3 py-3 text-foreground sm:px-4 sm:py-10",
+        "grid justify-items-center overflow-y-auto px-3 py-5 text-foreground sm:px-4 sm:py-10",
         "items-start sm:place-items-center",
         variant === "page" ? "min-h-screen bg-background" : "fixed inset-0 z-50 bg-slate-950/95"
       )}
@@ -694,7 +704,7 @@ function Login({
           {dark ? <IconSun className="size-4" /> : <IconMoon className="size-4" />}
         </IconButton>
       </div>
-      <div className="mx-auto flex w-full max-w-[560px] flex-col items-center lg:max-w-[520px]">
+      <div className="mx-auto flex w-full max-w-[340px] flex-col items-center sm:max-w-[560px] lg:max-w-[520px]">
         {content}
         <FooterCredit className="mt-6 w-full justify-center border-t-0 bg-transparent px-4 py-4 text-center sm:mt-8" />
       </div>
@@ -1259,7 +1269,7 @@ function LegalPanel({
 function SocialLoginButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
-      className="flex h-14 items-center justify-center gap-3 rounded-lg border border-border bg-card px-4 text-base font-semibold text-foreground transition hover:bg-accent lg:h-12 lg:text-sm"
+      className="flex h-11 items-center justify-center gap-2.5 rounded-lg border border-border bg-card px-4 text-sm font-semibold text-foreground transition hover:bg-accent sm:h-14 sm:gap-3 sm:text-base lg:h-12 lg:text-sm"
       onClick={onClick}
       type="button"
       aria-label={`Masuk dengan ${label}`}
