@@ -94,6 +94,37 @@ function generationSettingsFor(jenis: string, parameters: Record<string, unknown
   };
 }
 
+function isTooShortReason(reason: string) {
+  return reason.startsWith("too_short:min_words_");
+}
+
+function maxTokensForShortRetry(jenis: string, parameters: Record<string, unknown>, requested: number) {
+  const minimum = minimumWordCountFor(jenis, parameters);
+  const estimated = Math.ceil((minimum * 3.8) / 100) * 100;
+  const retryFloor = jenis === "kultum" ? 2600 : jenis === "ceramah" ? 4200 : jenis === "nikah" ? 3600 : 4500;
+  return Math.min(maxTokens, Math.max(requested, estimated, retryFloor));
+}
+
+function retryGenerationSettingsFor(jenis: string, parameters: Record<string, unknown>, reason: string) {
+  const settings = generationSettingsFor(jenis, parameters);
+  if (!isTooShortReason(reason)) return settings;
+
+  return {
+    ...settings,
+    max_tokens: maxTokensForShortRetry(jenis, parameters, settings.max_tokens)
+  };
+}
+
+function completionParamsForProvider<T extends { model: string }>(params: T): T {
+  const isDeepSeekV4 = /^deepseek-v4-/i.test(params.model) && /api\.deepseek\.com/i.test(baseURL ?? "");
+  if (!isDeepSeekV4) return params;
+
+  return {
+    ...params,
+    thinking: { type: "disabled" }
+  } as T;
+}
+
 async function withProviderTimeout<T>(promise: Promise<T>) {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -197,7 +228,7 @@ async function createCompletionWithCreditRetry(
   pass: string
 ) {
   try {
-    return await withProviderTimeout(client!.chat.completions.create(params));
+    return await withProviderTimeout(client!.chat.completions.create(completionParamsForProvider(params) as typeof params));
   } catch (error) {
     const message = providerMessage(error);
     const retryMaxTokens = retryMaxTokensForProviderError(message, params.max_tokens ?? maxTokens);
@@ -206,7 +237,7 @@ async function createCompletionWithCreditRetry(
     console.warn(
       `[generateText:${traceId}] pass=${pass} provider_retry=max_tokens requested=${params.max_tokens ?? maxTokens} retry=${retryMaxTokens} message=${message}`
     );
-    return await withProviderTimeout(client!.chat.completions.create({ ...params, max_tokens: retryMaxTokens }));
+    return await withProviderTimeout(client!.chat.completions.create(completionParamsForProvider({ ...params, max_tokens: retryMaxTokens }) as typeof params));
   }
 }
 
@@ -215,7 +246,7 @@ async function createStreamingCompletionWithCreditRetry(
   traceId: string
 ) {
   try {
-    return await withProviderTimeout(client!.chat.completions.create(params));
+    return await withProviderTimeout(client!.chat.completions.create(completionParamsForProvider(params) as typeof params));
   } catch (error) {
     const message = providerMessage(error);
     const retryMaxTokens = retryMaxTokensForProviderError(message, params.max_tokens ?? maxTokens);
@@ -224,7 +255,7 @@ async function createStreamingCompletionWithCreditRetry(
     console.warn(
       `[streamGeneratedText:${traceId}] provider_retry=max_tokens requested=${params.max_tokens ?? maxTokens} retry=${retryMaxTokens} message=${message}`
     );
-    return await withProviderTimeout(client!.chat.completions.create({ ...params, max_tokens: retryMaxTokens }));
+    return await withProviderTimeout(client!.chat.completions.create(completionParamsForProvider({ ...params, max_tokens: retryMaxTokens }) as typeof params));
   }
 }
 
@@ -271,7 +302,7 @@ function retryLengthInstructionFor(jenis: string) {
 }
 
 function retryTooShortInstructionFor(jenis: string, parameters: Record<string, unknown>, reason: string) {
-  if (!reason.startsWith("too_short:min_words_")) return "";
+  if (!isTooShortReason(reason)) return "";
 
   const minimum = minimumWordCountFor(jenis, parameters);
   const lowerTarget = Math.ceil(Math.max(minimum + 150, minimum * 1.2) / 50) * 50;
@@ -672,9 +703,14 @@ async function retryOpenAITextAfterInvalidPass(input: {
   dalilContext?: PromptDalilContext;
   traceId: string;
 }) {
-  const generationSettings = generationSettingsFor(input.jenis, input.parameters);
   const baseMessages = messagesWithOutline(input.prompt, input.traceId, input.outline);
   const invalidReason = providerTextFailureReason(input.jenis, input.invalidText, input.parameters);
+  const generationSettings = retryGenerationSettingsFor(input.jenis, input.parameters, invalidReason);
+  if (generationSettings.max_tokens > maxTokensForRequest(input.jenis, input.parameters)) {
+    console.info(
+      `[generateText:${input.traceId}] model=${input.modelName} pass=retry token_boost=${generationSettings.max_tokens} reason=${invalidReason}`
+    );
+  }
 
   const retryResponse = await createCompletionWithCreditRetry(
     {
@@ -882,6 +918,12 @@ export async function generateText(jenis: string, parameters: Record<string, unk
         `[generateText:${traceId}] model=${modelName} pass=first jenis=${jenis} status=needs_retry reason=${firstPassReason}`
       );
 
+      const retryGenerationSettings = retryGenerationSettingsFor(jenis, parameters, firstPassReason);
+      if (retryGenerationSettings.max_tokens > generationSettings.max_tokens) {
+        console.info(
+          `[generateText:${traceId}] model=${modelName} pass=retry token_boost=${retryGenerationSettings.max_tokens} reason=${firstPassReason}`
+        );
+      }
       const retryResponse = await createCompletionWithCreditRetry(
         {
           model: modelName,
@@ -892,7 +934,7 @@ export async function generateText(jenis: string, parameters: Record<string, unk
               content: retryInstruction(jenis, parameters, firstPassReason)
             }
           ],
-          ...generationSettings
+          ...retryGenerationSettings
         },
         traceId,
         "retry"
