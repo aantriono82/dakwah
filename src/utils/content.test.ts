@@ -298,6 +298,9 @@ describe("content utilities", () => {
     });
 
     expect(amanahPrompt).toContain("Tema, ayat Al-Quran, hadits, isi utama");
+    expect(amanahPrompt).toContain('Tema utama: "Menjaga amanah publik"');
+    expect(amanahPrompt).toContain("Setiap paragraf harus mendukung tema utama.");
+    expect(amanahPrompt).toContain("Jika menyebut ayat atau hadits, pilih yang relevan dengan tema.");
     expect(amanahPrompt).toContain("QS. An-Nisa: 58");
     expect(amanahPrompt).toContain("apabila diberi amanah ia berkhianat");
     expect(sabarPrompt).toContain("QS. Al-Baqarah: 153");

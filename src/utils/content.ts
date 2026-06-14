@@ -393,6 +393,15 @@ function arabicVariationGuidanceFor(jenis: string) {
 - Jangan hanya memakai satu doa pendek seperti "Rabbana atina..." sebagai seluruh doa penutup. Doa tersebut boleh dipakai sebagai salah satu bagian saja.`;
 }
 
+function mainThemeConstraintPrompt(tema: string) {
+  return `Tema utama: "${tema}"
+
+Semua isi naskah khutbah, ceramah, dan kultum harus menjelaskan tema tersebut.
+Jangan membahas topik lain kecuali berkaitan langsung dengan tema.
+Setiap paragraf harus mendukung tema utama.
+Jika menyebut ayat atau hadits, pilih yang relevan dengan tema.`;
+}
+
 function arabicOnlySecondKhutbahGuidanceFor(jenis: string) {
   if (!isKhutbahRukunType(jenis)) return "";
   const idulTakbir = jenis === "idul-fitri" || jenis === "idul-adha"
@@ -443,6 +452,8 @@ export function buildPrompt(jenis: string, parameters: Record<string, unknown>, 
 ${languageGuidanceFor(parameters)}
 
 ${lengthGuidanceFor(jenis, parameters)}
+
+${mainThemeConstraintPrompt(tema)}
 
 ${themeAlignmentGuidanceFor(jenis, tema, parameters)}
 

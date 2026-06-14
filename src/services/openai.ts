@@ -371,6 +371,13 @@ Hadits yang akan dipasang sistem: ${dalilContext.hadith[0]?.reference ?? "fallba
 Jenis khutbah: ${jenis}
 Bahasa target: ${targetLanguage}
 
+Tema utama: "${tema}"
+
+Semua isi naskah khutbah, ceramah, dan kultum harus menjelaskan tema tersebut.
+Jangan membahas topik lain kecuali berkaitan langsung dengan tema.
+Setiap paragraf harus mendukung tema utama.
+Jika menyebut ayat atau hadits, pilih yang relevan dengan tema.
+
 ${dalilSummary}
 
 Tugas AI:
