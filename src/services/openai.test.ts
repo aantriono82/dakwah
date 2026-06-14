@@ -81,4 +81,40 @@ Hadits tersebut menegaskan bahwa dusta, ingkar janji, dan khianat adalah kerusak
     expect(composed).not.toContain("Allah berfirman dalam Al-Quran tentang amanah.");
     expect(composed).not.toContain("Rasulullah bersabda tentang tanda munafik.");
   });
+
+  test("rejects off-topic retrieved quran when composing templated khutbah", () => {
+    const composed = composeTemplatedRukunKhutbah(
+      "idul-fitri",
+      { bahasa: "Indonesia", tema: "menjaga silaturahmi" },
+      "Ayat di atas mengingatkan bahwa Idul Fitri adalah waktu untuk menyambung hubungan keluarga, meminta maaf, dan melembutkan hati kepada saudara.",
+      {
+        theme: "menjaga silaturahmi",
+        source: "test",
+        quran: [
+          {
+            kind: "quran",
+            reference: "QS. Al-Isra: 32",
+            arab: "وَلَا تَقْرَبُوا الزِّنٰى إِنَّهُ كَانَ فَاحِشَةً وَسَاءَ سَبِيْلًا.",
+            translation: "Janganlah kamu mendekati zina; sesungguhnya zina itu adalah perbuatan keji dan jalan yang buruk.",
+            source: "test"
+          }
+        ],
+        hadith: [
+          {
+            kind: "hadith",
+            reference: "HR. Bukhari dan Muslim",
+            arab: "مَنْ أَحَبَّ أَنْ يُبْسَطَ لَهُ فِيْ رِزْقِهِ وَيُنْسَأَ لَهُ فِيْ أَثَرِهِ فَلْيَصِلْ رَحِمَهُ.",
+            translation: "Siapa yang ingin dilapangkan rezekinya dan dipanjangkan jejak kebaikannya, hendaklah ia menyambung silaturahmi.",
+            source: "test"
+          }
+        ]
+      }
+    );
+
+    expect(composed).toContain("QS. An-Nisa: 1");
+    expect(composed).toContain("peliharalah hubungan kekerabatan");
+    expect(composed).not.toContain("QS. Al-Isra: 32");
+    expect(composed).not.toContain("Janganlah kamu mendekati zina");
+    expect(composed).toContain("hendaklah ia menyambung silaturahmi");
+  });
 });

@@ -4273,6 +4273,18 @@ function promptDalilItemToText(item: PromptDalilItem | undefined, fallback: Dali
   };
 }
 
+function thematicPromptDalilItemIsRelevant(item: PromptDalilItem | undefined, set: ThematicDalilSet | null, kind: "quran" | "hadith") {
+  if (!item || !set) return true;
+
+  const localItems = kind === "quran" ? set.ayat : set.hadith;
+  if (localItems.some((localItem) => normalizedTopic(localItem.rujukan) === normalizedTopic(item.reference))) return true;
+
+  const haystack = normalizedTopic([item.reference, item.translation, item.relevance, item.tafsir, item.source].filter(Boolean).join(" "));
+  const tokens = haystack.split(/[^a-z0-9]+/).filter(Boolean);
+  const score = set.keywords.reduce((total, keyword) => total + thematicKeywordScore(haystack, tokens, keyword), 0);
+  return score > 0;
+}
+
 function normalizeEditorialKhutbahBody(text: string) {
   const withoutRukunHeadings = sanitizeGeneratedText(text)
     .replace(/^\s*(?:Judul|Tema|Bahasa)\s*:?.*$/gim, "")
@@ -4310,8 +4322,11 @@ export function composeTemplatedRukunKhutbah(
   const takbirTujuh =
     "اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ، اَللهُ أَكْبَرُ.";
   const selectedDalil = selectedDalilFor(jenis, tema, seed);
-  const ayat = promptDalilItemToText(retrievedDalil?.quran[0], selectedDalil.ayat);
-  const hadith = promptDalilItemToText(retrievedDalil?.hadith[0], selectedDalil.hadith);
+  const thematicSet = matchingThematicDalilSet(jenis, tema);
+  const retrievedQuran = thematicPromptDalilItemIsRelevant(retrievedDalil?.quran[0], thematicSet, "quran") ? retrievedDalil?.quran[0] : undefined;
+  const retrievedHadith = thematicPromptDalilItemIsRelevant(retrievedDalil?.hadith[0], thematicSet, "hadith") ? retrievedDalil?.hadith[0] : undefined;
+  const ayat = promptDalilItemToText(retrievedQuran, selectedDalil.ayat);
+  const hadith = promptDalilItemToText(retrievedHadith, selectedDalil.hadith);
   const firstTakbir = jenis === "idul-fitri" || jenis === "idul-adha" ? `${takbirSembilan}\n\n` : "";
   const secondTakbir = jenis === "idul-fitri" || jenis === "idul-adha" ? takbirTujuh : "";
   const editorial = normalizeEditorialKhutbahBody(editorialBody) || khutbahDeepeningFor(jenis, language, tema, selectedDalil.label);
