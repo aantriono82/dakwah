@@ -104,6 +104,10 @@ describe("API auth and roles", () => {
     expect(configBody.data.storageRequired).toBe(false);
     expect(configBody.data.authCaptcha.provider).toBe("manual");
     expect(configBody.data.googleOAuthEnabled).toBe(false);
+
+    const anonymousSession = await request("/api/auth/session");
+    expect(anonymousSession.status).toBe(200);
+    expect((await anonymousSession.json()).user).toBeNull();
   });
 
   test("google oauth returns clear error when not configured", async () => {
@@ -125,6 +129,10 @@ describe("API auth and roles", () => {
     const me = await request("/api/auth/me", {}, adminCookie);
     expect(me.status).toBe(200);
     expect((await me.json()).user.username).toBe("admin");
+
+    const session = await request("/api/auth/session", {}, adminCookie);
+    expect(session.status).toBe(200);
+    expect((await session.json()).user.username).toBe("admin");
 
     const logout = await request("/api/auth/logout", { method: "POST", body: "{}" }, adminCookie);
     expect(logout.status).toBe(200);

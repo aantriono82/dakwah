@@ -22,17 +22,23 @@ export function publicUser(user: User): PublicUser {
   };
 }
 
-export async function authRequired(c: Context<AppEnv>, next: Next) {
+export async function getSessionUser(c: Context<AppEnv>) {
   const sessionId = getCookie(c, "khutbah_session");
-  if (!sessionId) return c.json({ message: "Belum login." }, 401);
+  if (!sessionId) return null;
 
   const session = await db.query.sessions.findFirst({
     where: and(eq(sessions.id, sessionId), gt(sessions.expiresAt, new Date())),
     with: { user: true }
   });
 
-  if (!session?.user) return c.json({ message: "Session tidak valid." }, 401);
-  c.set("user", publicUser(session.user));
+  return session?.user ? publicUser(session.user) : null;
+}
+
+export async function authRequired(c: Context<AppEnv>, next: Next) {
+  const user = await getSessionUser(c);
+  if (!user) return c.json({ message: "Belum login." }, 401);
+
+  c.set("user", user);
   await next();
 }
 

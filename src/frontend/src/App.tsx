@@ -147,7 +147,7 @@ export function App() {
   }, [dark]);
 
   useEffect(() => {
-    api<{ user: User }>("/api/auth/me")
+    api<{ user: User | null }>("/api/auth/session")
       .then((data) => setUser(data.user))
       .catch(() => setUser(null))
       .finally(() => setAuthLoading(false));

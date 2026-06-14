@@ -23,7 +23,7 @@ import {
 import { sendPasswordResetEmail } from "../services/email";
 import { verifyTurnstileToken } from "../services/turnstile";
 import { createWordProblemCaptcha, normalizeCaptchaAnswer } from "../utils/captcha";
-import { authRequired, isUniqueConstraintError, publicUser, type AppEnv } from "../utils/http";
+import { authRequired, getSessionUser, isUniqueConstraintError, publicUser, type AppEnv } from "../utils/http";
 import { hashPassword, sha256, verifyPassword } from "../utils/password";
 import { rateLimit, rateLimitKeyByIp } from "../utils/rate-limit";
 
@@ -414,5 +414,7 @@ authRoutes.post("/logout", authRequired, async (c) => {
   deleteCookie(c, "khutbah_session", { path: "/", domain: authCookieDomain });
   return c.json({ ok: true });
 });
+
+authRoutes.get("/session", async (c) => c.json({ user: await getSessionUser(c) }));
 
 authRoutes.get("/me", authRequired, (c) => c.json({ user: c.get("user") }));
