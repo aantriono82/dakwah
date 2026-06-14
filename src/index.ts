@@ -122,7 +122,8 @@ if (shouldServeFrontend) {
 
 if (import.meta.main) {
   const port = Number(process.env.PORT ?? 3000);
-  Bun.serve({ hostname: "0.0.0.0", port, fetch: app.fetch, idleTimeout: Math.ceil(generateClientTimeoutMs / 1000) });
+  const idleTimeoutSeconds = Math.min(255, Math.max(1, Math.ceil(generateClientTimeoutMs / 1000)));
+  Bun.serve({ hostname: "0.0.0.0", port, fetch: app.fetch, idleTimeout: idleTimeoutSeconds });
   console.log(`Dakwah berjalan di http://localhost:${port}`);
 }
 

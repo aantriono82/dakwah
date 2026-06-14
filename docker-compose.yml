@@ -44,6 +44,7 @@ services:
       - app-data:/app/data
     depends_on:
       - rustfs
+    restart: unless-stopped
 
   rustfs:
     image: rustfs/rustfs:latest
@@ -54,6 +55,7 @@ services:
       RUSTFS_SECRET_KEY: dakwah-secret
     volumes:
       - rustfs-data:/data
+    restart: unless-stopped
 
 volumes:
   app-data:
