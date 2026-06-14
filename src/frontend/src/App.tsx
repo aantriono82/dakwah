@@ -1069,21 +1069,21 @@ function RegisterPanel({
     <div
       className={cn(
         authCardClass,
-        "self-start max-w-[560px] overflow-visible px-4 py-6 sm:my-auto sm:max-h-[calc(100vh-4rem)] sm:self-auto sm:overflow-y-auto sm:px-8 sm:py-8 lg:max-w-[520px] lg:px-7 lg:py-7"
+        "self-start max-w-[520px] overflow-visible px-4 py-4 sm:my-auto sm:max-h-[calc(100vh-4rem)] sm:self-auto sm:overflow-y-auto sm:px-8 sm:py-8 lg:max-w-[520px] lg:px-7 lg:py-7"
       )}
     >
       <div className="text-center">
         <h1 className="text-2xl font-black tracking-normal text-foreground sm:text-3xl lg:text-[1.875rem]">Daftar</h1>
-        <div className="mx-auto mt-4 grid size-14 place-items-center rounded-full bg-muted text-muted-foreground shadow-inner ring-4 ring-border sm:mt-5 sm:size-16 lg:mt-4 lg:size-14">
-          <IconUser className="size-10 sm:size-12 lg:size-10" />
+        <div className="mx-auto mt-5 hidden size-16 place-items-center rounded-full bg-muted text-muted-foreground shadow-inner ring-4 ring-border sm:grid lg:mt-4 lg:size-14">
+          <IconUser className="size-12 lg:size-10" />
         </div>
       </div>
 
-      <form className="mx-auto mt-5 grid max-w-[520px] gap-3.5 sm:mt-6 sm:gap-4 lg:mt-5 lg:max-w-[440px] lg:gap-3" onSubmit={submit}>
+      <form className="mx-auto mt-3 grid max-w-[520px] gap-2.5 sm:mt-6 sm:gap-4 lg:mt-5 lg:max-w-[440px] lg:gap-3" onSubmit={submit}>
         <label className="relative block">
-          <IconUser className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+          <IconUser className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground sm:size-5" />
           <Input
-            className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
+            className="h-10 min-h-10 rounded-full border-border bg-card px-4 pl-11 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px] sm:px-5 sm:pl-14"
             placeholder="Nama"
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -1092,9 +1092,9 @@ function RegisterPanel({
           />
         </label>
         <label className="relative block">
-          <IconMail className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+          <IconMail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground sm:size-5" />
           <Input
-            className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
+            className="h-10 min-h-10 rounded-full border-border bg-card px-4 pl-11 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px] sm:px-5 sm:pl-14"
             placeholder="E-mail"
             type="email"
             value={email}
@@ -1104,9 +1104,9 @@ function RegisterPanel({
           />
         </label>
         <label className="relative block">
-          <IconLock className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+          <IconLock className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground sm:size-5" />
           <Input
-            className="h-12 min-h-12 rounded-full border-border bg-card px-5 pl-14 pr-14 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px]"
+            className="h-10 min-h-10 rounded-full border-border bg-card px-4 pl-11 pr-11 text-base text-foreground placeholder:text-muted-foreground sm:h-[52px] sm:min-h-[52px] sm:px-5 sm:pl-14 sm:pr-14"
             placeholder="Kata sandi"
             type={showPassword ? "text" : "password"}
             value={password}
@@ -1116,7 +1116,7 @@ function RegisterPanel({
             required
           />
           <button
-            className="absolute right-4 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition hover:bg-accent"
+            className="absolute right-3 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition hover:bg-accent sm:right-4"
             onClick={() => setShowPassword((value) => !value)}
             type="button"
             aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
@@ -1125,7 +1125,7 @@ function RegisterPanel({
           </button>
         </label>
 
-        <div className="grid gap-3 rounded-2xl border border-border bg-muted/30 p-3 sm:p-4 lg:gap-2.5 lg:p-3.5">
+        <div className="grid gap-2 rounded-lg border border-border bg-muted/30 p-2 sm:gap-3 sm:rounded-2xl sm:p-4 lg:gap-2.5 lg:p-3.5">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">Verifikasi keamanan</p>
             {!turnstileEnabled && (
@@ -1158,7 +1158,7 @@ function RegisterPanel({
           ) : (
             <>
               <div
-                className="relative flex w-full items-start overflow-visible rounded-xl border border-border bg-card px-4 py-4 sm:px-4"
+                className="relative flex w-full items-start overflow-visible rounded-lg border border-border bg-card px-3 py-2 sm:rounded-xl sm:px-4 sm:py-4"
                 aria-label={captcha ? `Soal captcha ${captcha.question}` : "Memuat captcha"}
               >
                 {captcha?.noise.map((line, index) => (
@@ -1174,12 +1174,12 @@ function RegisterPanel({
                   />
                 ))}
                 <span className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--muted-foreground)/0.22)_1px,transparent_0)] bg-[length:8px_8px] opacity-60" />
-                <span className="relative z-10 block w-full max-w-full select-none whitespace-normal break-words py-1 text-left font-mono text-sm font-semibold leading-6 tracking-normal text-foreground sm:text-[15px]">
+                <span className="relative z-10 block w-full max-w-full select-none whitespace-normal break-words text-left font-mono text-sm font-semibold leading-5 tracking-normal text-foreground sm:py-1 sm:text-[15px] sm:leading-6">
                   {captcha?.question ?? "Memuat..."}
                 </span>
               </div>
               <Input
-                className="h-10 rounded-full border-border bg-card px-4 text-base text-foreground placeholder:text-muted-foreground sm:h-11"
+                className="h-9 rounded-full border-border bg-card px-4 text-base text-foreground placeholder:text-muted-foreground sm:h-11"
                 type="text"
                 value={captchaAnswer}
                 onChange={(event) => setCaptchaAnswer(event.target.value)}
@@ -1199,9 +1199,9 @@ function RegisterPanel({
 
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
-        <div className="relative mt-2 flex items-center justify-center">
+        <div className="relative mt-1 flex items-center justify-center sm:mt-2">
           <Button
-            className="h-11 w-full rounded-full bg-primary px-5 text-base font-bold hover:bg-primary/90 sm:w-auto sm:min-w-36"
+            className="h-10 w-full rounded-full bg-primary px-5 text-base font-bold hover:bg-primary/90 sm:h-11 sm:w-auto sm:min-w-36"
             disabled={!captchaIsReady || loading}
           >
             {loading ? "Mendaftar..." : "Daftar"}
@@ -1209,13 +1209,13 @@ function RegisterPanel({
         </div>
       </form>
 
-      <p className="mt-6 text-center text-base text-foreground sm:mt-7 sm:text-lg lg:mt-5 lg:text-base">
+      <p className="mt-3 text-center text-sm text-foreground sm:mt-7 sm:text-lg lg:mt-5 lg:text-base">
         Sudah punya akun?{" "}
         <button className="font-medium text-primary" onClick={onShowLogin} type="button">
           Masuk sekarang
         </button>
       </p>
-      <p className="mx-auto mt-4 max-w-[420px] text-center text-[15px] leading-7 text-muted-foreground sm:max-w-[460px] sm:text-base lg:mt-3 lg:max-w-[400px] lg:text-[15px] lg:leading-6">
+      <p className="mx-auto mt-2 max-w-[320px] text-center text-[11px] leading-4 text-muted-foreground sm:mt-4 sm:max-w-[460px] sm:text-base sm:leading-7 lg:mt-3 lg:max-w-[400px] lg:text-[15px] lg:leading-6">
         Dengan menekan tombol daftar, Anda menyatakan telah membaca, memahami, dan menyetujui{" "}
         <button className="underline" onClick={onShowTerms} type="button">
           Syarat Ketentuan
@@ -1534,9 +1534,7 @@ function MainLayout({
 function FooterCredit({ className = "" }: { className?: string }) {
   return (
     <footer className={cn("flex flex-wrap items-center justify-center gap-2 border-t border-border bg-muted/30 px-6 py-6 text-center text-sm text-muted-foreground sm:text-base", className)}>
-      <span>Dakwah &copy; 2026. Dibuat dengan</span>
-      <IconHeart className="size-4 fill-[#800020] text-[#800020] sm:size-[18px]" aria-label="cinta" />
-      <span>oleh Aan Triono.</span>
+      <span>Dakwah &copy; 2026. All Right Reserved</span>
     </footer>
   );
 }
