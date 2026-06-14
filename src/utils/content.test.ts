@@ -138,6 +138,36 @@ describe("content utilities", () => {
     }
   });
 
+  test("buildPrompt chooses Muharram-specific guidance and dalil for Muharram themes", () => {
+    const prompt = buildPrompt("ceramah", {
+      bahasa: "Indonesia",
+      topik: "amalan di bulan muharram"
+    });
+
+    expect(prompt).toContain("Kesesuaian tema Ceramah");
+    expect(prompt).toContain('Semua bagian Ceramah wajib spesifik membahas "amalan di bulan muharram"');
+    expect(prompt).toContain("Muharram, Asyura, bulan haram, dan tahun baru Hijriah");
+    expect(prompt).toContain("QS. At-Taubah: 36");
+    expect(prompt).toContain("Puasa yang paling utama setelah Ramadhan");
+    expect(prompt).toContain("Puasa hari Asyura");
+    expect(prompt).not.toContain("Paket dalil paling relevan untuk tema \"amalan di bulan muharram\" (takwa dan amal saleh)");
+  });
+
+  test("fallback ceramah for Muharram stays specific to the selected theme", () => {
+    const draft = fallbackNaskah("ceramah", {
+      bahasa: "Indonesia",
+      topik: "amalan di bulan muharram"
+    });
+
+    expect(draft).toContain("QS. At-Taubah: 36");
+    expect(draft).toContain("HR. Muslim");
+    expect(draft).toContain("puasa di bulan Allah, Muharram");
+    expect(draft).toContain("Asyura");
+    expect(draft).toContain("Tasu'a");
+    expect(draft).toContain("bulan haram");
+    expect(draft).not.toContain("Ceramah tentang amalan di bulan muharram perlu dibangun lebih luas daripada kultum singkat");
+  });
+
   test("buildPrompt strongly instructs selected local language", () => {
     const jawaPrompt = buildPrompt("khutbah-jumat", { bahasa: "Jawa", temaUtama: "Amanah" });
     const arabPrompt = buildPrompt("ceramah", { bahasa: "Arab", topik: "Sabar" });

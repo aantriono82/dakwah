@@ -358,6 +358,15 @@ function themeAlignmentGuidanceFor(jenis: string, tema: string, parameters: Reco
 - Nasihat untuk mempelai harus menghubungkan "${tema}" dengan kehidupan nyata setelah akad: komunikasi, tanggung jawab, keluarga, ibadah, nafkah, kesabaran, dan saling memaafkan sesuai relevansi tema.`;
   }
 
+  if (jenis === "ceramah") {
+    return `Kesesuaian tema Ceramah:
+- Semua bagian Ceramah wajib spesifik membahas "${tema}", bukan ceramah umum yang hanya menyisipkan frasa tema berulang-ulang.
+- Isi utama harus menjawab langsung: apa definisi/ruang lingkup tema, dalil utama, amalan yang dianjurkan, batasan yang perlu dihindari, contoh penerapan jamaah, dan langkah praktis.
+- Jika tema menyebut waktu ibadah seperti Muharram, Ramadhan, Dzulhijjah, Jumat, atau awal tahun Hijriah, bahas keutamaan waktu tersebut, amalan sunnah yang masyhur, tanggal/momen penting bila relevan, dan peringatan dari klaim yang tidak berdalil kuat.
+- Jika tema tentang syukur, bahas nikmat dan cara bersyukur; jika sabar, bahas ujian dan keteguhan; jika sedekah, bahas kepedulian dan infak; jika taubat, bahas istighfar dan harapan; jika amanah, bahas kejujuran dan tanggung jawab.
+- Jangan memakai contoh generik seperti menjaga lisan, pekerjaan, atau keluarga kecuali memang mendukung tema yang dipilih dan dijelaskan hubungannya secara eksplisit.`;
+  }
+
   if (jenis !== "kultum") return "";
 
   return `Kesesuaian tema Kultum:
@@ -1088,6 +1097,54 @@ type ThematicDalilSet = {
 };
 
 export const thematicDalilSets: ThematicDalilSet[] = [
+  {
+    label: "Muharram, Asyura, bulan haram, dan tahun baru Hijriah",
+    keywords: [
+      "muharram",
+      "muharam",
+      "asyura",
+      "ashura",
+      "tasua",
+      "tasu'a",
+      "tahun baru islam",
+      "tahun baru hijriah",
+      "hijriyah",
+      "hijriah",
+      "bulan haram",
+      "syahrullah",
+      "puasa muharram",
+      "puasa asyura",
+      "puasa tasua",
+      "amalan muharram",
+      "amalan bulan muharram"
+    ],
+    ayat: [
+      {
+        arab: "إِنَّ عِدَّةَ الشُّهُوْرِ عِنْدَ اللهِ اثْنَا عَشَرَ شَهْرًا فِيْ كِتَابِ اللهِ يَوْمَ خَلَقَ السَّمٰوَاتِ وَالْأَرْضَ مِنْهَا أَرْبَعَةٌ حُرُمٌ، ذٰلِكَ الدِّيْنُ الْقَيِّمُ، فَلَا تَظْلِمُوْا فِيْهِنَّ أَنْفُسَكُمْ.",
+        arti:
+          "Sesungguhnya bilangan bulan di sisi Allah adalah dua belas bulan dalam ketetapan Allah sejak Dia menciptakan langit dan bumi; di antaranya ada empat bulan haram. Itulah agama yang lurus, maka janganlah kalian menzalimi diri di dalamnya.",
+        rujukan: "QS. At-Taubah: 36"
+      }
+    ],
+    hadith: [
+      {
+        arab: "أَفْضَلُ الصِّيَامِ بَعْدَ رَمَضَانَ شَهْرُ اللهِ الْمُحَرَّمُ، وَأَفْضَلُ الصَّلَاةِ بَعْدَ الْفَرِيْضَةِ صَلَاةُ اللَّيْلِ.",
+        arti:
+          "Puasa yang paling utama setelah Ramadhan adalah puasa di bulan Allah, Muharram. Shalat yang paling utama setelah shalat fardhu adalah shalat malam.",
+        rujukan: "HR. Muslim"
+      },
+      {
+        arab: "صِيَامُ يَوْمِ عَاشُوْرَاءَ، أَحْتَسِبُ عَلَى اللهِ أَنْ يُكَفِّرَ السَّنَةَ الَّتِيْ قَبْلَهُ.",
+        arti: "Puasa hari Asyura, aku berharap kepada Allah agar menghapus dosa setahun sebelumnya.",
+        rujukan: "HR. Muslim"
+      },
+      {
+        arab: "لَئِنْ بَقِيْتُ إِلَى قَابِلٍ لَأَصُوْمَنَّ التَّاسِعَ.",
+        arti: "Jika aku masih hidup sampai tahun depan, sungguh aku akan berpuasa pada hari kesembilan.",
+        rujukan: "HR. Muslim"
+      }
+    ]
+  },
   {
     label: "shalat, shalat sunah, dan kedekatan kepada Allah",
     keywords: [
@@ -2712,6 +2769,25 @@ function indonesianThemeSubsectionsFor(tema: string, dalilLabel: string): Fallba
     ];
   }
 
+  if (label.includes("muharram") || label.includes("asyura") || label.includes("bulan haram") || label.includes("hijriah")) {
+    return [
+      {
+        title: "Muharram Adalah Bulan yang Dimuliakan",
+        body: `Tema ${tema} mengingatkan bahwa Muharram bukan sekadar awal kalender, tetapi termasuk bulan haram yang Allah muliakan. Di bulan ini seorang muslim diajak memperbesar kehati-hatian: memperbanyak ketaatan, menjauhi kezaliman terhadap diri sendiri, dan memulai lembar waktu dengan taubat yang jujur.`
+      },
+      {
+        title: "Puasa Muharram, Tasu'a, dan Asyura",
+        body:
+          "Hadits Nabi menjelaskan bahwa puasa paling utama setelah Ramadhan adalah puasa di bulan Allah, Muharram. Di antara yang paling ditekankan adalah puasa Asyura pada tanggal 10 Muharram, dan dianjurkan menambah tanggal 9 Muharram sebagai Tasu'a. Inilah amalan yang jelas dalilnya dan mudah diarahkan kepada jamaah."
+      },
+      {
+        title: "Mengawali Tahun dengan Muhasabah",
+        body:
+          "Pergantian tahun Hijriah sebaiknya tidak berhenti pada seremoni. Ia menjadi momen bertanya: dosa apa yang harus ditinggalkan, ibadah apa yang perlu dirapikan, hutang atau hak siapa yang harus ditunaikan, dan amal apa yang akan dijaga lebih konsisten pada tahun ini."
+      }
+    ];
+  }
+
   if (label.includes("taubat") || label.includes("istighfar")) {
     return [
       {
@@ -3252,6 +3328,14 @@ function practicalStepsFor(language: SupportedLanguage, tema: string, dalilLabel
     ];
   }
 
+  if (language === "Indonesia" && (label.includes("muharram") || label.includes("asyura") || label.includes("bulan haram") || label.includes("hijriah"))) {
+    return [
+      "Rencanakan puasa sunnah di bulan Muharram, terutama Tasu'a 9 Muharram dan Asyura 10 Muharram bila mampu.",
+      "Jadikan bulan haram sebagai latihan menahan diri dari maksiat, kezaliman, permusuhan, dan kebiasaan yang merusak hati.",
+      "Gunakan awal tahun Hijriah untuk muhasabah: pilih satu dosa yang ditinggalkan dan satu amal yang dijaga lebih konsisten."
+    ];
+  }
+
   if (language === "Indonesia" && (label.includes("taubat") || label.includes("istighfar"))) {
     return [
       "Berhenti dari dosa yang paling dekat hari ini, lalu tutup pintu yang biasa menyeret kita kembali kepadanya.",
@@ -3753,6 +3837,12 @@ function indonesianKultumThemeApplication(tema: string, dalilLabel: string) {
 Langkah praktisnya sederhana. Setiap hari sebutkan satu nikmat yang sering kita anggap biasa, lalu gunakan nikmat itu untuk kebaikan. Jika diberi keluarga, syukuri dengan lebih sabar kepada mereka. Jika diberi pekerjaan, syukuri dengan amanah. Jika diberi makanan, ingat saudara yang kekurangan. Dengan begitu, syukur tidak berhenti menjadi kalimat, tetapi berubah menjadi akhlak.`;
   }
 
+  if (normalizedLabel.includes("muharram") || normalizedLabel.includes("asyura") || normalizedLabel.includes("bulan haram") || normalizedLabel.includes("hijriah")) {
+    return `Pada tema ${tema}, yang perlu ditekankan adalah bahwa Muharram termasuk bulan haram yang dimuliakan Allah. Maka amalan di bulan ini bukan sekadar ucapan selamat tahun baru, melainkan memperbanyak ketaatan dan menahan diri dari kezaliman terhadap diri sendiri. Jamaah perlu diajak memahami bahwa waktu yang dimuliakan Allah seharusnya melahirkan rasa hormat, kehati-hatian, dan kesungguhan memperbaiki amal.
+
+Amalan yang paling jelas dalilnya adalah memperbanyak puasa sunnah di bulan Muharram. Di antara yang paling utama adalah puasa Asyura pada 10 Muharram, dengan harapan Allah menghapus dosa setahun sebelumnya, serta dianjurkan menambah puasa Tasu'a pada 9 Muharram. Selain itu, Muharram menjadi momentum muhasabah: menutup tahun dengan istighfar, membuka waktu baru dengan niat yang lurus, memperbaiki shalat, memperbanyak dzikir, sedekah, dan meninggalkan kebiasaan dosa.`;
+  }
+
   if (normalizedLabel.includes("sabar")) {
     return `Pada tema ${tema}, yang perlu dikuatkan adalah cara kita menghadapi ujian. Sabar bukan berarti tidak sedih dan tidak lelah. Sabar berarti hati tetap mencari ridha Allah saat keadaan tidak sesuai harapan. Ada orang diuji dengan sakit, ada yang diuji dengan ekonomi, ada yang diuji dengan keluarga, ada pula yang diuji dengan menunggu jawaban doa. Dalam semua keadaan itu, sabar menjaga kita agar tidak berkata buruk kepada Allah dan tidak mengambil jalan yang haram.
 
@@ -3891,6 +3981,33 @@ Ku kituna ukuran ceramah ieu lain sabaraha lila urang linggih, tapi parobahan na
 رَابِعًا، لِنَصِلْهَا بِالْمُجْتَمَعِ. فَالْمَسْجِدُ لَيْسَ مَكَانَ صَلَاةٍ فَقَطْ، بَلْ مَدْرَسَةُ رَحْمَةٍ. مِنْهُ نَتَعَلَّمُ السَّلَامَ، وَالْمُسَاعَدَةَ، وَالْعَفْوَ، وَتَرْكَ الْخَبَرِ الَّذِيْ يُفْسِدُ بَيْنَ النَّاسِ.
 
 فَلْيَكُنْ مِقْيَاسُ هٰذِهِ الْمَوْعِظَةِ مَا نَحْمِلُهُ بَعْدَهَا مِنْ تَغْيِيْرٍ صَادِقٍ. لِيَخْتَرْ كُلُّ وَاحِدٍ مِنَّا عَمَلًا قَرِيْبًا، وَلْيَقُلْ فِيْ قَلْبِهِ: الْيَوْمَ أُصْلِحُ شَيْئًا وَاحِدًا. وَإِذَا صَدَقَ الْعَبْدُ فِي الْقَلِيْلِ فَتَحَ اللهُ لَهُ أَبْوَابَ الْخَيْرِ الْكَثِيْرِ.`;
+  }
+
+  const normalizedLabel = normalizedTopic(dalilLabel);
+  if (normalizedLabel.includes("muharram") || normalizedLabel.includes("asyura") || normalizedLabel.includes("bulan haram") || normalizedLabel.includes("hijriah")) {
+    return `Ceramah tentang ${tema} harus dimulai dari pemahaman bahwa Muharram bukan sekadar pergantian angka kalender. Muharram adalah salah satu bulan haram yang Allah muliakan. Ketika Allah memuliakan sebuah waktu, seorang mukmin tidak melewatinya dengan lalai. Ia memperbesar rasa hormat kepada Allah, lebih berhati-hati dari dosa, dan lebih sungguh-sungguh mengisi hari dengan amal saleh.
+
+Allah mengingatkan dalam QS. At-Taubah: 36 bahwa di antara dua belas bulan ada empat bulan haram, lalu Allah berfirman agar kita tidak menzalimi diri di dalamnya. Ini berarti Muharram mengajarkan dua arah sekaligus: memperbanyak kebaikan dan menjauhi kezaliman. Kezaliman kepada diri sendiri dapat berupa maksiat yang dibiarkan, shalat yang ditunda tanpa alasan, lisan yang melukai, permusuhan yang dipelihara, atau kebiasaan dosa yang terus diberi tempat.
+
+Amalan yang paling jelas dan kuat dalilnya di bulan Muharram adalah puasa sunnah. Rasulullah shallallahu 'alaihi wasallam menyebut puasa di bulan Allah, Muharram, sebagai puasa paling utama setelah Ramadhan. Maka jamaah yang mampu hendaknya memperbanyak puasa di bulan ini sesuai kesanggupan, tanpa memberatkan diri dan tanpa meremehkan kewajiban yang lebih utama.
+
+Di antara hari Muharram yang paling ditekankan adalah Asyura, yaitu tanggal 10 Muharram. Nabi shallallahu 'alaihi wasallam berharap kepada Allah agar puasa Asyura menghapus dosa setahun sebelumnya. Ini adalah kabar gembira, tetapi juga panggilan untuk bertaubat. Jangan sampai seseorang berpuasa Asyura, namun tetap nyaman dengan dosa yang sama setelahnya. Penghapusan dosa seharusnya mendorong hati untuk malu kepada Allah dan lebih serius memperbaiki diri.
+
+Rasulullah shallallahu 'alaihi wasallam juga berkeinginan untuk berpuasa pada hari kesembilan Muharram bila bertemu tahun berikutnya. Dari sini para ulama menganjurkan puasa Tasu'a pada tanggal 9 Muharram bersama Asyura pada tanggal 10 Muharram. Bagi yang mampu, boleh menambah puasa tanggal 11 Muharram sebagai bentuk kehati-hatian dan memperbanyak amal di bulan yang mulia.
+
+Selain puasa, Muharram adalah waktu yang sangat tepat untuk muhasabah. Pergantian tahun Hijriah mengingatkan bahwa umur kita berkurang, catatan amal bertambah, dan kesempatan bertaubat tidak selalu terbuka selamanya. Maka tanyakan kepada diri sendiri: shalat mana yang masih sering tertunda, hubungan mana yang perlu diperbaiki, hak siapa yang belum ditunaikan, dosa apa yang harus dihentikan, dan amal apa yang akan kita jaga mulai bulan ini.
+
+Muharram juga mengajarkan agar kita berhati-hati dari amalan yang tidak jelas dalilnya. Cinta kepada bulan mulia tidak boleh membuat kita mudah menyebarkan klaim pahala, doa khusus, atau ritual tertentu yang tidak kita ketahui sumbernya. Jalan yang aman adalah menghidupkan amalan yang masyhur dan berdalil: puasa sunnah, taubat, istighfar, shalat yang lebih dijaga, tilawah, sedekah, memperbaiki hubungan, dan meninggalkan kezaliman.
+
+Dalam keluarga, Muharram bisa menjadi awal perubahan yang nyata. Ajak keluarga merencanakan puasa Tasu'a dan Asyura bagi yang mampu. Ingatkan anak-anak bahwa tahun baru Islam bukan sekadar tanggal merah, tetapi momen mengenal hijrah, pengorbanan, dan keberanian berubah. Di rumah, mulai satu kebiasaan baik: shalat berjamaah, membaca Al-Quran, doa bersama, atau saling meminta maaf sebelum luka menjadi panjang.
+
+Dalam kehidupan sosial, bulan haram seharusnya membuat kita lebih menahan diri dari permusuhan. Jangan rawat kebencian, jangan sebarkan kabar yang merusak, jangan memperpanjang konflik kecil. Bila ada sengketa, cari jalan islah. Bila ada saudara yang membutuhkan, bantu. Bila ada hati yang pernah kita lukai, minta maaf. Memuliakan Muharram bukan hanya dengan ibadah pribadi, tetapi juga dengan mengurangi kezaliman kepada sesama.
+
+Maka langkah praktis setelah majelis ini jelas. Pertama, tetapkan niat untuk memperbaiki amal di bulan Muharram. Kedua, rencanakan puasa sunnah sesuai kemampuan, terutama Tasu'a dan Asyura. Ketiga, pilih satu dosa yang benar-benar ingin ditinggalkan. Keempat, pilih satu amal yang akan dijaga sepanjang tahun. Kelima, periksa hubungan dengan manusia: hak yang belum ditunaikan, utang yang belum dibayar, dan maaf yang belum diminta.
+
+Jangan menunggu semangat besar untuk berubah. Muharram mengajari kita bahwa hijrah sering dimulai dari keputusan kecil yang jujur. Satu hari berpuasa, satu shalat yang lebih tepat waktu, satu permintaan maaf, satu kebiasaan maksiat yang dihentikan, satu sedekah yang dirutinkan; semua itu bisa menjadi pintu keberkahan bila dilakukan karena Allah.
+
+Semoga ketika Muharram berlalu, yang berubah bukan hanya kalender di dinding, tetapi juga arah hati kita. Dari lalai menjadi sadar, dari menunda menjadi memulai, dari dosa menuju taubat, dan dari rutinitas menuju ibadah yang lebih hidup.`;
   }
 
   return `Ceramah tentang ${tema} perlu dibangun lebih luas daripada kultum singkat. Kultum biasanya cukup membawa satu pesan ringkas, sedangkan ceramah memberi ruang untuk menuntun jamaah memahami masalah, membaca dalil, melihat contoh kehidupan, lalu pulang dengan langkah yang jelas. Karena itu, mari kita mulai dengan jujur melihat keadaan diri. Banyak nasihat agama yang sudah pernah kita dengar, tetapi belum semua berubah menjadi kebiasaan. Kita tahu pentingnya sabar, tetapi masih mudah terpancing. Kita tahu pentingnya syukur, tetapi masih cepat mengeluh. Kita tahu pentingnya amanah, tetapi kadang longgar ketika tidak ada yang mengawasi.

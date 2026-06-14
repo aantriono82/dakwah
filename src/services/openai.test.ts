@@ -8,6 +8,9 @@ import {
 } from "./openai";
 
 describe("OpenAI generation settings", () => {
+  const configuredTokenLimit = Number(process.env.OPENAI_MAX_TOKENS ?? 5500);
+  const effectiveTokenLimit = Number.isFinite(configuredTokenLimit) && configuredTokenLimit > 0 ? Math.floor(configuredTokenLimit) : 5500;
+
   test("parses model priority list from environment values", () => {
     expect(parseOpenAIModels(" model-a , model-b ,, model-c ", "fallback")).toEqual(["model-a", "model-b", "model-c"]);
     expect(parseOpenAIModels("", "fallback")).toEqual(["fallback"]);
@@ -24,12 +27,12 @@ describe("OpenAI generation settings", () => {
 
     expect(maxTokensForRequest("khutbah-jumat", { durasi: "pendek" })).toBe(2500);
     expect(maxTokensForRequest("khutbah-jumat", { durasi: "sedang" })).toBe(3500);
-    expect(maxTokensForRequest("khutbah-jumat", { durasi: "panjang" })).toBe(4500);
+    expect(maxTokensForRequest("khutbah-jumat", { durasi: "panjang" })).toBe(Math.min(effectiveTokenLimit, 4500));
   });
 
   test("supports numeric minute duration", () => {
     expect(maxTokensForRequest("ceramah", { durasi: "20" })).toBe(4000);
-    expect(maxTokensForRequest("khutbah-jumat", { durasi: "20 menit" })).toBe(4500);
+    expect(maxTokensForRequest("khutbah-jumat", { durasi: "20 menit" })).toBe(Math.min(effectiveTokenLimit, 4500));
     expect(maxTokensForRequest("kultum", { durasi: "7 menit" })).toBe(1800);
   });
 

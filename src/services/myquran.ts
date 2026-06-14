@@ -137,6 +137,7 @@ const stopwords = new Set([
 ]);
 
 const hadithHintTerms: Array<{ pattern: RegExp; terms: string[] }> = [
+  { pattern: /\b(muharram|muharam|asyura|ashura|tasua|tasu'a|hijriah|hijriyah|bulan haram)\b/i, terms: ["muharram", "asyura", "puasa"] },
   { pattern: /\b(amanah|khianat|jujur|kejujuran)\b/i, terms: ["amanah", "khianat", "jujur"] },
   { pattern: /\b(sabar|musibah|ujian)\b/i, terms: ["sabar", "mukmin", "musibah"] },
   { pattern: /\b(syukur|bersyukur|nikmat)\b/i, terms: ["syukur", "berterima kasih"] },

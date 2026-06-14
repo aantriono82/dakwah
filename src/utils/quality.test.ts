@@ -92,6 +92,55 @@ Marilah kita memperkuat iman dalam keluarga, pekerjaan, dan masyarakat.`,
     expect(report.checks.find((item) => item.id === "theme_focus_keywords")?.passed).toBe(false);
   });
 
+  test("flags Muharram drafts that repeat the theme without Muharram substance", () => {
+    const report = qualityReportFor(
+      "ceramah",
+      `Ceramah Umum
+
+Pembukaan
+Hadirin yang dirahmati Allah, amalan di bulan muharram mengajak kita menjadi pribadi yang lebih baik.
+
+Allah SWT berfirman dalam AlQuran
+QS. Ali 'Imran: 102
+
+Rasulullah SAW bersabda
+HR. Bukhari dan Muslim
+
+Isi Utama
+Amalan di bulan muharram harus dimulai dari menjaga lisan, keluarga, pekerjaan, dan masyarakat.
+Amalan di bulan muharram juga perlu diwujudkan dengan satu perubahan kecil yang istiqamah.
+Amalan di bulan muharram menjadi cermin agar kita tidak hanya mendengar nasihat, tetapi mengamalkannya.`,
+      { bahasa: "Indonesia", topik: "amalan di bulan muharram" }
+    );
+
+    expect(report.checks.find((item) => item.id === "theme_focus_keywords")?.passed).toBe(true);
+    expect(report.checks.find((item) => item.id === "theme_focus_domain")?.passed).toBe(false);
+  });
+
+  test("passes Muharram domain check when the draft contains specific substance", () => {
+    const report = qualityReportFor(
+      "ceramah",
+      `Ceramah Umum
+
+Pembukaan
+Hadirin yang dirahmati Allah, Muharram adalah bulan yang dimuliakan Allah.
+
+Allah SWT berfirman dalam AlQuran
+QS. At-Taubah: 36 menjelaskan empat bulan haram.
+
+Rasulullah SAW bersabda
+HR. Muslim menjelaskan puasa di bulan Allah, Muharram.
+
+Isi Utama
+Amalan di bulan Muharram mencakup memperbanyak puasa sunnah, terutama Asyura pada 10 Muharram.
+Jamaah juga dianjurkan memahami Tasu'a pada 9 Muharram dan menjadikan awal tahun Hijriah sebagai muhasabah.
+Di bulan haram ini, kita memperbanyak taubat, istighfar, sedekah, tilawah, dan menjauhi kezaliman.`,
+      { bahasa: "Indonesia", topik: "amalan di bulan muharram" }
+    );
+
+    expect(report.checks.find((item) => item.id === "theme_focus_domain")?.passed).toBe(true);
+  });
+
   test("does not apply Indonesian theme-keyword gate to non-Indonesian output", () => {
     const report = qualityReportFor(
       "ceramah",

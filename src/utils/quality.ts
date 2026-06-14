@@ -183,6 +183,18 @@ function countKeywordMentions(content: string, keywords: string[]) {
   return keywords.filter((keyword) => normalizedContent.includes(keyword)).length;
 }
 
+function themeDomainTerms(theme: string) {
+  const normalizedTheme = normalizeTopicText(theme);
+  if (/\b(muharram|muharam|asyura|ashura|tasua|hijriah|hijriyah)\b/.test(normalizedTheme)) {
+    return {
+      label: "Muharram/Asyura",
+      terms: ["muharram", "puasa", "asyura", "tasua", "bulan haram", "at taubah", "hijriah"]
+    };
+  }
+
+  return null;
+}
+
 function themeFocusChecks(content: string, parameters: Record<string, unknown>) {
   const targetLanguage = normalizeLanguage(parameters.bahasa);
   if (targetLanguage !== "Indonesia") return [];
@@ -196,6 +208,8 @@ function themeFocusChecks(content: string, parameters: Record<string, unknown>) 
   const matchedKeywords = countKeywordMentions(content, keywords);
   const enoughMatches = matchedKeywords >= Math.min(2, keywords.length);
   const repeatedThemeMention = normalizeTopicText(content).includes(normalizeTopicText(theme));
+  const domain = themeDomainTerms(theme);
+  const domainMatches = domain ? countKeywordMentions(content, domain.terms) : 0;
 
   return [
     check(
@@ -206,7 +220,20 @@ function themeFocusChecks(content: string, parameters: Record<string, unknown>) 
         ? `Tema "${theme}" cukup tercermin dalam isi naskah.`
         : `Isi masih terlalu umum. Kata kunci tema "${theme}" belum cukup muncul dalam uraian utama.`,
       "warning"
-    )
+    ),
+    ...(domain
+      ? [
+          check(
+            "theme_focus_domain",
+            `Substansi tema ${domain.label}`,
+            domainMatches >= 3,
+            domainMatches >= 3
+              ? `Substansi khusus ${domain.label} terdeteksi dalam isi naskah.`
+              : `Isi masih terlalu generik untuk tema ${domain.label}; perlu memuat bahasan seperti ${domain.terms.slice(0, 5).join(", ")}.`,
+            "warning"
+          )
+        ]
+      : [])
   ];
 }
 
@@ -383,7 +410,7 @@ export function qualityReportFor(
     metricFromChecks("dalil", "Dalil", checks.filter((item) => item.id.includes("dalil") || item.id.includes("quran") || item.id.includes("hadith"))),
     metric("length", "Kelengkapan", checks),
     metric("context", "Konteks", checks),
-    metricFromChecks("editorial", "Editorial", checks.filter((item) => item.id === "template_language" || item.id === "theme_focus_keywords"))
+    metricFromChecks("editorial", "Editorial", checks.filter((item) => item.id === "template_language" || item.id.startsWith("theme_focus_")))
   ];
 
   return {
