@@ -561,20 +561,6 @@ function Login({
       <div className="mb-4 text-center sm:mb-6 lg:mb-5">
         <h1 className="text-2xl font-black tracking-normal sm:text-4xl lg:text-[2rem]">Masuk</h1>
         <p className="mt-2 text-sm text-foreground sm:mt-3 sm:text-lg lg:text-base">Masuk untuk mengelola naskah dakwah Anda</p>
-        <p className="mt-3 text-sm text-muted-foreground sm:mt-4 sm:text-lg lg:mt-3 lg:text-base">
-          Belum punya akun?{" "}
-          <button
-            className="font-bold text-primary"
-            onClick={() => {
-              setError("");
-              setNotice("");
-              setAuthPanel("register");
-            }}
-            type="button"
-          >
-            Daftar
-          </button>
-        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-2.5 sm:gap-4 lg:gap-3" aria-label="Pilihan masuk cepat">
