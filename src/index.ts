@@ -83,8 +83,29 @@ const shouldServeFrontend =
   process.env.SERVE_FRONTEND !== "false" && (process.env.NODE_ENV === "production" || existsSync("./dist/public/index.html"));
 
 if (shouldServeFrontend) {
-  app.use("*", serveStatic({ root: "./dist/public" }));
-  app.get("*", serveStatic({ path: "./dist/public/index.html" }));
+  app.use(
+    "*",
+    serveStatic({
+      root: "./dist/public",
+      onFound: (path, c) => {
+        const normalizedPath = path.replace(/\\/g, "/");
+        if (normalizedPath.includes("/assets/")) {
+          c.header("Cache-Control", "public, max-age=31536000, immutable");
+          return;
+        }
+        c.header("Cache-Control", "no-cache");
+      }
+    })
+  );
+  app.get(
+    "*",
+    serveStatic({
+      path: "./dist/public/index.html",
+      onFound: (_path, c) => {
+        c.header("Cache-Control", "no-cache");
+      }
+    })
+  );
 } else {
   app.get("/", (c) =>
     c.html(`

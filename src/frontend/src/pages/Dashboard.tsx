@@ -2,6 +2,7 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import { IconQuran, IconMicrophone, IconCrescent, IconFileText, IconPhone, IconMail, IconMapPin, IconDakwahLogo, IconCrescentStar } from "../components/icons";
 import { Badge, Button } from "../components/ui";
+import { ensureArabicFont } from "../lib/fonts";
 import { api, jenisOptions, type JenisId } from "../lib/utils";
 import type { Template, User } from "../types";
 import mosqueHero from "../assets/dashboard-mosque-hero.webp";
@@ -53,6 +54,10 @@ export function Dashboard({
   onPrefetchGenerate: () => void;
 }) {
   const [templates, setTemplates] = useState<Template[]>([]);
+
+  useEffect(() => {
+    ensureArabicFont();
+  }, []);
 
   useEffect(() => {
     api<{ data: Template[] }>("/api/templates")

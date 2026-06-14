@@ -388,7 +388,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
               {filteredItems.length} dari {items.length} naskah di halaman ini
             </p>
           </Card>
-          {loading && <EmptyState text="Memuat riwayat..." />}
+          {loading && items.length === 0 && <HistoryListSkeleton />}
           {filteredItems.map((item) => (
             <button
               key={item.id}
@@ -541,6 +541,20 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
         )}
       </section>
       </div>
+    </div>
+  );
+}
+
+function HistoryListSkeleton() {
+  return (
+    <div className="grid gap-3" aria-label="Memuat riwayat">
+      {Array.from({ length: 5 }, (_, index) => (
+        <Card key={index} className="h-[98px] p-4">
+          <div className="h-4 w-4/5 rounded bg-muted" />
+          <div className="mt-3 h-3 w-2/5 rounded bg-muted" />
+          <div className="mt-3 h-7 w-16 rounded-md bg-muted" />
+        </Card>
+      ))}
     </div>
   );
 }

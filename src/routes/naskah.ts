@@ -1,14 +1,14 @@
 import { Hono } from "hono";
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, type SQL } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db, sqlite } from "../db/client";
-import { naskah, naskahVersions, type Naskah, type QualityReport, type User } from "../db/schema";
+import { naskah, naskahVersions, users, type Naskah, type QualityReport, type User } from "../db/schema";
 import { reviseNaskahContent } from "../services/openai";
 import { retrieveDalilContext } from "../services/myquran";
 import { assertGenerateQuota, recordUsageEvent } from "../services/usage";
-import { authRequired, canAccessOwner, publicUser, type AppEnv } from "../utils/http";
+import { authRequired, canAccessOwner, publicUser, type AppEnv, type PublicUser } from "../utils/http";
 import { CONTENT_TYPES, titleFromParameters, validateContentParameters } from "../utils/content";
 import { logInfo } from "../utils/observability";
 import { qualityReportFor } from "../utils/quality";
@@ -38,6 +38,29 @@ const maxListPageSize = 100;
 
 type NaskahRow = Naskah & { user?: User | null };
 type NaskahVersionRow = typeof naskahVersions.$inferSelect;
+type NaskahSummaryRow = Pick<
+  Naskah,
+  | "id"
+  | "userId"
+  | "title"
+  | "jenis"
+  | "bahasa"
+  | "duration"
+  | "fileUrl"
+  | "fileKey"
+  | "pdfFileUrl"
+  | "pdfFileKey"
+  | "pdfExportedAt"
+  | "docxFileUrl"
+  | "docxFileKey"
+  | "docxExportedAt"
+  | "status"
+  | "version"
+  | "autosavedAt"
+  | "qualityScore"
+  | "createdAt"
+  | "updatedAt"
+> & { user?: PublicUser | null };
 
 function publicNaskah(row: NaskahRow) {
   return {
@@ -46,13 +69,97 @@ function publicNaskah(row: NaskahRow) {
   };
 }
 
-function summaryNaskah(row: NaskahRow) {
+function summaryNaskah(row: NaskahSummaryRow) {
   return {
-    ...publicNaskah(row),
+    ...row,
     parameters: {},
     content: "",
     qualityReport: null
   };
+}
+
+function selectNaskahSummaryRows(where: SQL | undefined, pageSize?: number, offset?: number) {
+  const query = db
+    .select({
+      id: naskah.id,
+      userId: naskah.userId,
+      title: naskah.title,
+      jenis: naskah.jenis,
+      bahasa: naskah.bahasa,
+      duration: naskah.duration,
+      fileUrl: naskah.fileUrl,
+      fileKey: naskah.fileKey,
+      pdfFileUrl: naskah.pdfFileUrl,
+      pdfFileKey: naskah.pdfFileKey,
+      pdfExportedAt: naskah.pdfExportedAt,
+      docxFileUrl: naskah.docxFileUrl,
+      docxFileKey: naskah.docxFileKey,
+      docxExportedAt: naskah.docxExportedAt,
+      status: naskah.status,
+      version: naskah.version,
+      autosavedAt: naskah.autosavedAt,
+      qualityScore: naskah.qualityScore,
+      createdAt: naskah.createdAt,
+      updatedAt: naskah.updatedAt,
+      user: {
+        id: users.id,
+        username: users.username,
+        name: users.name,
+        role: users.role,
+        dailyGenerateLimit: users.dailyGenerateLimit
+      }
+    })
+    .from(naskah)
+    .leftJoin(users, eq(naskah.userId, users.id))
+    .orderBy(desc(naskah.createdAt));
+
+  const filteredQuery = where ? query.where(where) : query;
+  if (pageSize !== undefined) return filteredQuery.limit(pageSize).offset(offset ?? 0);
+  return filteredQuery;
+}
+
+async function selectNaskahSummaryRowsByIds(ids: string[]) {
+  if (ids.length === 0) return [];
+  const rows = await db
+    .select({
+      id: naskah.id,
+      userId: naskah.userId,
+      title: naskah.title,
+      jenis: naskah.jenis,
+      bahasa: naskah.bahasa,
+      duration: naskah.duration,
+      fileUrl: naskah.fileUrl,
+      fileKey: naskah.fileKey,
+      pdfFileUrl: naskah.pdfFileUrl,
+      pdfFileKey: naskah.pdfFileKey,
+      pdfExportedAt: naskah.pdfExportedAt,
+      docxFileUrl: naskah.docxFileUrl,
+      docxFileKey: naskah.docxFileKey,
+      docxExportedAt: naskah.docxExportedAt,
+      status: naskah.status,
+      version: naskah.version,
+      autosavedAt: naskah.autosavedAt,
+      qualityScore: naskah.qualityScore,
+      createdAt: naskah.createdAt,
+      updatedAt: naskah.updatedAt,
+      user: {
+        id: users.id,
+        username: users.username,
+        name: users.name,
+        role: users.role,
+        dailyGenerateLimit: users.dailyGenerateLimit
+      }
+    })
+    .from(naskah)
+    .leftJoin(users, eq(naskah.userId, users.id))
+    .where(inArray(naskah.id, ids));
+  const rowMap = new Map(rows.map((row) => [row.id, row]));
+  const orderedRows: typeof rows = [];
+  for (const id of ids) {
+    const row = rowMap.get(id);
+    if (row) orderedRows.push(row);
+  }
+  return orderedRows;
 }
 
 function summaryVersion(row: NaskahVersionRow) {
@@ -213,6 +320,19 @@ naskahRoutes.get("/", async (c) => {
       });
     }
 
+    if (summaryOnly) {
+      const rows = await selectNaskahSummaryRowsByIds(ids);
+      return c.json({
+        data: rows.map(summaryNaskah),
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages
+        }
+      });
+    }
+
     const rows = await db.query.naskah.findMany({
       where: inArray(naskah.id, ids),
       with: { user: true }
@@ -224,7 +344,31 @@ naskahRoutes.get("/", async (c) => {
       if (row) orderedRows.push(row);
     }
     return c.json({
-      data: orderedRows.map(summaryOnly ? summaryNaskah : publicNaskah),
+      data: orderedRows.map(publicNaskah),
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages
+      }
+    });
+  }
+
+  if (summaryOnly) {
+    const rows = await selectNaskahSummaryRows(where, paginated ? pageSize : undefined, paginated ? (page - 1) * pageSize : undefined);
+
+    if (!paginated) {
+      return c.json({ data: rows.map(summaryNaskah) });
+    }
+
+    const totalResult = where
+      ? await db.select({ value: count() }).from(naskah).where(where)
+      : await db.select({ value: count() }).from(naskah);
+    const total = totalResult[0]?.value ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    return c.json({
+      data: rows.map(summaryNaskah),
       pagination: {
         page,
         pageSize,
@@ -242,7 +386,7 @@ naskahRoutes.get("/", async (c) => {
   });
 
   if (!paginated) {
-    return c.json({ data: rows.map(summaryOnly ? summaryNaskah : publicNaskah) });
+    return c.json({ data: rows.map(publicNaskah) });
   }
 
   const totalResult = where
@@ -252,7 +396,7 @@ naskahRoutes.get("/", async (c) => {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return c.json({
-    data: rows.map(summaryOnly ? summaryNaskah : publicNaskah),
+    data: rows.map(publicNaskah),
     pagination: {
       page,
       pageSize,

@@ -117,6 +117,12 @@ function routeFromPath(pathname: string): { tab: TabId; jenis?: JenisId } {
   return { tab: "home" };
 }
 
+const startupRoute = typeof window === "undefined" ? { tab: "home" as TabId } : routeFromPath(window.location.pathname);
+if (startupRoute.tab === "history") void loadHistoryModule();
+if (startupRoute.tab === "generate") void loadGenerateModule();
+if (startupRoute.tab === "admin-monitoring") void loadAdminMonitoringModule();
+if (startupRoute.tab === "admin") void loadAdminModule();
+
 function pushPath(path: string) {
   if (window.location.pathname !== path) {
     window.history.pushState(null, "", path);
@@ -130,7 +136,7 @@ function jenisLabelById(jenis: JenisId) {
 export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const initialRoute = routeFromPath(window.location.pathname);
+  const initialRoute = startupRoute;
   const [activeTab, setActiveTab] = useState<TabId>(initialRoute.tab);
   const [initialGenerateJenis, setInitialGenerateJenis] = useState<JenisId>(initialRoute.jenis ?? "khutbah-jumat");
   const [templateToUse, setTemplateToUse] = useState<Template | null>(null);

@@ -1,5 +1,6 @@
-import type { RefObject, UIEventHandler } from "react";
+import { useEffect, type RefObject, type UIEventHandler } from "react";
 import { IconFileText } from "./icons";
+import { ensureArabicFont } from "../lib/fonts";
 import { cn } from "../lib/utils";
 
 const arabicPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;
@@ -23,6 +24,10 @@ export function NaskahPreview({
 }) {
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
   const charCount = content.length;
+
+  useEffect(() => {
+    if (arabicPattern.test(content)) ensureArabicFont();
+  }, [content]);
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background">
