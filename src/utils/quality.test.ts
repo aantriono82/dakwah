@@ -45,6 +45,93 @@ Isi tambahan juga menyebut QS. Al-Ikhlas: 1.`,
     expect(report.checks.find((item) => item.id === "unsupported_quran_references")?.passed).toBe(false);
   });
 
+  test("flags retrieved dalil that does not match the requested theme", () => {
+    const report = qualityReportFor(
+      "idul-fitri",
+      `Khutbah Idul Fitri
+
+Pembukaan
+Jamaah yang dirahmati Allah, mari menjaga silaturahmi keluarga setelah Ramadhan.
+
+Allah SWT berfirman dalam AlQuran
+QS. Al-Isra: 32
+
+Rasulullah SAW bersabda
+HR. Bukhari dan Muslim menjelaskan menyambung rahim.
+
+Isi Utama
+Silaturahmi, maaf, dan keluarga adalah bekal Idul Fitri yang harus dijaga.`,
+      { bahasa: "Indonesia", tema: "menjaga silaturahmi keluarga saat Idul Fitri" },
+      {
+        theme: "menjaga silaturahmi keluarga saat Idul Fitri",
+        source: "test",
+        quran: [
+          {
+            kind: "quran",
+            reference: "QS. Al-Isra: 32",
+            arab: "وَلَا تَقْرَبُوا الزِّنٰى إِنَّهُ كَانَ فَاحِشَةً وَسَاءَ سَبِيْلًا.",
+            translation: "Janganlah kamu mendekati zina; sesungguhnya zina itu adalah perbuatan keji dan jalan yang buruk.",
+            source: "test"
+          }
+        ],
+        hadith: [
+          {
+            kind: "hadith",
+            reference: "HR. Bukhari dan Muslim",
+            translation: "Siapa yang ingin dilapangkan rezekinya dan dipanjangkan umurnya, hendaklah menyambung rahimnya.",
+            source: "test"
+          }
+        ]
+      }
+    );
+
+    const alignment = report.checks.find((item) => item.id === "dalil_theme_alignment");
+    expect(alignment?.passed).toBe(false);
+    expect(alignment?.detail).toContain("QS. Al-Isra: 32");
+  });
+
+  test("accepts retrieved dalil that matches the requested theme", () => {
+    const report = qualityReportFor(
+      "ceramah",
+      `Ceramah Umum
+
+Pembukaan
+Jamaah yang dirahmati Allah, bahaya judi online merusak iman dan keluarga.
+
+Allah SWT berfirman dalam AlQuran
+QS. Al-Ma'idah: 90 menyebut judi sebagai perbuatan keji dari setan.
+
+Rasulullah SAW bersabda
+HR. Bukhari dan Muslim mengingatkan agar orang yang mengajak berjudi segera bersedekah.
+
+Isi Utama
+Judi online, slot, dan taruhan merusak rezeki, ketenangan keluarga, dan keberanian untuk bertaubat.`,
+      { bahasa: "Indonesia", topik: "Bahaya judi online pada keluarga muda" },
+      {
+        theme: "Bahaya judi online pada keluarga muda",
+        source: "test",
+        quran: [
+          {
+            kind: "quran",
+            reference: "QS. Al-Ma'idah: 90",
+            translation: "Khamar, judi, berhala, dan mengundi nasib adalah perbuatan keji dari setan.",
+            source: "test"
+          }
+        ],
+        hadith: [
+          {
+            kind: "hadith",
+            reference: "HR. Bukhari dan Muslim",
+            translation: "Siapa yang berkata kepada temannya, Mari aku berjudi denganmu, hendaklah ia bersedekah.",
+            source: "test"
+          }
+        ]
+      }
+    );
+
+    expect(report.checks.find((item) => item.id === "dalil_theme_alignment")?.passed).toBe(true);
+  });
+
   test("flags template language patterns in generated prose", () => {
     const report = qualityReportFor(
       "ceramah",

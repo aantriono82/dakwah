@@ -192,7 +192,77 @@ function themeDomainTerms(theme: string) {
     };
   }
 
-  return null;
+  const domains: Array<{ pattern: RegExp; label: string; terms: string[] }> = [
+    { pattern: /\b(judi|maisir|maysir|slot|taruhan|betting|judol)\b/, label: "judi/maisir", terms: ["judi", "maisir", "taruhan", "slot", "setan", "khamar", "sedekah", "keluarga"] },
+    { pattern: /\b(riba|bunga|paylater|pinjaman|utang|hutang)\b/, label: "riba/muamalah", terms: ["riba", "sedekah", "halal", "muamalah", "utang", "pinjaman", "laknat"] },
+    { pattern: /\b(zina|pergaulan bebas|seks bebas|pacaran bebas|khalwat|ikhtilat|pornografi|syahwat)\b/, label: "penjagaan kehormatan", terms: ["zina", "pandangan", "kemaluan", "kehormatan", "khalwat", "syahwat", "mahram"] },
+    { pattern: /\b(amanah|khianat|jujur|kejujuran|integritas|korupsi|janji)\b/, label: "amanah/kejujuran", terms: ["amanah", "khianat", "jujur", "adil", "janji", "munafik", "tanggung jawab"] },
+    { pattern: /\b(sabar|musibah|ujian|cobaan|keteguhan)\b/, label: "sabar/ujian", terms: ["sabar", "shalat", "musibah", "ujian", "mukmin", "keteguhan", "pertolongan"] },
+    { pattern: /\b(syukur|bersyukur|nikmat)\b/, label: "syukur/nikmat", terms: ["syukur", "nikmat", "bertambah", "terima kasih", "kufur"] },
+    { pattern: /\b(sedekah|infak|infaq|berbagi|fakir|miskin)\b/, label: "sedekah/kepedulian", terms: ["sedekah", "infak", "berbagi", "tetangga", "fakir", "miskin", "kepedulian"] },
+    { pattern: /\b(taubat|tobat|istighfar|ampunan|rahmat allah)\b/, label: "taubat/ampunan", terms: ["taubat", "ampunan", "rahmat", "putus asa", "istighfar", "dosa"] },
+    { pattern: /\b(ikhlas|niat|riya|pamer|pamrih)\b/, label: "ikhlas/niat", terms: ["ikhlas", "niat", "riya", "amal", "wajah allah", "pamrih"] },
+    { pattern: /\b(ilmu|belajar|menuntut ilmu|ngaji|guru)\b/, label: "ilmu/belajar", terms: ["ilmu", "belajar", "agama", "pemahaman", "mengetahui", "mengamalkan"] },
+    { pattern: /\b(tawakal|bertawakal|ikhtiar|berserah|cemas)\b/, label: "tawakal/ikhtiar", terms: ["tawakal", "ikhtiar", "berserah", "rezeki", "mencukupkan", "burung"] },
+    { pattern: /\b(istiqamah|konsisten|rutin|teguh)\b/, label: "istiqamah/konsistensi", terms: ["istiqamah", "konsisten", "teguh", "amal", "malaikat", "beriman"] },
+    { pattern: /\b(kematian|mati|ajal|akhirat|kubur|hisab|kiamat)\b/, label: "kematian/akhirat", terms: ["mati", "kematian", "akhirat", "kubur", "kiamat", "ajal", "hisab"] },
+    { pattern: /\b(waktu|umur|usia|kesempatan|lalai|masa muda)\b/, label: "waktu/umur", terms: ["waktu", "umur", "masa", "kesehatan", "luang", "rugi", "kesempatan"] },
+    { pattern: /\b(anak|remaja|parenting|pengasuhan|keluarga|generasi)\b/, label: "pendidikan keluarga", terms: ["anak", "keluarga", "pemimpin", "tanggung jawab", "shalat", "generasi", "remaja"] },
+    { pattern: /\b(ukhuwah|persaudaraan|persatuan|perpecahan|damai|ishlah)\b/, label: "ukhuwah/perdamaian", terms: ["saudara", "persaudaraan", "damai", "ishlah", "persatuan", "mukmin"] },
+    { pattern: /\b(silaturahmi|silaturahim|rahim|keluarga|maaf|memaafkan)\b/, label: "silaturahmi/keluarga", terms: ["silaturahmi", "silaturahim", "rahim", "keluarga", "maaf", "memaafkan", "rezeki"] },
+    { pattern: /\b(ghibah|gunjing|prasangka|suudzon|tajassus|aib|gosip|fitnah)\b/, label: "ghibah/prasangka", terms: ["ghibah", "prasangka", "tajassus", "aib", "gunjing", "saudara", "dosa"] },
+    { pattern: /\b(akhlak|adab|lembut|kasih sayang|marah|emosi|pemaaf)\b/, label: "akhlak/kelembutan", terms: ["akhlak", "adab", "lembut", "kasih sayang", "marah", "pemaaf", "mulia"] },
+    { pattern: /\b(dakwah|nasihat|hikmah|mauizhah|amar makruf|tabligh)\b/, label: "dakwah/hikmah", terms: ["dakwah", "hikmah", "nasihat", "baik", "sampaikan", "ayat", "menyeru"] },
+    { pattern: /\b(quran|al quran|alquran|tilawah|tadabbur|tahsin|tahfidz)\b/, label: "Al-Quran/tilawah", terms: ["quran", "tilawah", "tadabbur", "belajar", "mengajarkan", "petunjuk"] },
+    { pattern: /\b(masjid|mushalla|musala|jamaah|berjamaah|takmir)\b/, label: "masjid/jamaah", terms: ["masjid", "jamaah", "shalat", "memakmurkan", "zakat", "rumah allah"] },
+    { pattern: /\b(bersih|kebersihan|thaharah|taharah|suci|wudhu|najis)\b/, label: "kebersihan/thaharah", terms: ["bersih", "suci", "thaharah", "wudhu", "najis", "taubat", "iman"] },
+    { pattern: /\b(rasul|nabi|sunnah|sunah|shalawat|maulid|cinta nabi)\b/, label: "cinta Rasul/sunnah", terms: ["rasul", "nabi", "sunnah", "teladan", "shalawat", "cinta", "iman"] },
+    { pattern: /\b(nikah|pernikahan|mempelai|sakinah|mawaddah|rahmah|rumah tangga|suami|istri)\b/, label: "pernikahan/rumah tangga", terms: ["nikah", "pernikahan", "sakinah", "mawaddah", "rahmah", "keluarga", "suami", "istri", "tenteram", "kasih sayang"] },
+    { pattern: /\b(kurban|qurban|adha|haji|ibrahim|ismail|pengorbanan)\b/, label: "kurban/Idul Adha", terms: ["kurban", "adha", "haji", "ibrahim", "ismail", "takwa", "pengorbanan"] }
+  ];
+
+  return domains.find((domain) => domain.pattern.test(normalizedTheme)) ?? null;
+}
+
+function expectedDalilTermsForTheme(theme: string) {
+  const domain = themeDomainTerms(theme);
+  return [
+    ...new Set([...(domain?.terms ?? []), ...themeKeywords(theme)].map(normalizeTopicText).filter((item) => item.length >= 4))
+  ];
+}
+
+function dalilItemText(item: PromptDalilContext["quran"][number]) {
+  return normalizeTopicText([item.reference, item.translation, item.tafsir].filter(Boolean).join(" "));
+}
+
+function dalilThemeAlignmentChecks(dalilContext?: PromptDalilContext): QualityCheck[] {
+  if (!dalilContext) return [];
+
+  const terms = expectedDalilTermsForTheme(dalilContext.theme);
+  if (terms.length === 0) return [];
+
+  const requiredMatches = Math.min(2, terms.length);
+  const relevantItems = [...dalilContext.quran, ...dalilContext.hadith].filter((item) => item.reference);
+  const mismatchedItems = relevantItems
+    .filter((item) => {
+      const text = dalilItemText(item);
+      if (!text) return false;
+      const matched = terms.filter((term) => text.includes(term)).length;
+      return matched < requiredMatches && !terms.some((term) => term.length >= 6 && text.includes(term));
+    })
+    .map((item) => item.reference);
+
+  return [
+    check(
+      "dalil_theme_alignment",
+      "Kesesuaian dalil dengan tema",
+      mismatchedItems.length === 0,
+      mismatchedItems.length === 0
+        ? `Dalil terpilih selaras dengan tema "${dalilContext.theme}".`
+        : `Dalil berikut tampak tidak cukup terkait dengan tema "${dalilContext.theme}": ${mismatchedItems.join(", ")}.`,
+      "critical"
+    )
+  ];
 }
 
 function themeFocusChecks(content: string, parameters: Record<string, unknown>) {
@@ -394,6 +464,7 @@ export function qualityReportFor(
       "warning"
     ),
     ...themeFocusChecks(content, parameters),
+    ...dalilThemeAlignmentChecks(dalilContext),
     ...dalilValidationChecks(content, dalilContext),
     check(
       "human_review",

@@ -165,14 +165,32 @@ function providerMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
-function providerTextIsClean(jenis: string, text: string, parameters: Record<string, unknown>) {
+function blockingQualityFailures(jenis: string, text: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
+  const blockingIds = new Set([
+    "arabic_diacritics",
+    "template_language",
+    "theme_focus_keywords",
+    "theme_focus_domain",
+    "dalil_theme_alignment",
+    "unsupported_quran_references",
+    "unsupported_hadith_references",
+    "hadith_meaning_overlap",
+    "hadith_grade_display"
+  ]);
+  return qualityReportFor(jenis, text, parameters, dalilContext).checks.filter(
+    (item) => !item.passed && (item.severity === "critical" || blockingIds.has(item.id) || item.id.includes("dalil"))
+  );
+}
+
+function providerTextIsClean(jenis: string, text: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
   return (
     isGeneratedTextAcceptable(jenis, text, parameters) &&
     matchesTargetLanguage(text, parameters.bahasa) &&
     meetsMinimumLength(jenis, text, parameters) &&
     !appearsTruncatedText(text) &&
     hasSubstantialArabicOpening(jenis, text) &&
-    hasSubstantialArabicClosingPrayer(jenis, text)
+    hasSubstantialArabicClosingPrayer(jenis, text) &&
+    blockingQualityFailures(jenis, text, parameters, dalilContext).length === 0
   );
 }
 
@@ -215,7 +233,7 @@ export function applyLiteralRevisionInstruction(currentContent: string, instruct
   return currentContent.replace(pattern, target);
 }
 
-function providerTextFailureReason(jenis: string, text: string, parameters: Record<string, unknown>) {
+function providerTextFailureReason(jenis: string, text: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
   const targetLanguage = normalizeLanguage(parameters.bahasa);
   const missingSections = missingRequiredArabicSections(jenis, text);
   const languageMismatch = !matchesTargetLanguage(text, targetLanguage);
@@ -232,7 +250,10 @@ function providerTextFailureReason(jenis: string, text: string, parameters: Reco
   if (truncated) return "truncated_output";
   if (thinOpening) return "thin_arabic_opening";
   if (thinClosingPrayer) return "thin_arabic_closing_prayer";
-  return "undiacritized_arabic_detected";
+
+  const qualityFailure = blockingQualityFailures(jenis, text, parameters, dalilContext)[0];
+  if (qualityFailure) return `quality_${qualityFailure.id}:${qualityFailure.detail}`;
+  return "invalid_output";
 }
 
 function retryMaxTokensForProviderError(message: string, requested: number) {
@@ -480,7 +501,7 @@ function needsDalilRepair(jenis: string, text: string, parameters: Record<string
 
 function needsEditorialRepair(jenis: string, text: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
   const report = qualityReportFor(jenis, text, parameters, dalilContext);
-  return report.checks.some((item) => !item.passed && (item.id === "template_language" || item.id === "theme_focus_keywords"));
+  return report.checks.some((item) => !item.passed && (item.id === "template_language" || item.id.startsWith("theme_focus_")));
 }
 
 function createQualityInspector(jenis: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
@@ -515,7 +536,7 @@ function createQualityInspector(jenis: string, parameters: Record<string, unknow
       );
     },
     needsEditorialRepair(text: string) {
-      return report(text).checks.some((item) => !item.passed && (item.id === "template_language" || item.id === "theme_focus_keywords"));
+      return report(text).checks.some((item) => !item.passed && (item.id === "template_language" || item.id.startsWith("theme_focus_")));
     }
   };
 }
@@ -827,7 +848,7 @@ async function finalizeOpenAIText(
         "quality_repair"
       );
       const cleanRepair = injectRetrievedDalil(normalizeProviderText(jenis, repaired, parameters), dalilContext);
-      if (providerTextIsClean(jenis, cleanRepair, parameters)) output = cleanRepair;
+      if (providerTextIsClean(jenis, cleanRepair, parameters, dalilContext)) output = cleanRepair;
     } catch (error) {
       console.warn(`[generateText:${traceId}] model=${modelName} pass=quality_repair_failed message=${providerMessage(error)}`);
     }
@@ -845,7 +866,7 @@ async function finalizeOpenAIText(
       );
       const cleanEditorialRewrite = injectRetrievedDalil(normalizeProviderText(jenis, editorialRewrite, parameters), dalilContext);
       if (
-        providerTextIsClean(jenis, cleanEditorialRewrite, parameters) &&
+        providerTextIsClean(jenis, cleanEditorialRewrite, parameters, dalilContext) &&
         !quality.needsDalilRepair(cleanEditorialRewrite) &&
         !quality.needsEditorialRepair(cleanEditorialRewrite)
       ) {
@@ -867,7 +888,7 @@ async function finalizeOpenAIText(
     );
     const cleanRewrite = injectRetrievedDalil(normalizeProviderText(jenis, rewritten, parameters), dalilContext);
     if (
-      providerTextIsClean(jenis, cleanRewrite, parameters) &&
+      providerTextIsClean(jenis, cleanRewrite, parameters, dalilContext) &&
       !quality.needsDalilRepair(cleanRewrite) &&
       !quality.needsEditorialRepair(cleanRewrite)
     ) {
@@ -891,7 +912,7 @@ async function retryOpenAITextAfterInvalidPass(input: {
   traceId: string;
 }) {
   const baseMessages = messagesWithOutline(input.prompt, input.traceId, input.outline);
-  const invalidReason = providerTextFailureReason(input.jenis, input.invalidText, input.parameters);
+  const invalidReason = providerTextFailureReason(input.jenis, input.invalidText, input.parameters, input.dalilContext);
   const generationSettings = retryGenerationSettingsFor(input.jenis, input.parameters, invalidReason);
   if (generationSettings.max_tokens > maxTokensForRequest(input.jenis, input.parameters)) {
     console.info(
@@ -917,11 +938,11 @@ async function retryOpenAITextAfterInvalidPass(input: {
   );
 
   const retryPass = normalizeProviderText(input.jenis, retryText, input.parameters);
-  if (!providerTextIsClean(input.jenis, retryPass, input.parameters)) {
+  if (!providerTextIsClean(input.jenis, retryPass, input.parameters, input.dalilContext)) {
     return {
       ok: false as const,
       retryPass,
-      invalidReason: providerTextFailureReason(input.jenis, retryPass, input.parameters)
+      invalidReason: providerTextFailureReason(input.jenis, retryPass, input.parameters, input.dalilContext)
     };
   }
 
@@ -973,7 +994,7 @@ async function finalizeGeminiText(
         parameters
       );
       const cleanRepair = injectRetrievedDalil(normalizeProviderText(jenis, geminiTextFromResponse(response), parameters), dalilContext);
-      if (providerTextIsClean(jenis, cleanRepair, parameters)) output = cleanRepair;
+      if (providerTextIsClean(jenis, cleanRepair, parameters, dalilContext)) output = cleanRepair;
     } catch (error) {
       console.warn(`[generateText:${traceId}] provider=gemini model=${modelName} pass=quality_repair_failed message=${providerMessage(error)}`);
     }
@@ -989,7 +1010,7 @@ async function finalizeGeminiText(
       );
       const cleanEditorialRewrite = injectRetrievedDalil(normalizeProviderText(jenis, geminiTextFromResponse(response), parameters), dalilContext);
       if (
-        providerTextIsClean(jenis, cleanEditorialRewrite, parameters) &&
+        providerTextIsClean(jenis, cleanEditorialRewrite, parameters, dalilContext) &&
         !quality.needsDalilRepair(cleanEditorialRewrite) &&
         !quality.needsEditorialRepair(cleanEditorialRewrite)
       ) {
@@ -1004,7 +1025,7 @@ async function finalizeGeminiText(
     const response = await createGeminiCompletion(modelName, `${contextualPrompt}\n\n${naturalRewriteInstructionFor(output, parameters)}`, jenis, parameters);
     const cleanRewrite = injectRetrievedDalil(normalizeProviderText(jenis, geminiTextFromResponse(response), parameters), dalilContext);
     if (
-      providerTextIsClean(jenis, cleanRewrite, parameters) &&
+      providerTextIsClean(jenis, cleanRewrite, parameters, dalilContext) &&
       !quality.needsDalilRepair(cleanRewrite) &&
       !quality.needsEditorialRepair(cleanRewrite)
     ) output = cleanRewrite;
@@ -1035,12 +1056,12 @@ async function generateTextWithGemini(
       const basePrompt = `${basePromptRoot}\n\nKerangka internal yang wajib diikuti tetapi jangan ditampilkan:\n${outline}`;
       const firstResponse = await createGeminiCompletion(modelName, basePrompt, jenis, parameters);
       const firstPass = normalizeProviderText(jenis, geminiTextFromResponse(firstResponse), parameters);
-      if (providerTextIsClean(jenis, firstPass, parameters)) {
+      if (providerTextIsClean(jenis, firstPass, parameters, dalilContext)) {
         console.info(`[generateText:${traceId}] provider=gemini model=${modelName} pass=first jenis=${jenis} status=ok`);
         return finalizeGeminiText(modelName, basePromptRoot, outline, firstPass, jenis, parameters, dalilContext, traceId);
       }
 
-      const firstPassReason = providerTextFailureReason(jenis, firstPass, parameters);
+      const firstPassReason = providerTextFailureReason(jenis, firstPass, parameters, dalilContext);
       console.warn(
         `[generateText:${traceId}] provider=gemini model=${modelName} pass=first jenis=${jenis} status=needs_retry reason=${firstPassReason}`
       );
@@ -1052,13 +1073,13 @@ async function generateTextWithGemini(
         parameters
       );
       const retryPass = normalizeProviderText(jenis, geminiTextFromResponse(retryResponse), parameters);
-      if (providerTextIsClean(jenis, retryPass, parameters)) {
+      if (providerTextIsClean(jenis, retryPass, parameters, dalilContext)) {
         console.info(`[generateText:${traceId}] provider=gemini model=${modelName} pass=retry jenis=${jenis} status=ok`);
         return finalizeGeminiText(modelName, basePromptRoot, outline, retryPass, jenis, parameters, dalilContext, traceId);
       }
 
       console.warn(
-        `[generateText:${traceId}] provider=gemini model=${modelName} pass=retry jenis=${jenis} status=still_invalid reason=${providerTextFailureReason(jenis, retryPass, parameters)}`
+        `[generateText:${traceId}] provider=gemini model=${modelName} pass=retry jenis=${jenis} status=still_invalid reason=${providerTextFailureReason(jenis, retryPass, parameters, dalilContext)}`
       );
     } catch (error) {
       console.warn(`[generateText:${traceId}] provider=gemini model=${modelName} provider_failed message=${providerMessage(error)}`);
@@ -1083,12 +1104,12 @@ async function generateTemplatedRukunKhutbahWithGemini(
       const firstResponse = await createGeminiCompletion(modelName, `${prompt}\n\n${variationInstruction(traceId)}`, jenis, parameters);
       const firstBody = sanitizeGeneratedText(geminiTextFromResponse(firstResponse));
       const firstComposed = composeTemplatedRukunKhutbah(jenis, parametersWithVariation(parameters, traceId), firstBody, dalilContext, traceId);
-      if (providerTextIsClean(jenis, firstComposed, parameters) && meetsMinimumLength(jenis, firstComposed, parameters)) {
+      if (providerTextIsClean(jenis, firstComposed, parameters, dalilContext) && meetsMinimumLength(jenis, firstComposed, parameters)) {
         console.info(`[generateText:${traceId}] provider=gemini model=${modelName} mode=templated_rukun pass=first jenis=${jenis} status=ok`);
         return firstComposed;
       }
 
-      const reason = providerTextFailureReason(jenis, firstComposed, parameters);
+      const reason = providerTextFailureReason(jenis, firstComposed, parameters, dalilContext);
       console.warn(`[generateText:${traceId}] provider=gemini model=${modelName} mode=templated_rukun pass=first status=needs_retry reason=${reason}`);
       const retryResponse = await createGeminiCompletion(
         modelName,
@@ -1101,13 +1122,13 @@ Tulis ulang hanya isi editorialnya dengan uraian lebih utuh, bahasa target lebih
       );
       const retryBody = sanitizeGeneratedText(geminiTextFromResponse(retryResponse));
       const retryComposed = composeTemplatedRukunKhutbah(jenis, parametersWithVariation(parameters, traceId), retryBody, dalilContext, traceId);
-      if (providerTextIsClean(jenis, retryComposed, parameters) && meetsMinimumLength(jenis, retryComposed, parameters)) {
+      if (providerTextIsClean(jenis, retryComposed, parameters, dalilContext) && meetsMinimumLength(jenis, retryComposed, parameters)) {
         console.info(`[generateText:${traceId}] provider=gemini model=${modelName} mode=templated_rukun pass=retry jenis=${jenis} status=ok`);
         return retryComposed;
       }
 
       console.warn(
-        `[generateText:${traceId}] provider=gemini model=${modelName} mode=templated_rukun pass=retry status=still_invalid reason=${providerTextFailureReason(jenis, retryComposed, parameters)}`
+        `[generateText:${traceId}] provider=gemini model=${modelName} mode=templated_rukun pass=retry status=still_invalid reason=${providerTextFailureReason(jenis, retryComposed, parameters, dalilContext)}`
       );
     } catch (error) {
       console.warn(`[generateText:${traceId}] provider=gemini model=${modelName} mode=templated_rukun provider_failed message=${providerMessage(error)}`);
@@ -1149,12 +1170,12 @@ async function generateTemplatedRukunKhutbahWithOpenAI(
         dalilContext,
         traceId
       );
-      if (providerTextIsClean(jenis, firstComposed, parameters) && meetsMinimumLength(jenis, firstComposed, parameters)) {
+      if (providerTextIsClean(jenis, firstComposed, parameters, dalilContext) && meetsMinimumLength(jenis, firstComposed, parameters)) {
         console.info(`[generateText:${traceId}] model=${modelName} mode=templated_rukun pass=first jenis=${jenis} status=ok`);
         return firstComposed;
       }
 
-      const reason = providerTextFailureReason(jenis, firstComposed, parameters);
+      const reason = providerTextFailureReason(jenis, firstComposed, parameters, dalilContext);
       console.warn(`[generateText:${traceId}] model=${modelName} mode=templated_rukun pass=first status=needs_retry reason=${reason}`);
       const retryBody = await createOpenAITextPass(
         modelName,
@@ -1181,13 +1202,13 @@ Tulis ulang hanya isi editorialnya dengan uraian lebih utuh, bahasa target lebih
         dalilContext,
         traceId
       );
-      if (providerTextIsClean(jenis, retryComposed, parameters) && meetsMinimumLength(jenis, retryComposed, parameters)) {
+      if (providerTextIsClean(jenis, retryComposed, parameters, dalilContext) && meetsMinimumLength(jenis, retryComposed, parameters)) {
         console.info(`[generateText:${traceId}] model=${modelName} mode=templated_rukun pass=retry jenis=${jenis} status=ok`);
         return retryComposed;
       }
 
       console.warn(
-        `[generateText:${traceId}] model=${modelName} mode=templated_rukun pass=retry status=still_invalid reason=${providerTextFailureReason(jenis, retryComposed, parameters)}`
+        `[generateText:${traceId}] model=${modelName} mode=templated_rukun pass=retry status=still_invalid reason=${providerTextFailureReason(jenis, retryComposed, parameters, dalilContext)}`
       );
     } catch (error) {
       console.warn(`[generateText:${traceId}] model=${modelName} mode=templated_rukun provider_failed message=${providerMessage(error)}`);
@@ -1225,7 +1246,7 @@ export async function generateText(jenis: string, parameters: Record<string, unk
       const baseMessages = messagesWithOutline(prompt, traceId, outline);
       const firstText = await createOpenAITextPass(modelName, baseMessages, jenis, parameters, traceId, "first", undefined, true);
       const firstPass = normalizeProviderText(jenis, firstText, parameters);
-      if (providerTextIsClean(jenis, firstPass, parameters)) {
+      if (providerTextIsClean(jenis, firstPass, parameters, dalilContext)) {
         console.info(`[generateText:${traceId}] model=${modelName} pass=first jenis=${jenis} status=ok`);
         const finalText = await finalizeOpenAIText(modelName, prompt, outline, firstPass, jenis, parameters, dalilContext, traceId);
         logInfo("openai.generate", {
@@ -1239,7 +1260,7 @@ export async function generateText(jenis: string, parameters: Record<string, unk
         return finalText;
       }
 
-      const firstPassReason = providerTextFailureReason(jenis, firstPass, parameters);
+      const firstPassReason = providerTextFailureReason(jenis, firstPass, parameters, dalilContext);
       console.warn(
         `[generateText:${traceId}] model=${modelName} pass=first jenis=${jenis} status=needs_retry reason=${firstPassReason}`
       );
@@ -1268,7 +1289,7 @@ export async function generateText(jenis: string, parameters: Record<string, unk
       );
 
       const retryPass = normalizeProviderText(jenis, retryText, parameters);
-      if (providerTextIsClean(jenis, retryPass, parameters)) {
+      if (providerTextIsClean(jenis, retryPass, parameters, dalilContext)) {
         console.info(`[generateText:${traceId}] model=${modelName} pass=retry jenis=${jenis} status=ok`);
         const finalText = await finalizeOpenAIText(modelName, prompt, outline, retryPass, jenis, parameters, dalilContext, traceId);
         logInfo("openai.generate", {
@@ -1283,7 +1304,7 @@ export async function generateText(jenis: string, parameters: Record<string, unk
       }
 
       console.warn(
-        `[generateText:${traceId}] model=${modelName} pass=retry jenis=${jenis} status=still_invalid reason=${providerTextFailureReason(jenis, retryPass, parameters)}`
+        `[generateText:${traceId}] model=${modelName} pass=retry jenis=${jenis} status=still_invalid reason=${providerTextFailureReason(jenis, retryPass, parameters, dalilContext)}`
       );
     } catch (error) {
       const message = providerMessage(error);
@@ -1368,7 +1389,7 @@ export async function* streamGeneratedText(jenis: string, parameters: Record<str
       }
 
       const clean = normalizeProviderText(jenis, text, parameters);
-      if (providerTextIsClean(jenis, clean, parameters)) {
+      if (providerTextIsClean(jenis, clean, parameters, dalilContext)) {
         console.info(`[streamGeneratedText:${traceId}] model=${modelName} jenis=${jenis} status=ok`);
         const finalText = await finalizeOpenAIText(modelName, prompt, outline, clean, jenis, parameters, dalilContext, traceId);
         logInfo("openai.stream", {
@@ -1384,7 +1405,7 @@ export async function* streamGeneratedText(jenis: string, parameters: Record<str
         return;
       }
 
-      const invalidReason = providerTextFailureReason(jenis, clean, parameters);
+      const invalidReason = providerTextFailureReason(jenis, clean, parameters, dalilContext);
       console.warn(`[streamGeneratedText:${traceId}] model=${modelName} jenis=${jenis} status=invalid reason=${invalidReason}`);
 
       const retryResult = await retryOpenAITextAfterInvalidPass({
@@ -1578,7 +1599,7 @@ export async function reviseNaskahContent(input: {
         const response = await createGeminiCompletion(modelName, prompt, input.jenis, input.parameters);
         const text = normalizeProviderText(input.jenis, geminiTextFromResponse(response), input.parameters);
         if (
-          providerTextIsClean(input.jenis, text, input.parameters) &&
+          providerTextIsClean(input.jenis, text, input.parameters, input.dalilContext) &&
           isMeaningfullyDifferentRevision(input.currentContent, text) &&
           !quality.needsDalilRepair(text) &&
           !quality.needsEditorialRepair(text)
@@ -1602,7 +1623,7 @@ export async function reviseNaskahContent(input: {
         );
         const retryText = normalizeProviderText(input.jenis, geminiTextFromResponse(retryResponse), input.parameters);
         if (
-          providerTextIsClean(input.jenis, retryText, input.parameters) &&
+          providerTextIsClean(input.jenis, retryText, input.parameters, input.dalilContext) &&
           isMeaningfullyDifferentRevision(input.currentContent, retryText) &&
           !quality.needsDalilRepair(retryText) &&
           !quality.needsEditorialRepair(retryText)
@@ -1618,7 +1639,7 @@ export async function reviseNaskahContent(input: {
           return retryText;
         }
         console.warn(
-          `[reviseNaskahContent:${traceId}] provider=gemini model=${modelName} invalid_revision reason=${providerTextFailureReason(input.jenis, retryText, input.parameters)}`
+          `[reviseNaskahContent:${traceId}] provider=gemini model=${modelName} invalid_revision reason=${providerTextFailureReason(input.jenis, retryText, input.parameters, input.dalilContext)}`
         );
       } catch (error) {
         console.warn(`[reviseNaskahContent:${traceId}] provider=gemini model=${modelName} provider_failed message=${providerMessage(error)}`);
@@ -1645,7 +1666,7 @@ export async function reviseNaskahContent(input: {
         );
         const text = normalizeProviderText(input.jenis, response.choices[0]?.message.content ?? "", input.parameters);
         if (
-          providerTextIsClean(input.jenis, text, input.parameters) &&
+          providerTextIsClean(input.jenis, text, input.parameters, input.dalilContext) &&
           isMeaningfullyDifferentRevision(input.currentContent, text) &&
           !quality.needsDalilRepair(text) &&
           !quality.needsEditorialRepair(text)
@@ -1678,7 +1699,7 @@ export async function reviseNaskahContent(input: {
         );
         const retryText = normalizeProviderText(input.jenis, retryResponse.choices[0]?.message.content ?? "", input.parameters);
         if (
-          providerTextIsClean(input.jenis, retryText, input.parameters) &&
+          providerTextIsClean(input.jenis, retryText, input.parameters, input.dalilContext) &&
           isMeaningfullyDifferentRevision(input.currentContent, retryText) &&
           !quality.needsDalilRepair(retryText) &&
           !quality.needsEditorialRepair(retryText)
@@ -1694,7 +1715,7 @@ export async function reviseNaskahContent(input: {
           return retryText;
         }
         console.warn(
-          `[reviseNaskahContent:${traceId}] model=${modelName} invalid_revision reason=${providerTextFailureReason(input.jenis, retryText, input.parameters)}`
+          `[reviseNaskahContent:${traceId}] model=${modelName} invalid_revision reason=${providerTextFailureReason(input.jenis, retryText, input.parameters, input.dalilContext)}`
         );
       } catch (error) {
         console.warn(`[reviseNaskahContent:${traceId}] model=${modelName} provider_failed message=${providerMessage(error)}`);
