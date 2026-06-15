@@ -227,7 +227,7 @@ Variabel penting:
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model OpenAI untuk generate |
 | `OPENAI_MODELS` | kosong | Opsional. Daftar model prioritas dipisah koma; jika diisi, aplikasi mencoba model berurutan sebelum fallback lokal |
 | `OPENAI_BASE_URL` | kosong | Base URL provider kompatibel OpenAI, misalnya OpenRouter |
-| `OPENAI_MAX_TOKENS` | `8000` | Plafon global token output AI. Request tetap dibatasi lagi secara dinamis berdasarkan jenis naskah dan durasi |
+| `OPENAI_MAX_TOKENS` | `9000` | Plafon global token output AI. Request tetap dibatasi lagi secara dinamis berdasarkan jenis naskah dan durasi |
 | `OPENAI_TIMEOUT_MS` | `30000` | Timeout request provider AI dalam milidetik |
 | `OPENAI_WEB_SEARCH_ENABLED` | `true` untuk OpenAI resmi | Izinkan web search native OpenAI Responses API ketika user memilih mode `Web search otomatis`. Fitur native ini hanya dipakai saat `OPENAI_BASE_URL` kosong |
 | `OPENAI_WEB_SEARCH_CONTEXT_SIZE` | `medium` | Ukuran konteks web search: `low`, `medium`, atau `high` |
@@ -263,7 +263,7 @@ GEMINI_MODEL=gemini-2.5-flash
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o-mini
 # OPENAI_MODELS=model-utama,model-cadangan-1,model-cadangan-2
-OPENAI_MAX_TOKENS=5500
+OPENAI_MAX_TOKENS=9000
 OPENAI_TIMEOUT_MS=30000
 OPENAI_WEB_SEARCH_ENABLED=true
 OPENAI_WEB_SEARCH_CONTEXT_SIZE=medium
