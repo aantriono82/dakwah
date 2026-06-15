@@ -28,28 +28,23 @@ import { retrieveDalilContext } from "./myquran";
 import { requestWantsServerWebResearch, retrieveWebContext } from "./webResearch";
 import { registerThemeClassifier } from "../utils/themeClassifier";
 import { logInfo } from "../utils/observability";
+import { resolveAiProviderConfig } from "./aiConfig";
+export { parseAIModels as parseOpenAIModels, parseOpenAIWebSearchContextSize } from "./aiConfig";
 
-const apiKey = process.env.OPENAI_API_KEY;
-const aiProvider = String(process.env.AI_PROVIDER ?? "openai").trim().toLowerCase();
-export function parseOpenAIModels(modelsValue?: string, fallbackModel = "gpt-4o-mini") {
-  return (modelsValue || fallbackModel)
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
-const models = parseOpenAIModels(process.env.OPENAI_MODELS, model);
-const geminiApiKey = process.env.GEMINI_API_KEY;
-const geminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const geminiModels = parseOpenAIModels(process.env.GEMINI_MODELS, geminiModel);
-const baseURL = process.env.OPENAI_BASE_URL || undefined;
-const requestTimeout = Number(process.env.OPENAI_TIMEOUT_MS ?? 30_000);
-const client = apiKey ? new OpenAI({ apiKey, baseURL, timeout: requestTimeout }) : null;
-const configuredMaxTokens = Number(process.env.OPENAI_MAX_TOKENS ?? 9000);
-const maxTokens = Number.isFinite(configuredMaxTokens) && configuredMaxTokens > 0 ? Math.floor(configuredMaxTokens) : 9000;
-const openAIWebSearchEnabled = parseBooleanEnv(process.env.OPENAI_WEB_SEARCH_ENABLED, !baseURL);
-const openAIWebSearchContextSize = parseOpenAIWebSearchContextSize(process.env.OPENAI_WEB_SEARCH_CONTEXT_SIZE);
+const aiConfig = resolveAiProviderConfig();
+const apiKey = aiConfig.apiKey;
+const aiProvider = aiConfig.provider;
+const model = aiConfig.model;
+const models = aiConfig.models;
+const geminiApiKey = aiConfig.adapter === "gemini" ? aiConfig.apiKey : undefined;
+const geminiModel = aiConfig.model;
+const geminiModels = aiConfig.models;
+const baseURL = aiConfig.baseURL;
+const requestTimeout = aiConfig.timeoutMs;
+const client = aiConfig.adapter === "openai-compatible" && apiKey ? new OpenAI({ apiKey, baseURL, timeout: requestTimeout }) : null;
+const maxTokens = aiConfig.maxTokens;
+const openAIWebSearchEnabled = aiConfig.nativeWebSearchEnabled;
+const openAIWebSearchContextSize = aiConfig.webSearchContextSize;
 const systemPrompt =
   "Anda adalah penulis naskah dakwah Islam yang natural, hangat, peka konteks jamaah, dan menulis naskah mimbar yang utuh, bukan ringkasan. Tampilkan hanya naskah final yang siap dibacakan. Ikuti bahasa target dari user untuk semua narasi non-heading. Jika user memilih bahasa tertentu, seluruh narasi wajib 100% konsisten dalam bahasa itu; jangan campur dengan bahasa lain walau satu kalimat, kecuali heading struktur standar yang memang diizinkan. Dilarang menampilkan reasoning, analisis, rencana, komentar proses, catatan model, atau bahasa Inggris. Jangan gunakan Markdown. Gunakan rujukan ayat/hadits secara hati-hati dan jangan mengarang sumber. Jangan menambah klaim sejarah, faedah, atau hukum bila tidak benar-benar didukung konteks dan dalil yang tersedia. Semua teks Arab wajib berharakat, khususnya pada mukadimah, syahadat, ayat Al-Qur'an, hadits, penutup khutbah pertama, pembuka khutbah kedua, dan doa.";
 const baseGenerationSettings = {
@@ -66,17 +61,6 @@ const maxTokensByDurationMinutes: Record<number, number> = {
   15: 5600,
   20: 7200
 };
-
-function parseBooleanEnv(value: string | undefined, fallback: boolean) {
-  if (value === undefined) return fallback;
-  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
-}
-
-export function parseOpenAIWebSearchContextSize(value?: string) {
-  const normalized = String(value ?? "medium").trim().toLowerCase();
-  if (normalized === "low" || normalized === "high") return normalized;
-  return "medium";
-}
 
 function shouldUseOpenAIWebSearch() {
   return aiProvider === "openai" && Boolean(client) && openAIWebSearchEnabled && !baseURL;

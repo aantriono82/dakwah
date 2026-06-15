@@ -1,4 +1,6 @@
-import { parseOpenAIModels } from "./services/openai";
+import { resolveAiProviderConfig } from "./services/aiConfig";
+
+const aiConfig = resolveAiProviderConfig();
 
 function optionalPositiveInteger(value: string | undefined, fallback: number) {
   const parsed = Number(value ?? fallback);
@@ -24,11 +26,9 @@ function parseList(value: string | undefined) {
     .filter(Boolean);
 }
 
-export const providerTimeoutMs = Number(process.env.OPENAI_TIMEOUT_MS ?? 30_000);
-export const openAiModels = parseOpenAIModels(process.env.OPENAI_MODELS, process.env.OPENAI_MODEL || "gpt-4o-mini");
-export const geminiModels = parseOpenAIModels(process.env.GEMINI_MODELS, process.env.GEMINI_MODEL || "gemini-2.5-flash");
-export const aiProvider = String(process.env.AI_PROVIDER ?? "openai").trim().toLowerCase();
-export const activeModelCount = aiProvider === "gemini" ? geminiModels.length : openAiModels.length;
+export const providerTimeoutMs = aiConfig.timeoutMs;
+export const aiProvider = aiConfig.provider;
+export const activeModelCount = aiConfig.models.length;
 export const generateClientTimeoutMs = Math.max(120_000, providerTimeoutMs * Math.max(1, activeModelCount) + 30_000);
 export const appPublicUrl = String(process.env.APP_PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? 3000}`).replace(/\/+$/, "");
 export const resendApiKey = process.env.RESEND_API_KEY;
