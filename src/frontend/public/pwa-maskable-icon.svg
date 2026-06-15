@@ -1,68 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Dakwah">
   <defs>
-    <linearGradient id="outer" x1="54" x2="458" y1="32" y2="480" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#bdf3ce" />
-      <stop offset="1" stop-color="#d7f8de" />
+    <linearGradient id="tile" x1="78" x2="434" y1="44" y2="468" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0ba98b" />
+      <stop offset="1" stop-color="#075f4d" />
     </linearGradient>
-    <linearGradient id="inner" x1="104" x2="416" y1="56" y2="468" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#03977c" />
-      <stop offset="1" stop-color="#006857" />
+    <linearGradient id="edge" x1="0" x2="512" y1="0" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d8f8df" />
+      <stop offset="1" stop-color="#a9ebc7" />
     </linearGradient>
     <filter id="soft-shadow" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#005447" flood-opacity=".18" />
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#063f35" flood-opacity=".22" />
     </filter>
   </defs>
 
-  <rect width="512" height="512" fill="url(#outer)" />
-  <rect x="32" y="32" width="448" height="448" rx="92" fill="url(#inner)" filter="url(#soft-shadow)" />
+  <rect width="512" height="512" fill="url(#edge)" />
+  <rect x="46" y="46" width="420" height="420" rx="92" fill="url(#tile)" filter="url(#soft-shadow)" />
 
-  <path
-    d="M256 122 265 146 291 146 270 162 278 188 256 172 234 188 242 162 221 146 247 146Z"
-    fill="#ffc83d"
-  />
-
-  <path
-    d="M173 192c-1 61 36 102 83 102s84-41 83-102c-15 52-45 78-83 78s-68-26-83-78Z"
-    fill="#fff"
-  />
-
-  <path d="M126 303c47-6 89 3 126 28v95c-36-25-78-35-126-29Z" fill="#fff" />
-  <path d="M260 331c37-25 79-34 126-28l2 94c-48-6-90 4-128 29Z" fill="#fff" />
-  <path
-    d="M126 397c49-5 91 5 126 29l8 10 8-10c35-24 77-34 120-29l2 16c-49-5-89 5-122 33h-24c-33-28-73-38-122-33Z"
-    fill="#fff"
-  />
-  <path
-    d="M252 331v105M260 331v105M126 303c47-6 89 3 126 28v95c-36-25-78-35-126-29ZM260 331c37-25 79-34 126-28l2 94c-48-6-90 4-128 29Z"
-    fill="none"
-    stroke="#087461"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    stroke-width="6"
-  />
-  <path d="M116 310 106 402M396 310 406 402" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="8" />
-  <text
-    x="192"
-    y="362"
-    fill="#087461"
-    direction="rtl"
-    dominant-baseline="middle"
-    font-family="Noto Naskh Arabic, Amiri, serif"
-    font-size="42"
-    font-weight="700"
-    text-anchor="middle"
-    unicode-bidi="plaintext"
-  >الكريم</text>
-  <text
-    x="320"
-    y="362"
-    fill="#087461"
-    direction="rtl"
-    dominant-baseline="middle"
-    font-family="Noto Naskh Arabic, Amiri, serif"
-    font-size="42"
-    font-weight="700"
-    text-anchor="middle"
-    unicode-bidi="plaintext"
-  >القرآن</text>
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="28">
+    <path d="M108 420h296" />
+    <path d="M158 360c0-62 44-105 98-124 54 19 98 62 98 124" fill="#fff" fill-opacity=".1" />
+    <path d="M132 420V310M380 420V310" />
+    <path d="M219 420v-37c0-21 16-37 37-37s37 16 37 37v37" />
+  </g>
+  <path d="M256 82a54 54 0 0 0 0 108 72 72 0 0 1 0-108Z" fill="#fff" />
 </svg>
