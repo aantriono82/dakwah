@@ -26,23 +26,23 @@ describe("OpenAI generation settings", () => {
   });
 
   test("caps max tokens by content type and duration", () => {
-    expect(maxTokensForRequest("kultum", { durasi: "pendek" })).toBe(1200);
-    expect(maxTokensForRequest("kultum", { durasi: "sedang" })).toBe(1800);
-    expect(maxTokensForRequest("kultum", { durasi: "panjang" })).toBe(2000);
+    expect(maxTokensForRequest("kultum", { durasi: "pendek" })).toBe(1600);
+    expect(maxTokensForRequest("kultum", { durasi: "sedang" })).toBe(2200);
+    expect(maxTokensForRequest("kultum", { durasi: "panjang" })).toBe(2800);
 
-    expect(maxTokensForRequest("ceramah", { durasi: "pendek" })).toBe(2500);
-    expect(maxTokensForRequest("ceramah", { durasi: "sedang" })).toBe(3500);
-    expect(maxTokensForRequest("ceramah", { durasi: "panjang" })).toBe(4000);
+    expect(maxTokensForRequest("ceramah", { durasi: "pendek" })).toBe(3600);
+    expect(maxTokensForRequest("ceramah", { durasi: "sedang" })).toBe(Math.min(effectiveTokenLimit, 5600));
+    expect(maxTokensForRequest("ceramah", { durasi: "panjang" })).toBe(Math.min(effectiveTokenLimit, 7000));
 
-    expect(maxTokensForRequest("khutbah-jumat", { durasi: "pendek" })).toBe(2500);
-    expect(maxTokensForRequest("khutbah-jumat", { durasi: "sedang" })).toBe(3500);
-    expect(maxTokensForRequest("khutbah-jumat", { durasi: "panjang" })).toBe(Math.min(effectiveTokenLimit, 4500));
+    expect(maxTokensForRequest("khutbah-jumat", { durasi: "pendek" })).toBe(3600);
+    expect(maxTokensForRequest("khutbah-jumat", { durasi: "sedang" })).toBe(Math.min(effectiveTokenLimit, 5600));
+    expect(maxTokensForRequest("khutbah-jumat", { durasi: "panjang" })).toBe(Math.min(effectiveTokenLimit, 7200));
   });
 
   test("supports numeric minute duration", () => {
-    expect(maxTokensForRequest("ceramah", { durasi: "20" })).toBe(4000);
-    expect(maxTokensForRequest("khutbah-jumat", { durasi: "20 menit" })).toBe(Math.min(effectiveTokenLimit, 4500));
-    expect(maxTokensForRequest("kultum", { durasi: "7 menit" })).toBe(1800);
+    expect(maxTokensForRequest("ceramah", { durasi: "20" })).toBe(Math.min(effectiveTokenLimit, 7000));
+    expect(maxTokensForRequest("khutbah-jumat", { durasi: "20 menit" })).toBe(Math.min(effectiveTokenLimit, 7200));
+    expect(maxTokensForRequest("kultum", { durasi: "7 menit" })).toBe(2200);
   });
 
   test("treats identical revision output as unchanged", () => {

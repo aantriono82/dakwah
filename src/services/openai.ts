@@ -3,6 +3,7 @@ import type { ResponseCreateParamsNonStreaming } from "openai/resources/response
 import {
   buildPrompt,
   completeMissingSecondKhutbah,
+  appearsTruncatedText,
   composeTemplatedRukunKhutbah,
   fallbackNaskah,
   hasContextLeak,
@@ -45,8 +46,8 @@ const geminiModels = parseOpenAIModels(process.env.GEMINI_MODELS, geminiModel);
 const baseURL = process.env.OPENAI_BASE_URL || undefined;
 const requestTimeout = Number(process.env.OPENAI_TIMEOUT_MS ?? 30_000);
 const client = apiKey ? new OpenAI({ apiKey, baseURL, timeout: requestTimeout }) : null;
-const configuredMaxTokens = Number(process.env.OPENAI_MAX_TOKENS ?? 5500);
-const maxTokens = Number.isFinite(configuredMaxTokens) && configuredMaxTokens > 0 ? Math.floor(configuredMaxTokens) : 5500;
+const configuredMaxTokens = Number(process.env.OPENAI_MAX_TOKENS ?? 8000);
+const maxTokens = Number.isFinite(configuredMaxTokens) && configuredMaxTokens > 0 ? Math.floor(configuredMaxTokens) : 8000;
 const openAIWebSearchEnabled = parseBooleanEnv(process.env.OPENAI_WEB_SEARCH_ENABLED, !baseURL);
 const openAIWebSearchContextSize = parseOpenAIWebSearchContextSize(process.env.OPENAI_WEB_SEARCH_CONTEXT_SIZE);
 const systemPrompt =
@@ -59,11 +60,11 @@ const baseGenerationSettings = {
 };
 
 const maxTokensByDurationMinutes: Record<number, number> = {
-  5: 1200,
-  7: 1800,
-  10: 2500,
-  15: 3500,
-  20: 4500
+  5: 1600,
+  7: 2200,
+  10: 3600,
+  15: 5600,
+  20: 7200
 };
 
 function parseBooleanEnv(value: string | undefined, fallback: boolean) {
@@ -90,10 +91,10 @@ function shouldUseServerWebResearch(parameters: Record<string, unknown>) {
 }
 
 function contentTokenCeiling(jenis: string) {
-  if (jenis === "kultum") return 2000;
-  if (jenis === "ceramah") return 4000;
-  if (jenis === "khutbah-jumat" || jenis === "idul-fitri" || jenis === "idul-adha") return 4500;
-  if (jenis === "nikah") return 3500;
+  if (jenis === "kultum") return 2800;
+  if (jenis === "ceramah") return 7000;
+  if (jenis === "khutbah-jumat" || jenis === "idul-fitri" || jenis === "idul-adha") return 7200;
+  if (jenis === "nikah") return 5600;
   return 3000;
 }
 
@@ -139,13 +140,13 @@ function isTooShortReason(reason: string) {
 function maxTokensForShortRetry(jenis: string, parameters: Record<string, unknown>, requested: number) {
   const minimum = minimumWordCountFor(jenis, parameters);
   const estimated = Math.ceil((minimum * 3.8) / 100) * 100;
-  const retryFloor = jenis === "kultum" ? 2600 : jenis === "ceramah" ? 4200 : jenis === "nikah" ? 3600 : 4500;
+  const retryFloor = jenis === "kultum" ? 2800 : jenis === "ceramah" ? 6800 : jenis === "nikah" ? 5400 : 7000;
   return Math.min(maxTokens, Math.max(requested, estimated, retryFloor));
 }
 
 function retryGenerationSettingsFor(jenis: string, parameters: Record<string, unknown>, reason: string) {
   const settings = generationSettingsFor(jenis, parameters);
-  if (!isTooShortReason(reason)) return settings;
+  if (!isTooShortReason(reason) && reason !== "truncated_output") return settings;
 
   return {
     ...settings,
@@ -185,6 +186,7 @@ function providerTextIsClean(jenis: string, text: string, parameters: Record<str
     isGeneratedTextAcceptable(jenis, text, parameters) &&
     matchesTargetLanguage(text, parameters.bahasa) &&
     meetsMinimumLength(jenis, text, parameters) &&
+    !appearsTruncatedText(text) &&
     hasSubstantialArabicOpening(jenis, text) &&
     hasSubstantialArabicClosingPrayer(jenis, text)
   );
@@ -235,6 +237,7 @@ function providerTextFailureReason(jenis: string, text: string, parameters: Reco
   const languageMismatch = !matchesTargetLanguage(text, targetLanguage);
   const contextLeak = hasContextLeak(jenis, text);
   const tooShort = !meetsMinimumLength(jenis, text, parameters);
+  const truncated = appearsTruncatedText(text);
   const thinOpening = !hasSubstantialArabicOpening(jenis, text);
   const thinClosingPrayer = !hasSubstantialArabicClosingPrayer(jenis, text);
 
@@ -242,6 +245,7 @@ function providerTextFailureReason(jenis: string, text: string, parameters: Reco
   if (languageMismatch) return `language_mismatch:${targetLanguage}`;
   if (contextLeak) return `context_leak:${jenis}`;
   if (tooShort) return `too_short:min_words_${minimumWordCountFor(jenis, parameters)}`;
+  if (truncated) return "truncated_output";
   if (thinOpening) return "thin_arabic_opening";
   if (thinClosingPrayer) return "thin_arabic_closing_prayer";
   return "undiacritized_arabic_detected";

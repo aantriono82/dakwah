@@ -227,7 +227,7 @@ Variabel penting:
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model OpenAI untuk generate |
 | `OPENAI_MODELS` | kosong | Opsional. Daftar model prioritas dipisah koma; jika diisi, aplikasi mencoba model berurutan sebelum fallback lokal |
 | `OPENAI_BASE_URL` | kosong | Base URL provider kompatibel OpenAI, misalnya OpenRouter |
-| `OPENAI_MAX_TOKENS` | `5500` | Plafon global token output AI. Request tetap dibatasi lagi secara dinamis berdasarkan jenis naskah dan durasi |
+| `OPENAI_MAX_TOKENS` | `8000` | Plafon global token output AI. Request tetap dibatasi lagi secara dinamis berdasarkan jenis naskah dan durasi |
 | `OPENAI_TIMEOUT_MS` | `30000` | Timeout request provider AI dalam milidetik |
 | `OPENAI_WEB_SEARCH_ENABLED` | `true` untuk OpenAI resmi | Izinkan web search native OpenAI Responses API ketika user memilih mode `Web search otomatis`. Fitur native ini hanya dipakai saat `OPENAI_BASE_URL` kosong |
 | `OPENAI_WEB_SEARCH_CONTEXT_SIZE` | `medium` | Ukuran konteks web search: `low`, `medium`, atau `high` |
@@ -351,7 +351,7 @@ Semua endpoint berada di bawah `/api`.
 - Web search tersedia untuk OpenAI resmi ketika `OPENAI_WEB_SEARCH_ENABLED=true`, `OPENAI_BASE_URL` kosong, dan user memilih mode `Web search otomatis` di kartu parameter.
 - Untuk DeepSeek/OpenRouter/provider kompatibel, aplikasi memakai crawler server-side `WEB_RESEARCH_*`: backend mencari/membuka halaman web, mengambil ringkasan, lalu mengirim ringkasan itu sebagai konteks ke model. Mode manual tidak membuka URL; field sumber internet hanya memakai teks/ringkasan yang ditulis user.
 - Untuk OpenRouter/provider kompatibel OpenAI, set juga `OPENAI_BASE_URL` dan gunakan nama model dari provider tersebut. Native OpenAI web search tidak dipakai pada mode ini; gunakan `WEB_RESEARCH_*` untuk pencarian/crawl server-side.
-- Aplikasi tidak memakai satu `max_tokens` besar untuk semua generate. Batas efektif mengikuti durasi: kultum sekitar 1200-2000 token, ceramah 2500-4000 token, dan khutbah Jumat/Id 2500-4500 token, lalu tetap dipotong oleh `OPENAI_MAX_TOKENS`.
+- Aplikasi tidak memakai satu `max_tokens` besar untuk semua generate. Batas efektif mengikuti durasi: kultum sekitar 1600-2800 token, ceramah 3600-7000 token, dan khutbah Jumat/Id 3600-7200 token, lalu tetap dipotong oleh `OPENAI_MAX_TOKENS`.
 - Set `SEED_ADMIN_PASSWORD` dan `SEED_USER_PASSWORD` sebelum database pertama dibuat.
 - Set `APP_PUBLIC_URL`, `CORS_ORIGINS`, dan konfigurasi cookie sesuai domain/HTTPS production.
 - Isi `RESEND_API_KEY` dan `EMAIL_FROM` jika fitur reset password harus benar-benar mengirim email.

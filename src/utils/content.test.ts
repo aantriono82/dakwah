@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   buildPrompt,
   completeMissingSecondKhutbah,
+  appearsTruncatedText,
+  dedupeRepeatedDalilBlocks,
   fallbackNaskah,
   hasContextLeak,
   hasSubstantialArabicClosingPrayer,
@@ -391,6 +393,25 @@ Isi khutbah.`);
     expect(cleaned).not.toContain("<strong>");
     expect(cleaned).not.toContain("###");
     expect(cleaned).not.toContain("---");
+  });
+
+  test("dedupeRepeatedDalilBlocks removes repeated Arabic dalil and duplicate translation", () => {
+    const cleaned = dedupeRepeatedDalilBlocks(`Allah SWT berfirman dalam AlQuran:
+إِنَّ عِدَّةَ الشُّهُوْرِ عِنْدَ اللهِ اثْنَا عَشَرَ شَهْرًا فِيْ كِتَابِ اللهِ.
+Arti: Sesungguhnya bilangan bulan di sisi Allah adalah dua belas bulan. (QS. At-Taubah: 36)
+إِنَّ عِدَّةَ الشُّهُوْرِ عِنْدَ اللهِ اثْنَا عَشَرَ شَهْرًا فِيْ كِتَابِ اللهِ.
+"Sesungguhnya bilangan bulan di sisi Allah adalah dua belas bulan." (QS. At-Taubah: 36)
+Ayat ini menegaskan kemuliaan bulan haram.`);
+
+    expect(cleaned.match(/إِنَّ عِدَّةَ الشُّهُوْرِ/g)?.length).toBe(1);
+    expect(cleaned).toContain("Arti: Sesungguhnya bilangan bulan");
+    expect(cleaned).not.toContain('"Sesungguhnya bilangan bulan');
+    expect(cleaned).toContain("Ayat ini menegaskan");
+  });
+
+  test("appearsTruncatedText detects output ending mid sentence", () => {
+    expect(appearsTruncatedText("Puasa Asyura mengajarkan bahwa amal kecil bisa")).toBe(true);
+    expect(appearsTruncatedText("Semoga Allah menerima amal kita.")).toBe(false);
   });
 
   test("fallbackNaskah produces readable draft with selected language and theme", () => {

@@ -492,7 +492,10 @@ export function buildPrompt(
 ) {
   const label = contentTypeLabels[jenis as ContentType] ?? jenis;
   const tema = topicFromParameters(parameters);
-  const thematicDalil = dalilGuidanceFor(jenis, tema);
+  const thematicDalil =
+    retrievedDalil && (retrievedDalil.quran.length > 0 || retrievedDalil.hadith.length > 0)
+      ? "Dalil retrieval sudah tersedia di bagian atas. Pakai dalil retrieval itu saja; jangan menampilkan paket dalil tematik fallback dan jangan mengulang kutipan dalil yang sama."
+      : dalilGuidanceFor(jenis, tema);
   const parameterList = Object.entries(parameters)
     .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== "")
     .map(([key, value]) => `- ${editorialParameterLabels[key] ?? key}: ${String(value)}`)
@@ -583,7 +586,7 @@ export function sanitizeGeneratedText(text: string) {
     output = output.slice(firstStart).trimStart();
   }
 
-  return output
+  const cleaned = output
     .split("\n")
     .map((line) =>
       line
@@ -598,6 +601,8 @@ export function sanitizeGeneratedText(text: string) {
     .filter((line, index, lines) => !(line.trim() === "" && lines[index - 1]?.trim() === ""))
     .join("\n")
     .trim();
+
+  return dedupeRepeatedDalilBlocks(cleaned);
 }
 
 const arabicSegmentPattern = /[\u0600-\u06FF]{3,}/g;
@@ -854,6 +859,18 @@ export function minimumWordCountFor(jenis: string, parameters: Record<string, un
 
 export function meetsMinimumLength(jenis: string, text: string, parameters: Record<string, unknown> = {}) {
   return wordCount(text) >= minimumWordCountFor(jenis, parameters);
+}
+
+export function appearsTruncatedText(text: string) {
+  const lines = text
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const lastLine = lines.at(-1) ?? "";
+  if (!lastLine) return false;
+  if (/[,:;،؛]$/.test(lastLine)) return true;
+  return /\b(?:yang|dan|atau|untuk|dengan|di|ke|dari|pada|dalam|karena|agar|supaya|sebagai|bisa|dapat|akan|adalah|menjadi|lebih|tidak|belum|sudah|juga|kita|harus)$/i.test(lastLine);
 }
 
 export function hasSubstantialArabicOpening(jenis: string, text: string) {
@@ -2168,6 +2185,7 @@ Aturan khusus dalil:
 - Jangan mengarang teks Arab, terjemahan, takhrij, derajat hadits, atau sumber kitab.
 - Jika hadits memiliki derajat, tampilkan derajat itu secara ringkas setelah rujukan atau dalam kalimat penjelas.
 - Penjelasan boleh memakai bahasa natural, tetapi kutipan dalil harus tetap terkunci pada data retrieval.
+- Tampilkan setiap ayat atau hadits cukup satu kali: teks Arab, arti, dan rujukan. Jangan menulis ulang kutipan yang sama dalam versi "Arti" lalu versi terjemah kutip.
 - Isi utama harus menjelaskan hubungan dalil dengan tema "${context.theme}", bukan sekadar menempelkan kutipan.${warnings}`;
 }
 
@@ -4577,8 +4595,49 @@ export function fallbackNaskah(jenis: string, parameters: Record<string, unknown
   return localizeFallback(fallbackGeneralNaskah(jenis, label, bahasa, tema, variationSeed, parameters));
 }
 
+function normalizeRepeatedDalilLine(line: string) {
+  return line
+    .normalize("NFKD")
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "")
+    .toLowerCase();
+}
+
+function isLongArabicDalilLine(line: string) {
+  return (line.match(/[\u0600-\u06FF]/g) ?? []).length >= 24;
+}
+
+function isTranslationLineAfterDuplicateDalil(line: string) {
+  const trimmed = line.trim();
+  return /^(?:arti|terjemah(?:an)?|makna)\s*:/i.test(trimmed) || /^["“][^"”]+["”]\s*\([^)]+\)\s*$/i.test(trimmed);
+}
+
+export function dedupeRepeatedDalilBlocks(text: string) {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const result: string[] = [];
+  const seenArabic = new Set<string>();
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    if (isLongArabicDalilLine(line)) {
+      const normalized = normalizeRepeatedDalilLine(line);
+      if (normalized && seenArabic.has(normalized)) {
+        while (index + 1 < lines.length && isTranslationLineAfterDuplicateDalil(lines[index + 1])) {
+          index++;
+        }
+        continue;
+      }
+      if (normalized) seenArabic.add(normalized);
+    }
+
+    result.push(line);
+  }
+
+  return result.join("\n");
+}
+
 export function injectRetrievedDalil(text: string, retrievedDalil?: PromptDalilContext): string {
-  if (!retrievedDalil) return text;
+  if (!retrievedDalil) return dedupeRepeatedDalilBlocks(text);
 
   const lines = text.split("\n");
   const resultLines: string[] = [];
@@ -4647,5 +4706,5 @@ export function injectRetrievedDalil(text: string, retrievedDalil?: PromptDalilC
     i++;
   }
 
-  return resultLines.join("\n");
+  return dedupeRepeatedDalilBlocks(resultLines.join("\n"));
 }
