@@ -93,11 +93,11 @@ function PreviewContent({ content, activeSectionLabel }: { content: string; acti
             key={index}
             dir={hasArabic ? "rtl" : "auto"}
             className={cn(
-              "whitespace-pre-wrap break-words",
+              "whitespace-pre-wrap break-words text-justify",
               useAmiri && "font-amiri text-[1.05rem] leading-8",
-              hasArabic && "my-2 text-right text-[1.28rem] leading-10",
-              startsAmiriSection && "mt-3 font-bold",
-              startsOtherHeading && "mt-3 font-semibold",
+              hasArabic && "my-2 text-[1.28rem] leading-10 [text-align-last:right]",
+              startsAmiriSection && "mt-3",
+              startsOtherHeading && "mt-3",
               isActiveHeading && "rounded-md bg-primary/10 px-2 py-1 text-primary"
             )}
           >

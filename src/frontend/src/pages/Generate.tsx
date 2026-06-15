@@ -1057,7 +1057,7 @@ export function Generate({
                     </div>
                     <Textarea
                       ref={editorRef}
-                      className={cn("resize-y font-mono leading-6", focusMode ? "min-h-[60vh] sm:min-h-[68vh] xl:min-h-[78vh]" : "min-h-[320px] sm:min-h-[420px] xl:min-h-[560px]")}
+                      className={cn("resize-y text-justify font-mono leading-6", focusMode ? "min-h-[60vh] sm:min-h-[68vh] xl:min-h-[78vh]" : "min-h-[320px] sm:min-h-[420px] xl:min-h-[560px]")}
                       value={content}
                       onChange={(event) => handleManualContentChange(event.target.value)}
                       onClick={updateCursorPosition}

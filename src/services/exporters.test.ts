@@ -35,4 +35,14 @@ describe("document exporters", () => {
     expect(documentXml).toContain("<w:rtl/>");
     expect(documentXml).toContain("Artinya: Maka bertakwalah.");
   });
+
+  test("createDocx justifies generated content paragraphs without bold runs", async () => {
+    const file = await createDocx("Ceramah Amanah", "Paragraf pertama yang cukup panjang.\n\nParagraf kedua yang juga cukup panjang.");
+    const zip = await JSZip.loadAsync(file);
+    const documentXml = await zip.file("word/document.xml")?.async("string");
+    const bodyXml = documentXml?.split("<w:t xml:space=\"preserve\">Paragraf pertama")[1] ?? "";
+
+    expect(documentXml).toContain('<w:jc w:val="both"/>');
+    expect(bodyXml).not.toContain("<w:b/>");
+  });
 });

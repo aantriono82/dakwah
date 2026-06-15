@@ -590,6 +590,8 @@ export function sanitizeGeneratedText(text: string) {
         .replace(/^\s{0,3}#{1,6}\s*/, "")
         .replace(/^\s{0,3}>\s?/, "")
         .replace(/\*\*/g, "")
+        .replace(/__/g, "")
+        .replace(/<\/?(?:strong|b)\b[^>]*>/gi, "")
         .replace(/^\s*-{3,}\s*$/, "")
         .trimEnd()
     )

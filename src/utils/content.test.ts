@@ -375,14 +375,20 @@ Let's craft concise-medium maybe 1000 words.
 **Khutbah Pertama**
 ### Pembukaan
 > _“Wahai orang-orang yang beriman.”_
+__Nasihat penting__
+<strong>Jamaah rahimakumullah</strong>
 ---
 Isi khutbah.`);
 
     expect(cleaned).toStartWith("Khutbah Pertama");
     expect(cleaned).toContain("Pembukaan");
     expect(cleaned).toContain("_“Wahai orang-orang yang beriman.”_");
+    expect(cleaned).toContain("Nasihat penting");
+    expect(cleaned).toContain("Jamaah rahimakumullah");
     expect(cleaned).not.toContain("Need cautious");
     expect(cleaned).not.toContain("**");
+    expect(cleaned).not.toContain("__");
+    expect(cleaned).not.toContain("<strong>");
     expect(cleaned).not.toContain("###");
     expect(cleaned).not.toContain("---");
   });

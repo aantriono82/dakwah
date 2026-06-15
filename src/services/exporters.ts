@@ -145,8 +145,8 @@ function contentToHtml(title: string, content: string) {
     @page { size: A4; margin: 18mm; }
     body { font-family: Arial, "DejaVu Sans", sans-serif; font-size: 14px; line-height: 1.55; color: #111; }
     h1 { font-size: 22px; text-align: center; margin: 0 0 20px 0; }
-    .p { margin: 0 0 10px 0; text-align: left; white-space: pre-wrap; word-break: break-word; }
-    .ar { direction: rtl; unicode-bidi: plaintext; text-align: right; font-family: Amiri, "Noto Naskh Arabic", "Noto Sans Arabic", serif; font-size: 18px; line-height: 1.9; word-break: normal; overflow-wrap: anywhere; }
+    .p { margin: 0 0 10px 0; text-align: justify; text-align-last: auto; white-space: pre-wrap; word-break: break-word; font-weight: 400; }
+    .ar { direction: rtl; unicode-bidi: plaintext; text-align: justify; text-align-last: right; font-family: Amiri, "Noto Naskh Arabic", "Noto Sans Arabic", serif; font-size: 18px; line-height: 1.9; word-break: normal; overflow-wrap: anywhere; font-weight: 400; }
   </style>
 </head>
 <body>
@@ -256,7 +256,7 @@ export async function createPdf(title: string, content: string) {
       const text = paragraph.trim();
       if (!text) continue;
       doc.fontSize(11).text(text, {
-        align: containsArabic(text) ? "right" : "left",
+        align: "justify",
         lineGap: 4
       });
       doc.moveDown(0.5);
@@ -277,7 +277,7 @@ export async function createDocx(title: string, content: string) {
 
     return new Paragraph({
       bidirectional: arabicOnly,
-      alignment: arabicOnly ? AlignmentType.RIGHT : AlignmentType.LEFT,
+      alignment: AlignmentType.JUSTIFIED,
       children: createScriptAwareRuns(normalized),
       spacing: { after: 180 }
     });
