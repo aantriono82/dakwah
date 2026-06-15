@@ -5,7 +5,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { db, sqlite } from "../db/client";
 import { naskah, naskahVersions, users, type Naskah, type QualityReport, type User } from "../db/schema";
-import { reviseNaskahContent } from "../services/openai";
+import { isMeaningfullyDifferentRevision, reviseNaskahContent } from "../services/openai";
 import { retrieveDalilContext } from "../services/myquran";
 import { assertGenerateQuota, recordUsageEvent } from "../services/usage";
 import { authRequired, canAccessOwner, publicUser, type AppEnv, type PublicUser } from "../utils/http";
@@ -414,7 +414,8 @@ naskahRoutes.post("/", zValidator("json", saveSchema), async (c) => {
 
   const id = nanoid();
   const title = body.title?.trim() || titleFromParameters(body.jenis, body.parameters);
-  const qualityReport = qualityReportFor(body.jenis, body.content, body.parameters);
+  const dalilContext = await retrieveDalilContext(body.jenis, body.parameters);
+  const qualityReport = qualityReportFor(body.jenis, body.content, body.parameters, dalilContext);
   await db.insert(naskah).values({
     id,
     userId: user.id,
@@ -515,7 +516,8 @@ naskahRoutes.put("/:id", zValidator("json", saveSchema.partial()), async (c) => 
   let qualityReport = existing.qualityReport;
   let qualityScore = existing.qualityScore;
   if (shouldRecomputeQuality) {
-    const generatedQualityReport = qualityReportFor(nextJenis, nextContent, nextParameters);
+    const dalilContext = await retrieveDalilContext(nextJenis, nextParameters);
+    const generatedQualityReport = qualityReportFor(nextJenis, nextContent, nextParameters, dalilContext);
     qualityReport = generatedQualityReport;
     qualityScore = generatedQualityReport.score;
   }
@@ -626,6 +628,21 @@ naskahRoutes.post("/:id/refine", zValidator("json", refineSchema), async (c) => 
     dalilContext
   });
   const revisedAt = Date.now();
+  if (!isMeaningfullyDifferentRevision(existing.content, content)) {
+    await recordUsageEvent({
+      userId: user.id,
+      eventType: "generate",
+      status: "error",
+      jenis: existing.jenis,
+      route: "/api/naskah/:id/refine",
+      durationMs: Date.now() - startedAt,
+      metadata: {
+        mode: "refine",
+        reason: "unchanged_output"
+      }
+    });
+    return c.json({ message: "Revisi AI tidak menghasilkan perubahan. Coba instruksi yang lebih spesifik atau periksa konfigurasi provider AI." }, 409);
+  }
   const qualityReport = qualityReportFor(existing.jenis, content, existing.parameters, dalilContext);
   const nextVersion = existing.version + 1;
   logInfo("naskah.refine", {

@@ -113,6 +113,15 @@ function isPrivateIPv4(hostname: string) {
   return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
 }
 
+function isPrivateIPv6(hostname: string) {
+  const normalized = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (!normalized.includes(":")) return false;
+  if (normalized === "::" || normalized === "::1") return true;
+  if (normalized.startsWith("fe80:") || normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+  const mapped = normalized.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
+  return mapped ? isPrivateIPv4(mapped[1]) : false;
+}
+
 function safeHttpUrl(value: string) {
   try {
     const url = new URL(value);
@@ -120,7 +129,7 @@ function safeHttpUrl(value: string) {
     if (url.username || url.password) return null;
     const hostname = url.hostname.toLowerCase();
     if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) return null;
-    if (hostname === "::1" || hostname.startsWith("[::1]") || isPrivateIPv4(hostname)) return null;
+    if (isPrivateIPv4(hostname) || isPrivateIPv6(hostname)) return null;
     url.hash = "";
     return url.toString();
   } catch {
@@ -132,22 +141,39 @@ async function fetchTextWithTimeout(url: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), webResearchTimeoutMs);
   try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1",
-        "User-Agent": webResearchUserAgent
-      },
-      signal: controller.signal,
-      redirect: "follow"
-    });
-    const contentType = response.headers.get("content-type") ?? "";
-    const contentLength = Number(response.headers.get("content-length") ?? 0);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    if (contentLength > 2_000_000) throw new Error("Halaman terlalu besar.");
-    if (!/text\/html|text\/plain|application\/xhtml\+xml/i.test(contentType)) {
-      throw new Error(`Tipe konten tidak didukung: ${contentType || "unknown"}.`);
+    let currentUrl = safeHttpUrl(url);
+    if (!currentUrl) throw new Error("URL tidak aman.");
+
+    for (let redirectCount = 0; redirectCount <= 5; redirectCount += 1) {
+      const response = await fetch(currentUrl, {
+        headers: {
+          Accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1",
+          "User-Agent": webResearchUserAgent
+        },
+        signal: controller.signal,
+        redirect: "manual"
+      });
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("location");
+        if (!location) throw new Error(`Redirect tanpa Location: HTTP ${response.status}`);
+        const nextUrl = safeHttpUrl(new URL(location, currentUrl).toString());
+        if (!nextUrl) throw new Error("Redirect mengarah ke URL yang tidak aman.");
+        currentUrl = nextUrl;
+        continue;
+      }
+
+      const contentType = response.headers.get("content-type") ?? "";
+      const contentLength = Number(response.headers.get("content-length") ?? 0);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (contentLength > 2_000_000) throw new Error("Halaman terlalu besar.");
+      if (!/text\/html|text\/plain|application\/xhtml\+xml/i.test(contentType)) {
+        throw new Error(`Tipe konten tidak didukung: ${contentType || "unknown"}.`);
+      }
+      return { text: await response.text(), contentType, finalUrl: currentUrl };
     }
-    return { text: await response.text(), contentType, finalUrl: response.url || url };
+
+    throw new Error("Redirect terlalu banyak.");
   } finally {
     clearTimeout(timeout);
   }

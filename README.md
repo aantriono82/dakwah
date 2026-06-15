@@ -5,7 +5,7 @@ Dakwah adalah aplikasi web full-stack untuk membantu ustaz, khatib, dai, dan pen
 ## Fitur
 
 - Generate naskah untuk 6 jenis konten: Khutbah Jumat, Idul Fitri, Idul Adha, Khutbah Nikah, Ceramah Umum, dan Kultum.
-- Streaming pratinjau hasil AI secara real-time.
+- Pratinjau hasil AI dikirim bertahap setelah validasi dan repair otomatis selesai.
 - Simpan naskah ke SQLite via Drizzle ORM.
 - Riwayat naskah, template parameter favorit, dan export PDF/DOCX.
 - Editor riwayat dengan autosave draft, status draft/final, snapshot versi, restore versi, dan revisi AI dari naskah tersimpan.
@@ -315,7 +315,7 @@ Semua endpoint berada di bawah `/api`.
 | `POST` | `/api/auth/logout` | Logout |
 | `GET` | `/api/auth/me` | User aktif |
 | `POST` | `/api/generate` | Generate non-streaming |
-| `POST` | `/api/generate/stream` | Generate streaming |
+| `POST` | `/api/generate/stream` | Generate dengan respons bertahap setelah quality guard |
 | `POST` | `/api/generate/review` | Hitung quality report untuk draft hasil generate |
 | `POST` | `/api/generate/refine` | Revisi draft hasil generate tanpa menyimpan ke riwayat |
 | `GET` | `/api/dalil/search?jenis=ceramah&tema=Sabar` | Cek retrieval dalil tematik |

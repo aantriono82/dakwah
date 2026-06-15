@@ -593,16 +593,15 @@ export function Generate({
         body: JSON.stringify({
           jenis,
           parameters,
-          content: activeSection.text,
-          instruction: sectionAiInstruction(action)
+          content,
+          instruction: sectionAiInstruction(action),
+          targetSection: activeSection.label
         })
       });
 
-      const refinedSection = data.content.trim();
-      const nextContent = `${content.slice(0, activeSection.start)}${refinedSection}${content.slice(activeSection.end)}`;
-      applySectionContent(nextContent, activeSection.start);
-      setQuality(null);
-      setManualEditDirty(true);
+      applySectionContent(data.content, activeSection.start);
+      setQuality(data.quality);
+      setManualEditDirty(false);
       setLastQuickFixDiff(null);
       setMessageTone("success");
       setMessage(`Section "${activeSection.label}" berhasil diperbarui dengan AI.`);

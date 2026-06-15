@@ -647,7 +647,7 @@ describe("API naskah, template, generate, and export", () => {
           jenis: "ceramah",
           parameters: { bahasa: "Indonesia", topik: "Menjaga amanah", durasi: "pendek" },
           content: originalContent,
-          instruction: "Perhalus bahasa agar lebih natural dan kuat untuk jamaah."
+          instruction: "ganti teks amanah adalah titipan menjadi amanah adalah tanggung jawab besar"
         })
       },
       userCookie
@@ -657,6 +657,7 @@ describe("API naskah, template, generate, and export", () => {
     expect(response.status).toBe(200);
     expect(body.content).toContain("Ceramah Umum");
     expect(body.content).toContain("Menjaga amanah");
+    expect(body.content).toContain("amanah adalah tanggung jawab besar");
     expect(body.quality.score).toBeGreaterThan(0);
     expect(body.quality.wordCount).toBeGreaterThan(0);
     expect(Array.isArray(body.quality.checks)).toBe(true);
@@ -818,6 +819,7 @@ describe("API naskah, template, generate, and export", () => {
     expect(created.data.status).toBe("draft");
     expect(created.data.version).toBe(1);
     expect(created.data.qualityReport.score).toBeGreaterThan(0);
+    expect(created.data.qualityReport.checks.some((item: { id: string }) => item.id === "selected_dalil_references")).toBe(true);
 
     const list = await request("/api/naskah", {}, userCookie);
     const listBody = await list.json();
@@ -898,10 +900,12 @@ describe("API naskah, template, generate, and export", () => {
       userCookie
     );
     const refinedBody = await refine.json();
-    expect(refine.status).toBe(200);
-    expect(refinedBody.data.version).toBe(3);
-    expect(refinedBody.data.content).not.toBe(originalContent);
-    expect(refinedBody.data.content.length).toBeGreaterThan(0);
+    expect(refine.status).toBe(409);
+    expect(refinedBody.message).toContain("tidak menghasilkan perubahan");
+
+    const detailAfterUnchangedRefine = await request(`/api/naskah/${createdNaskahId}`, {}, userCookie);
+    const detailAfterUnchangedRefineBody = await detailAfterUnchangedRefine.json();
+    expect(detailAfterUnchangedRefineBody.data.version).toBe(2);
 
     const invalidTypeUpdate = await request(
       `/api/naskah/${createdNaskahId}`,
@@ -942,7 +946,7 @@ describe("API naskah, template, generate, and export", () => {
       {
         method: "POST",
         body: JSON.stringify({
-          instruction: "Perkuat fokus tema agar isi tidak terlalu umum.",
+          instruction: "ganti teks judi online menjadi judi daring",
           changeSummary: "Quick fix: fokus tema"
         })
       },

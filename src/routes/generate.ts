@@ -9,7 +9,7 @@ import { CONTENT_TYPES, titleFromParameters, validateContentParameters } from ".
 import { logInfo } from "../utils/observability";
 import { qualityReportFor } from "../utils/quality";
 import { rateLimit } from "../utils/rate-limit";
-import { generateText, reviseNaskahContent, streamGeneratedText } from "../services/openai";
+import { generateText, isMeaningfullyDifferentRevision, reviseNaskahContent, streamGeneratedText } from "../services/openai";
 import { retrieveDalilContext } from "../services/myquran";
 
 const generateSchema = z.object({
@@ -182,6 +182,21 @@ generateRoutes.post("/refine", zValidator("json", refineDraftSchema), async (c) 
     dalilContext
   });
   const revisedAt = Date.now();
+  if (!isMeaningfullyDifferentRevision(content, revisedContent)) {
+    await recordUsageEvent({
+      userId: user.id,
+      eventType: "generate",
+      status: "error",
+      jenis,
+      route: "/api/generate/refine",
+      durationMs: Date.now() - startedAt,
+      metadata: {
+        mode: "refine_draft",
+        reason: "unchanged_output"
+      }
+    });
+    return c.json({ message: "Revisi AI tidak menghasilkan perubahan. Coba instruksi yang lebih spesifik atau periksa konfigurasi provider AI." }, 409);
+  }
   const quality = qualityReportFor(jenis, revisedContent, parameters, dalilContext);
   logInfo("generate.refine", {
     route: "/api/generate/refine",
