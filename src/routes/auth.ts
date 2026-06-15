@@ -32,11 +32,20 @@ export const authRoutes = new Hono<AppEnv>();
 const authCookieMaxAge = 60 * 60 * 24 * 7;
 const googleOAuthStateMaxAge = 10 * 60;
 const captchaTtlMs = 5 * 60 * 1000;
+const captchaMaxFailedChecks = 5;
 const passwordResetTtlMs = 30 * 60 * 1000;
 const authCleanupIntervalMs = 5 * 60 * 1000;
 const captchaChallenges = new Map<
   string,
-  { answer: string; expiresAt: number; inputMode: "numeric" | "text"; placeholder: string; hint?: string; difficulty: "ringan" | "sedang" }
+  {
+    answer: string;
+    expiresAt: number;
+    failedChecks: number;
+    inputMode: "numeric" | "text";
+    placeholder: string;
+    hint?: string;
+    difficulty: "ringan" | "sedang";
+  }
 >();
 let nextCaptchaCleanupAt = 0;
 let nextExpiredAuthCleanupAt = 0;
@@ -90,6 +99,7 @@ function createCaptchaChallenge() {
   captchaChallenges.set(token, {
     answer: selected.answer,
     expiresAt: Date.now() + captchaTtlMs,
+    failedChecks: 0,
     inputMode: selected.inputMode,
     placeholder: selected.placeholder,
     hint: selected.hint,
@@ -124,7 +134,12 @@ function isCaptchaAnswerValid(token: string, answer: string) {
   if (!challenge) return false;
   if (challenge.expiresAt <= Date.now()) return false;
   const normalizedAnswer = challenge.inputMode === "numeric" ? answer.trim() : normalizeCaptchaAnswer(answer);
-  return normalizedAnswer === challenge.answer;
+  const valid = normalizedAnswer === challenge.answer;
+  if (!valid) {
+    challenge.failedChecks += 1;
+    if (challenge.failedChecks >= captchaMaxFailedChecks) captchaChallenges.delete(token);
+  }
+  return valid;
 }
 
 function clientAddress(c: Context<AppEnv>) {

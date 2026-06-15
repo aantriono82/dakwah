@@ -269,6 +269,28 @@ describe("API auth and roles", () => {
     expect(register.status).toBe(201);
   });
 
+  test("captcha verify expires token after repeated wrong answers", async () => {
+    const captchaResponse = await request("/api/auth/captcha");
+    const captchaBody = (await captchaResponse.json()) as { token: string; question: string };
+    const captchaAnswer = solveCaptcha(captchaBody.question);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const verifyInvalid = await request("/api/auth/captcha/verify", {
+        method: "POST",
+        body: JSON.stringify({ captchaToken: captchaBody.token, captchaAnswer: createInvalidCaptchaAnswer(captchaAnswer) })
+      });
+      expect(verifyInvalid.status).toBe(200);
+      expect((await verifyInvalid.json()).valid).toBe(false);
+    }
+
+    const verifyValid = await request("/api/auth/captcha/verify", {
+      method: "POST",
+      body: JSON.stringify({ captchaToken: captchaBody.token, captchaAnswer })
+    });
+    expect(verifyValid.status).toBe(200);
+    expect((await verifyValid.json()).valid).toBe(false);
+  });
+
   test("captcha templates stay short and solvable", () => {
     let previousQuestion: string | null = null;
 

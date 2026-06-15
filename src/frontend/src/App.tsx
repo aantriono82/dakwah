@@ -992,11 +992,14 @@ function RegisterPanel({
   const [showPassword, setShowPassword] = useState(false);
   const [captcha, setCaptcha] = useState<CaptchaChallenge | null>(null);
   const [captchaAnswer, setCaptchaAnswer] = useState("");
+  const [captchaStatus, setCaptchaStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle");
+  const [captchaMessage, setCaptchaMessage] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const captchaIsReady = turnstileEnabled ? turnstileToken.length > 0 : Boolean(captcha && captchaAnswer.trim());
+  const captchaCheckRef = useRef(0);
+  const captchaIsReady = turnstileEnabled ? turnstileToken.length > 0 : Boolean(captcha && captchaStatus === "valid");
   const handleTurnstileTokenChange = useCallback((token: string) => {
     setError("");
     setTurnstileToken(token);
@@ -1005,6 +1008,8 @@ function RegisterPanel({
   const refreshCaptcha = useCallback(async () => {
     if (turnstileEnabled) return;
     setCaptchaAnswer("");
+    setCaptchaStatus("idle");
+    setCaptchaMessage("");
     try {
       const challenge = await api<{ token: string; question: string; inputMode: "numeric" | "text"; placeholder: string; hint?: string }>(
         "/api/auth/captcha"
@@ -1025,6 +1030,47 @@ function RegisterPanel({
     void refreshCaptcha();
   }, [refreshCaptcha, turnstileEnabled]);
 
+  useEffect(() => {
+    if (turnstileEnabled) return;
+
+    captchaCheckRef.current += 1;
+    const checkId = captchaCheckRef.current;
+    const answer = captchaAnswer.trim();
+
+    if (!captcha || !answer) {
+      setCaptchaStatus("idle");
+      setCaptchaMessage("");
+      return;
+    }
+
+    setCaptchaStatus("checking");
+    setCaptchaMessage("");
+
+    const timeout = window.setTimeout(async () => {
+      try {
+        const result = await api<{ valid: boolean }>("/api/auth/captcha/verify", {
+          method: "POST",
+          body: JSON.stringify({ captchaToken: captcha.token, captchaAnswer: answer })
+        });
+
+        if (captchaCheckRef.current !== checkId) return;
+        if (result.valid) {
+          setCaptchaStatus("valid");
+          setCaptchaMessage("Captcha benar.");
+        } else {
+          setCaptchaStatus("invalid");
+          setCaptchaMessage("Jawaban captcha salah. Periksa lagi atau ganti captcha.");
+        }
+      } catch (error) {
+        if (captchaCheckRef.current !== checkId) return;
+        setCaptchaStatus("invalid");
+        setCaptchaMessage(error instanceof Error ? error.message : "Captcha gagal diverifikasi. Coba lagi.");
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timeout);
+  }, [captcha, captchaAnswer, turnstileEnabled]);
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError("");
@@ -1035,8 +1081,16 @@ function RegisterPanel({
         return;
       }
     } else {
-      if (!captcha || !captchaAnswer) {
+      if (!captcha || !captchaAnswer.trim()) {
         setError("Lengkapi captcha terlebih dahulu.");
+        return;
+      }
+      if (captchaStatus === "checking") {
+        setError("Tunggu verifikasi captcha selesai.");
+        return;
+      }
+      if (captchaStatus !== "valid") {
+        setError("Jawaban captcha salah. Periksa lagi atau ganti captcha.");
         return;
       }
     }
@@ -1185,11 +1239,26 @@ function RegisterPanel({
                 }}
                 placeholder={captcha?.placeholder ?? "Masukkan jawaban"}
                 aria-label="Jawaban captcha"
+                aria-invalid={captchaStatus === "invalid"}
+                aria-describedby="captcha-status"
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
                 inputMode={captcha?.inputMode === "numeric" ? "numeric" : "text"}
               />
+              {captchaMessage && (
+                <p
+                  id="captcha-status"
+                  className={cn("text-xs", captchaStatus === "valid" ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}
+                >
+                  {captchaMessage}
+                </p>
+              )}
+              {captchaStatus === "checking" && (
+                <p id="captcha-status" className="text-xs text-muted-foreground">
+                  Memeriksa captcha...
+                </p>
+              )}
               {captcha?.hint && <p className="text-xs text-muted-foreground">{captcha.hint}</p>}
             </>
           )}
