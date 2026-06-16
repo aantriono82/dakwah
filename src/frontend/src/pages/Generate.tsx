@@ -110,6 +110,7 @@ export function Generate({
     }
 
     setPreparingProposal(true);
+    setGenerationStep("review_outline");
     setMessage("");
     try {
       const data = await api<{ outline: { title: string; description: string }[]; dalilContext: { quran: any[]; hadith: any[] } }>("/api/generate/prepare", {
@@ -120,9 +121,9 @@ export function Generate({
       setDalilProposal(data.dalilContext || { quran: [], hadith: [] });
       setSelectedQuranRefs((data.dalilContext?.quran || []).map((q: any) => q.reference));
       setSelectedHadithRefs((data.dalilContext?.hadith || []).map((h: any) => h.reference));
-      setGenerationStep("review_outline");
       setMobileParametersCollapsed(true);
     } catch (error) {
+      setGenerationStep("input");
       setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "Gagal menyiapkan kerangka & dalil.");
     } finally {
