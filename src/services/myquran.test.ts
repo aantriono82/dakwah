@@ -6,6 +6,9 @@ describe("myQuran dalil retrieval", () => {
   test("parses supported QS references", () => {
     expect(parseQuranReference("QS. Al-Baqarah: 153")).toEqual({ surah: 2, ayahStart: 153, ayahEnd: 153 });
     expect(parseQuranReference("QS. Al-'Ashr: 1-3")).toEqual({ surah: 103, ayahStart: 1, ayahEnd: 3 });
+    expect(parseQuranReference("QS. Al-Baqarah: 286")).toEqual({ surah: 2, ayahStart: 286, ayahEnd: 286 });
+    expect(parseQuranReference("QS. Al-Baqarah: 287")).toBeNull();
+    expect(parseQuranReference("QS. Al-Fatihah: 8")).toBeNull();
     expect(parseQuranReference("HR. Muslim")).toBeNull();
   });
 

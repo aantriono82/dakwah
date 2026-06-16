@@ -65,6 +65,44 @@ export function NaskahPreview({
   );
 }
 
+function TalqinButton({ text }: { text: string }) {
+  const isSupported = typeof window !== "undefined" && "speechSynthesis" in window;
+  if (!isSupported) return null;
+
+  function handlePlay() {
+    const synth = window.speechSynthesis;
+    if (synth.speaking) {
+      synth.cancel();
+      return;
+    }
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "ar-SA";
+    utter.rate = 0.82;
+    utter.pitch = 1;
+    // Prefer an Arabic voice if available
+    const voices = synth.getVoices();
+    const arabicVoice = voices.find((v) => v.lang.startsWith("ar"));
+    if (arabicVoice) utter.voice = arabicVoice;
+    synth.speak(utter);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handlePlay}
+      title="Dengarkan pelafalan (Talqin)"
+      aria-label="Dengarkan pelafalan ayat ini"
+      className="ml-2 inline-flex shrink-0 items-center justify-center rounded-full p-1 text-muted-foreground opacity-60 transition hover:bg-primary/10 hover:opacity-100 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="size-4">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" fillOpacity="0.08" />
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+      </svg>
+    </button>
+  );
+}
+
 function PreviewContent({ content, activeSectionLabel }: { content: string; activeSectionLabel?: string }) {
   let amiriSection = false;
   const normalizedActiveSection = normalizeSectionLabel(activeSectionLabel);
@@ -98,10 +136,12 @@ function PreviewContent({ content, activeSectionLabel }: { content: string; acti
               hasArabic && "my-2 text-[1.28rem] leading-10 [text-align-last:right]",
               startsAmiriSection && "mt-3",
               startsOtherHeading && "mt-3",
-              isActiveHeading && "rounded-md bg-primary/10 px-2 py-1 text-primary"
+              isActiveHeading && "rounded-md bg-primary/10 px-2 py-1 text-primary",
+              hasArabic && "flex items-center justify-end gap-1"
             )}
           >
-            {line}
+            {hasArabic && <TalqinButton text={trimmed} />}
+            <span>{line}</span>
           </div>
         );
       })}

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Field, Input, Select, Textarea } from "./ui";
 import type { JenisId } from "../lib/utils";
 
@@ -28,6 +29,113 @@ const modeSumberInternetOptions = [
   { value: "web-search", label: "Web search otomatis" }
 ];
 
+// ─── Voice Input Button ───────────────────────────────────────────────────────
+interface SpeechRecognitionEvent {
+  results: { [index: number]: { [index: number]: { transcript: string } } };
+}
+interface ISpeechRecognition {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+}
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => ISpeechRecognition;
+    webkitSpeechRecognition?: new () => ISpeechRecognition;
+  }
+}
+
+function VoiceInputButton({
+  onResult,
+  lang = "id-ID",
+  title = "Rekam suara"
+}: {
+  onResult: (text: string) => void;
+  lang?: string;
+  title?: string;
+}) {
+  const [listening, setListening] = useState(false);
+
+  const SpeechRecognitionCtor =
+    typeof window !== "undefined"
+      ? window.SpeechRecognition ?? window.webkitSpeechRecognition
+      : undefined;
+
+  if (!SpeechRecognitionCtor) return null;
+
+  function handleToggle() {
+    if (listening) return;
+    const recognition = new SpeechRecognitionCtor!();
+    recognition.lang = lang;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    setListening(true);
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = event.results[0]?.[0]?.transcript ?? "";
+      if (transcript) onResult(transcript.trim());
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+    recognition.start();
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleToggle}
+      title={title}
+      aria-label={listening ? "Merekam suara..." : title}
+      className={[
+        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition",
+        listening
+          ? "animate-pulse border-destructive bg-destructive/10 text-destructive"
+          : "border-border bg-muted/40 text-muted-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/40"
+      ].join(" ")}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="size-4">
+        <rect x="9" y="2" width="6" height="11" rx="3" fill="currentColor" fillOpacity={listening ? 0.2 : 0.05} />
+        <path d="M5 10a7 7 0 0 0 14 0" />
+        <line x1="12" y1="17" x2="12" y2="22" />
+        <line x1="9" y1="22" x2="15" y2="22" />
+      </svg>
+    </button>
+  );
+}
+
+// ─── Voiced Input Field ───────────────────────────────────────────────────────
+function VoicedInput({
+  value,
+  onChange,
+  required,
+  placeholder,
+  lang = "id-ID"
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+  placeholder?: string;
+  lang?: string;
+}) {
+  return (
+    <div className="flex gap-2">
+      <Input
+        className="flex-1"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        placeholder={placeholder}
+      />
+      <VoiceInputButton lang={lang} onResult={(text) => onChange(value ? `${value} ${text}` : text)} title="Rekam topik dengan suara" />
+    </div>
+  );
+}
+
+// ─── Default Parameters ───────────────────────────────────────────────────────
 export function defaultParameters(jenis: JenisId): Parameters {
   const common = {
     bahasa: "Indonesia",
@@ -146,10 +254,10 @@ export function FormKhutbah({
       {jenis === "khutbah-jumat" && (
         <>
           <Field label="Tema utama">
-            <Input value={values.temaUtama ?? ""} onChange={(event) => set("temaUtama", event.target.value)} required />
+            <VoicedInput value={values.temaUtama ?? ""} onChange={(v) => set("temaUtama", v)} required />
           </Field>
           <Field label="Sub-tema">
-            <Input value={values.subTema ?? ""} onChange={(event) => set("subTema", event.target.value)} />
+            <VoicedInput value={values.subTema ?? ""} onChange={(v) => set("subTema", v)} />
           </Field>
           <Field label="Ayat Al-Quran referensi">
             <Textarea value={values.ayatReferensi ?? ""} onChange={(event) => set("ayatReferensi", event.target.value)} />
@@ -167,7 +275,7 @@ export function FormKhutbah({
       {jenis === "idul-fitri" && (
         <>
           <Field label="Tema">
-            <Input value={values.tema ?? ""} onChange={(event) => set("tema", event.target.value)} required />
+            <VoicedInput value={values.tema ?? ""} onChange={(v) => set("tema", v)} required />
           </Field>
           <Field label="Nuansa">
             <Select value={values.nuansa ?? "reflektif"} onChange={(event) => set("nuansa", event.target.value)}>
@@ -177,7 +285,7 @@ export function FormKhutbah({
             </Select>
           </Field>
           <Field label="Momen spesifik">
-            <Input value={values.momenSpesifik ?? ""} onChange={(event) => set("momenSpesifik", event.target.value)} />
+            <VoicedInput value={values.momenSpesifik ?? ""} onChange={(v) => set("momenSpesifik", v)} />
           </Field>
         </>
       )}
@@ -185,10 +293,10 @@ export function FormKhutbah({
       {jenis === "idul-adha" && (
         <>
           <Field label="Tema">
-            <Input value={values.tema ?? ""} onChange={(event) => set("tema", event.target.value)} required />
+            <VoicedInput value={values.tema ?? ""} onChange={(v) => set("tema", v)} required />
           </Field>
           <Field label="Kisah nabi sebagai referensi">
-            <Input value={values.kisahNabi ?? ""} onChange={(event) => set("kisahNabi", event.target.value)} />
+            <VoicedInput value={values.kisahNabi ?? ""} onChange={(v) => set("kisahNabi", v)} />
           </Field>
         </>
       )}
@@ -204,7 +312,7 @@ export function FormKhutbah({
             </Field>
           </div>
           <Field label="Tema pesan pernikahan">
-            <Input value={values.temaPesan ?? ""} onChange={(event) => set("temaPesan", event.target.value)} required />
+            <VoicedInput value={values.temaPesan ?? ""} onChange={(v) => set("temaPesan", v)} required />
           </Field>
           <Field label="Hadits/ayat tentang pernikahan">
             <Textarea value={values.referensi ?? ""} onChange={(event) => set("referensi", event.target.value)} />
@@ -229,7 +337,7 @@ export function FormKhutbah({
       {jenis === "ceramah" && (
         <>
           <Field label="Topik bebas">
-            <Input value={values.topik ?? ""} onChange={(event) => set("topik", event.target.value)} required />
+            <VoicedInput value={values.topik ?? ""} onChange={(v) => set("topik", v)} required />
           </Field>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Target audiens">
@@ -260,7 +368,7 @@ export function FormKhutbah({
       {jenis === "kultum" && (
         <>
           <Field label="Topik singkat">
-            <Input value={values.topikSingkat ?? ""} onChange={(event) => set("topikSingkat", event.target.value)} required />
+            <VoicedInput value={values.topikSingkat ?? ""} onChange={(v) => set("topikSingkat", v)} required />
           </Field>
           <Field label="Waktu">
             <Select value={values.waktu ?? "maghrib"} onChange={(event) => set("waktu", event.target.value)}>

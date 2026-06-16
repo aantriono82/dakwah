@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { IconCheckCircle, IconChevronDown, IconChevronUp, IconCopy, IconDocx, IconDownload, IconEye, IconFileDown, IconFileText, IconMaximize, IconMinimize, IconMoveDown, IconMoveUp, IconPdf, IconRotateCcw, IconSave, IconShield, IconSparkles, IconSync } from "../components/icons";
+import { IconCheckCircle, IconChevronDown, IconChevronUp, IconCopy, IconDocx, IconDownload, IconEye, IconFileDown, IconFileText, IconMaximize, IconMinimize, IconMoveDown, IconMoveUp, IconPdf, IconRotateCcw, IconSave, IconShield, IconSparkles, IconSync, IconTrash } from "../components/icons";
 import { defaultParameters, FormKhutbah } from "../components/FormKhutbah";
 import { JenisCard } from "../components/JenisCard";
 import { NaskahPreview } from "../components/NaskahPreview";
@@ -91,6 +91,104 @@ export function Generate({
   const [cursorPosition, setCursorPosition] = useState(0);
   const [mobileParametersCollapsed, setMobileParametersCollapsed] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+
+  const [reviewBeforeGenerate, setReviewBeforeGenerate] = useState(true);
+  const [generationStep, setGenerationStep] = useState<"input" | "review_outline" | "editor">("input");
+  const [preparingProposal, setPreparingProposal] = useState(false);
+  const [outlineProposal, setOutlineProposal] = useState<{ title: string; description: string }[]>([]);
+  const [dalilProposal, setDalilProposal] = useState<{ quran: any[]; hadith: any[] }>({ quran: [], hadith: [] });
+  const [selectedQuranRefs, setSelectedQuranRefs] = useState<string[]>([]);
+  const [selectedHadithRefs, setSelectedHadithRefs] = useState<string[]>([]);
+  const [expandedTafsir, setExpandedTafsir] = useState<Record<string, boolean>>({});
+
+  async function prepareOutlineAndDalil() {
+    const validationMessage = validateGenerateParameters(jenis, parameters);
+    if (validationMessage) {
+      setMessageTone("error");
+      setMessage(validationMessage);
+      return;
+    }
+
+    setPreparingProposal(true);
+    setMessage("");
+    try {
+      const data = await api<{ outline: { title: string; description: string }[]; dalilContext: { quran: any[]; hadith: any[] } }>("/api/generate/prepare", {
+        method: "POST",
+        body: JSON.stringify({ jenis, parameters })
+      });
+      setOutlineProposal(data.outline || []);
+      setDalilProposal(data.dalilContext || { quran: [], hadith: [] });
+      setSelectedQuranRefs((data.dalilContext?.quran || []).map((q: any) => q.reference));
+      setSelectedHadithRefs((data.dalilContext?.hadith || []).map((h: any) => h.reference));
+      setGenerationStep("review_outline");
+      setMobileParametersCollapsed(true);
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(error instanceof Error ? error.message : "Gagal menyiapkan kerangka & dalil.");
+    } finally {
+      setPreparingProposal(false);
+    }
+  }
+
+  function handleAddSection() {
+    setOutlineProposal([...outlineProposal, { title: "Bagian Baru", description: "Tulis fokus bahasan di sini..." }]);
+  }
+
+  function handleRemoveSection(index: number) {
+    setOutlineProposal(outlineProposal.filter((_, idx) => idx !== index));
+  }
+
+  function handleMoveSection(index: number, direction: -1 | 1) {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= outlineProposal.length) return;
+    const nextOutline = [...outlineProposal];
+    const temp = nextOutline[index];
+    nextOutline[index] = nextOutline[nextIndex];
+    nextOutline[nextIndex] = temp;
+    setOutlineProposal(nextOutline);
+  }
+
+  function handleUpdateSection(index: number, field: "title" | "description", value: string) {
+    const nextOutline = [...outlineProposal];
+    nextOutline[index] = { ...nextOutline[index], [field]: value };
+    setOutlineProposal(nextOutline);
+  }
+
+  function handleToggleQuran(ref: string) {
+    setSelectedQuranRefs((prev) =>
+      prev.includes(ref) ? prev.filter((r) => r !== ref) : [...prev, ref]
+    );
+  }
+
+  function handleToggleHadith(ref: string) {
+    setSelectedHadithRefs((prev) =>
+      prev.includes(ref) ? prev.filter((r) => r !== ref) : [...prev, ref]
+    );
+  }
+
+  function handleToggleTafsir(ref: string) {
+    setExpandedTafsir((prev) => ({ ...prev, [ref]: !prev[ref] }));
+  }
+
+  function handleStartGeneration() {
+    if (reviewBeforeGenerate) {
+      prepareOutlineAndDalil();
+    } else {
+      setGenerationStep("editor");
+      generate();
+    }
+  }
+
+  async function handleFinalizeGeneration() {
+    setGenerationStep("editor");
+    const chosenQuran = dalilProposal.quran.filter((q) => selectedQuranRefs.includes(q.reference));
+    const chosenHadith = dalilProposal.hadith.filter((h) => selectedHadithRefs.includes(h.reference));
+    const selectedDalils = {
+      quran: chosenQuran,
+      hadith: chosenHadith
+    };
+    await generate(outlineProposal, selectedDalils);
+  }
 
   useEffect(() => {
     completePageTransition("Generate");
@@ -242,10 +340,18 @@ export function Generate({
     return `${selectedLabel}: ${parameters.temaUtama || parameters.tema || parameters.topik || parameters.topikSingkat || parameters.temaPesan || "Tanpa Tema"}`;
   }
 
-  async function generateWithoutStream() {
+  async function generateWithoutStream(
+    customOutline?: { title: string; description: string }[],
+    customDalils?: { quran: any[]; hadith: any[] }
+  ) {
     const data = await api<{ title: string; content: string; quality: QualityReport }>("/api/generate", {
       method: "POST",
-      body: JSON.stringify({ jenis, parameters })
+      body: JSON.stringify({
+        jenis,
+        parameters,
+        outline: customOutline,
+        selectedDalils: customDalils
+      })
     });
     setTitle(data.title);
     setContent(data.content);
@@ -315,7 +421,10 @@ export function Generate({
     }
   }
 
-  async function generate() {
+  async function generate(
+    customOutline?: { title: string; description: string }[],
+    customDalils?: { quran: any[]; hadith: any[] }
+  ) {
     const validationMessage = validateGenerateParameters(jenis, parameters);
     if (validationMessage) {
       setMessageTone("error");
@@ -357,7 +466,12 @@ export function Generate({
         credentials: "include",
         signal: controller.signal,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jenis, parameters })
+        body: JSON.stringify({
+          jenis,
+          parameters,
+          outline: customOutline,
+          selectedDalils: customDalils
+        })
       });
       if (!response.ok || !response.body) throw new Error("Generate gagal.");
       const reader = response.body.getReader();
@@ -403,7 +517,7 @@ export function Generate({
         setMessageTone("neutral");
         setMessage("Koneksi streaming gagal. Mencoba mode kompatibilitas...");
         try {
-          await generateWithoutStream();
+          await generateWithoutStream(customOutline, customDalils);
           setMobileParametersCollapsed(true);
           setMessageTone("success");
           setMessage("");
@@ -698,6 +812,322 @@ export function Generate({
     setMessage("Link export berhasil disalin.");
   }
 
+  if (preparingProposal) {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center rounded-lg border border-border bg-background p-8 text-center shadow-sm max-w-2xl mx-auto my-12">
+        <IconSync className="size-10 animate-spin text-primary" />
+        <h3 className="mt-4 text-lg font-semibold">Menyiapkan Kerangka & Dalil...</h3>
+        <p className="mt-2 text-sm text-muted-foreground">
+          AI sedang menganalisis tema untuk menyusun kerangka dakwah terbaik dan mengumpulkan dalil yang paling relevan...
+        </p>
+      </div>
+    );
+  }
+
+  if (generationStep === "review_outline") {
+    return (
+      <div className="mx-auto max-w-6xl w-full">
+        {/* Step Indicator */}
+        <div className="mb-6 flex items-center justify-center gap-4 border-b border-border pb-4">
+          <div className="flex items-center gap-2">
+            <div className="flex size-7 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">1</div>
+            <span className="text-sm font-medium text-muted-foreground">Parameter</span>
+          </div>
+          <div className="h-px w-8 bg-border" />
+          <div className="flex items-center gap-2">
+            <div className="flex size-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground shadow-sm">2</div>
+            <span className="text-sm font-semibold text-foreground">Tinjau Kerangka & Dalil</span>
+          </div>
+          <div className="h-px w-8 bg-border" />
+          <div className="flex items-center gap-2">
+            <div className="flex size-7 items-center justify-center rounded-full border border-border text-xs font-bold text-muted-foreground">3</div>
+            <span className="text-sm font-medium text-muted-foreground">Penulisan Naskah</span>
+          </div>
+        </div>
+
+        {/* Back Button */}
+        <Button
+          type="button"
+          className="mb-4 bg-secondary text-secondary-foreground"
+          onClick={() => setGenerationStep("input")}
+        >
+          &larr; Kembali ke Form Parameter
+        </Button>
+
+        {/* Two-Column Editor Grid */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Column 1: Outline Editor */}
+          <div className="flex flex-col gap-4">
+            <Card className="p-4">
+              <h3 className="text-lg font-semibold mb-1">Kerangka Naskah (Outline)</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Sesuaikan urutan dan fokus bahasan tiap bagian naskah.
+              </p>
+
+              <div className="flex flex-col gap-3">
+                {outlineProposal.map((section, idx) => (
+                  <div key={idx} className="relative rounded-lg border border-border bg-card p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <span className="inline-flex size-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                        {idx + 1}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          className="size-7 p-0 bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                          onClick={() => handleMoveSection(idx, -1)}
+                          disabled={idx === 0}
+                          title="Naikkan"
+                        >
+                          <IconChevronUp className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          className="size-7 p-0 bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                          onClick={() => handleMoveSection(idx, 1)}
+                          disabled={idx === outlineProposal.length - 1}
+                          title="Turunkan"
+                        >
+                          <IconChevronDown className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          className="size-7 p-0 bg-red-50 text-red-600 hover:bg-red-100"
+                          onClick={() => handleRemoveSection(idx)}
+                          title="Hapus"
+                        >
+                          <IconTrash className="size-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Input
+                        type="text"
+                        value={section.title}
+                        onChange={(e) => handleUpdateSection(idx, "title", e.target.value)}
+                        placeholder="Nama Bagian (e.g. Pembahasan 1)"
+                        className="font-semibold"
+                      />
+                      <Textarea
+                        value={section.description}
+                        onChange={(e) => handleUpdateSection(idx, "description", e.target.value)}
+                        placeholder="Fokus pembahasan pada bagian ini..."
+                        className="min-h-16 text-xs"
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                {outlineProposal.length === 0 && (
+                  <p className="text-center text-sm text-muted-foreground py-6">
+                    Belum ada bagian kerangka. Silakan tambah bagian baru.
+                  </p>
+                )}
+
+                <Button
+                  type="button"
+                  className="mt-2 w-full border border-dashed border-primary/40 bg-transparent text-primary hover:bg-primary/5"
+                  onClick={handleAddSection}
+                >
+                  <svg className="mr-2 size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Tambah Bagian Baru
+                </Button>
+              </div>
+            </Card>
+          </div>
+
+          {/* Column 2: Dalil Selector */}
+          <div className="flex flex-col gap-4">
+            <Card className="p-4">
+              <h3 className="text-lg font-semibold mb-1">Rujukan Dalil Pilihan</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Pilih dalil yang ingin disisipkan dan pelajari tafsir/syarahnya.
+              </p>
+
+              {/* Quran Section */}
+              <div className="mb-6">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
+                  Al-Qur'an (Ayat)
+                </h4>
+                <div className="flex flex-col gap-3">
+                  {dalilProposal.quran.map((item, idx) => (
+                    <div
+                      key={item.reference || idx}
+                      className={cn(
+                        "rounded-lg border p-3 shadow-sm transition",
+                        selectedQuranRefs.includes(item.reference)
+                          ? "border-primary bg-primary/5"
+                          : "border-border bg-card"
+                      )}
+                    >
+                      <div className="flex items-start gap-2 mb-2">
+                        <input
+                          type="checkbox"
+                          id={`quran-${idx}`}
+                          checked={selectedQuranRefs.includes(item.reference)}
+                          onChange={() => handleToggleQuran(item.reference)}
+                          className="mt-1 rounded border-border text-primary focus:ring-primary size-4 cursor-pointer"
+                        />
+                        <label
+                          htmlFor={`quran-${idx}`}
+                          className="font-semibold text-sm cursor-pointer select-none"
+                        >
+                          {item.reference}
+                        </label>
+                      </div>
+
+                      {item.arab && (
+                        <p className="mb-2 text-right font-serif text-lg leading-loose text-emerald-800 dark:text-emerald-300 font-semibold pr-2 select-all">
+                          {item.arab}
+                        </p>
+                      )}
+                      <p className="text-xs text-foreground/80 leading-relaxed mb-3">
+                        {item.translation}
+                      </p>
+
+                      {item.tafsir && (
+                        <div className="border-t border-border/60 pt-2">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                            onClick={() => handleToggleTafsir(item.reference)}
+                          >
+                            <span>
+                              {expandedTafsir[item.reference] ? "Sembunyikan Tafsir" : "Lihat Tafsir"}
+                            </span>
+                            <span className="text-[10px]">
+                              {expandedTafsir[item.reference] ? "▲" : "▼"}
+                            </span>
+                          </button>
+                          {expandedTafsir[item.reference] && (
+                            <div className="mt-2 rounded bg-muted/50 p-2.5 text-xs text-muted-foreground border-l-2 border-emerald-500 italic leading-relaxed">
+                              {item.tafsir}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {dalilProposal.quran.length === 0 && (
+                    <p className="text-xs text-muted-foreground py-2">Tidak ada ayat Al-Qur'an hasil retrieval.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Hadith Section */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
+                  As-Sunnah (Hadits)
+                </h4>
+                <div className="flex flex-col gap-3">
+                  {dalilProposal.hadith.map((item, idx) => (
+                    <div
+                      key={item.reference || idx}
+                      className={cn(
+                        "rounded-lg border p-3 shadow-sm transition",
+                        selectedHadithRefs.includes(item.reference)
+                          ? "border-primary bg-primary/5"
+                          : "border-border bg-card"
+                      )}
+                    >
+                      <div className="flex items-start gap-2 mb-2">
+                        <input
+                          type="checkbox"
+                          id={`hadith-${idx}`}
+                          checked={selectedHadithRefs.includes(item.reference)}
+                          onChange={() => handleToggleHadith(item.reference)}
+                          className="mt-1 rounded border-border text-primary focus:ring-primary size-4 cursor-pointer"
+                        />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label
+                            htmlFor={`hadith-${idx}`}
+                            className="font-semibold text-sm cursor-pointer select-none"
+                          >
+                            {item.reference}
+                          </label>
+                          {item.grade && (
+                            <span
+                              className={cn(
+                                "rounded px-1.5 py-0.5 text-[10px] font-bold uppercase",
+                                item.grade.toLowerCase().includes("sahih") || item.grade.toLowerCase().includes("shahih")
+                                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                                  : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                              )}
+                            >
+                              {item.grade}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {item.arab && (
+                        <p className="mb-2 text-right font-serif text-lg leading-loose text-emerald-800 dark:text-emerald-300 font-semibold pr-2 select-all">
+                          {item.arab}
+                        </p>
+                      )}
+                      <p className="text-xs text-foreground/80 leading-relaxed mb-3">
+                        {item.translation}
+                      </p>
+
+                      {item.tafsir && (
+                        <div className="border-t border-border/60 pt-2">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                            onClick={() => handleToggleTafsir(item.reference)}
+                          >
+                            <span>
+                              {expandedTafsir[item.reference] ? "Sembunyikan Hikmah/Syarah" : "Lihat Hikmah/Syarah"}
+                            </span>
+                            <span className="text-[10px]">
+                              {expandedTafsir[item.reference] ? "▲" : "▼"}
+                            </span>
+                          </button>
+                          {expandedTafsir[item.reference] && (
+                            <div className="mt-2 rounded bg-muted/50 p-2.5 text-xs text-muted-foreground border-l-2 border-emerald-500 italic leading-relaxed">
+                              {item.tafsir}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {dalilProposal.hadith.length === 0 && (
+                    <p className="text-xs text-muted-foreground py-2">Tidak ada hadits hasil retrieval.</p>
+                  )}
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* Bottom Actions Bar */}
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-4 shadow-sm">
+          <div className="text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">{outlineProposal.length}</span> bagian kerangka |{" "}
+            <span className="font-semibold text-foreground">
+              {selectedQuranRefs.length + selectedHadithRefs.length}
+            </span>{" "}
+            dalil terpilih
+          </div>
+          <Button
+            type="button"
+            className="h-11 px-6 font-semibold"
+            onClick={handleFinalizeGeneration}
+            disabled={outlineProposal.length === 0}
+          >
+            Hasilkan Naskah Lengkap ✨
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn("grid gap-6", focusMode ? "2xl:grid-cols-1" : "2xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]")}>
       {hasContent && (
@@ -800,10 +1230,21 @@ export function Generate({
                 </Button>
               </div>
               {validationMessage && <Notice tone="error">{validationMessage}</Notice>}
+              <div className="mt-3 mb-3">
+                <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground select-none cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={reviewBeforeGenerate}
+                    onChange={(e) => setReviewBeforeGenerate(e.target.checked)}
+                    className="rounded border-border text-primary focus:ring-primary size-4"
+                  />
+                  Tinjau kerangka &amp; dalil sebelum generate
+                </label>
+              </div>
               <div className="grid gap-2 sm:grid-cols-2">
-                <Button onClick={generate} disabled={loading || saving || Boolean(exporting)}>
+                <Button onClick={handleStartGeneration} disabled={loading || saving || Boolean(exporting)}>
                   <IconSync className={cn("size-4", loading && "animate-spin")} />
-                  {loading ? "Generating..." : "Generate"}
+                  {loading ? "Generating..." : reviewBeforeGenerate ? "Siapkan Kerangka" : "Generate"}
                 </Button>
                 <Button className="bg-secondary text-secondary-foreground" onClick={saveTemplate} disabled={loading || saving || Boolean(exporting)}>
                   <IconSave className="size-4" />
@@ -818,10 +1259,21 @@ export function Generate({
                 Mode bawaan sekarang menekan akurasi isi, bahasa natural-jelas, dan dalil yang benar-benar sesuai dengan tema. Gunakan catatan editor bila Anda ingin membatasi gaya atau penekanan tertentu.
               </Notice>
               {validationMessage && <Notice tone="error" className="mt-4">{validationMessage}</Notice>}
-              <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                <Button onClick={generate} disabled={loading || saving || Boolean(exporting)}>
+              <div className="mt-4 mb-3">
+                <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground select-none cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={reviewBeforeGenerate}
+                    onChange={(e) => setReviewBeforeGenerate(e.target.checked)}
+                    className="rounded border-border text-primary focus:ring-primary size-4"
+                  />
+                  Tinjau kerangka &amp; dalil sebelum generate
+                </label>
+              </div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <Button onClick={handleStartGeneration} disabled={loading || saving || Boolean(exporting)}>
                   <IconSync className={cn("size-4", loading && "animate-spin")} />
-                  {loading ? "Generating..." : "Generate"}
+                  {loading ? "Generating..." : reviewBeforeGenerate ? "Siapkan Kerangka" : "Generate"}
                 </Button>
                 <Button className="bg-secondary text-secondary-foreground" onClick={saveTemplate} disabled={loading || saving || Boolean(exporting)}>
                   <IconSave className="size-4" />

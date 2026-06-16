@@ -1040,7 +1040,8 @@ async function generateTextWithGemini(
   jenis: string,
   parameters: Record<string, unknown>,
   traceId: string,
-  dalilContext?: PromptDalilContext
+  dalilContext?: PromptDalilContext,
+  customOutline?: { title: string; description: string }[]
 ) {
   if (shouldUseTemplatedRukunKhutbah(jenis, parameters)) {
     const generated = await generateTemplatedRukunKhutbahWithGemini(jenis, parameters, traceId, dalilContext);
@@ -1052,7 +1053,9 @@ async function generateTextWithGemini(
 
   for (const modelName of geminiModels) {
     try {
-      const outline = await createGeminiOutline(modelName, basePromptRoot, jenis, parameters, traceId);
+      const outline = customOutline
+        ? customOutline.map((sec, idx) => `${idx + 1}. ${sec.title}\nDetail: ${sec.description}`).join("\n\n")
+        : await createGeminiOutline(modelName, basePromptRoot, jenis, parameters, traceId);
       const basePrompt = `${basePromptRoot}\n\nKerangka internal yang wajib diikuti tetapi jangan ditampilkan:\n${outline}`;
       const firstResponse = await createGeminiCompletion(modelName, basePrompt, jenis, parameters);
       const firstPass = normalizeProviderText(jenis, geminiTextFromResponse(firstResponse), parameters);
@@ -1218,10 +1221,15 @@ Tulis ulang hanya isi editorialnya dengan uraian lebih utuh, bahasa target lebih
   return null;
 }
 
-export async function generateText(jenis: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
+export async function generateText(
+  jenis: string,
+  parameters: Record<string, unknown>,
+  dalilContext?: PromptDalilContext,
+  customOutline?: { title: string; description: string }[]
+) {
   const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const startedAt = Date.now();
-  if (aiProvider === "gemini") return generateTextWithGemini(jenis, parameters, traceId, dalilContext);
+  if (aiProvider === "gemini") return generateTextWithGemini(jenis, parameters, traceId, dalilContext, customOutline);
   if (!client) return fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
   if (shouldUseTemplatedRukunKhutbah(jenis, parameters)) {
     const generated = await generateTemplatedRukunKhutbahWithOpenAI(jenis, parameters, traceId, dalilContext);
@@ -1242,7 +1250,9 @@ export async function generateText(jenis: string, parameters: Record<string, unk
 
   for (const modelName of models) {
     try {
-      const outline = await createOpenAIOutline(modelName, prompt, jenis, parameters, traceId);
+      const outline = customOutline
+        ? customOutline.map((sec, idx) => `${idx + 1}. ${sec.title}\nDetail: ${sec.description}`).join("\n\n")
+        : await createOpenAIOutline(modelName, prompt, jenis, parameters, traceId);
       const baseMessages = messagesWithOutline(prompt, traceId, outline);
       const firstText = await createOpenAITextPass(modelName, baseMessages, jenis, parameters, traceId, "first", undefined, true);
       const firstPass = normalizeProviderText(jenis, firstText, parameters);
@@ -1324,9 +1334,14 @@ export async function generateText(jenis: string, parameters: Record<string, unk
   return fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
 }
 
-export async function* streamGeneratedText(jenis: string, parameters: Record<string, unknown>, dalilContext?: PromptDalilContext) {
+export async function* streamGeneratedText(
+  jenis: string,
+  parameters: Record<string, unknown>,
+  dalilContext?: PromptDalilContext,
+  customOutline?: { title: string; description: string }[]
+) {
   if (aiProvider === "gemini") {
-    const finalText = await generateText(jenis, parameters, dalilContext);
+    const finalText = await generateText(jenis, parameters, dalilContext, customOutline);
     for (const chunk of finalText.match(/[\s\S]{1,240}/g) ?? []) {
       yield chunk;
     }
@@ -1366,7 +1381,9 @@ export async function* streamGeneratedText(jenis: string, parameters: Record<str
 
   for (const modelName of models) {
     try {
-      const outline = await createOpenAIOutline(modelName, prompt, jenis, parameters, traceId);
+      const outline = customOutline
+        ? customOutline.map((sec, idx) => `${idx + 1}. ${sec.title}\nDetail: ${sec.description}`).join("\n\n")
+        : await createOpenAIOutline(modelName, prompt, jenis, parameters, traceId);
       const messages = messagesWithOutline(prompt, traceId, outline);
       let text = "";
       if (shouldUseOpenAIWebSearch() && requestWantsWebSearch(parameters)) {
@@ -1737,6 +1754,14 @@ export async function reviseNaskahContent(input: {
 async function classifyThemeWithAI(theme: string): Promise<string | null> {
   const labels = thematicDalilSets.map((set) => set.label);
   const prompt = `Klasifikasikan tema ceramah/khutbah berikut ke dalam salah satu kategori yang paling relevan dari daftar di bawah ini.
+
+Contoh pemetaan tema:
+- "Hukum Pinjaman Online dan Bunga Bank" -> Klasifikasikan sebagai: "riba, muamalah, dan rezeki halal"
+- "Bahaya judi online slot" -> Klasifikasikan sebagai: "judi, maisir, dan bahaya judi online"
+- "Mengatasi pacaran bebas anak muda" -> Klasifikasikan sebagai: "menjauhi zina, pergaulan bebas, dan menjaga kehormatan"
+- "Cara mendidik anak secara islami" -> Klasifikasikan sebagai: "pendidikan anak, parenting remaja, dan tanggung jawab keluarga"
+- "Menghadiri kajian dan belajar fiqih" -> Klasifikasikan sebagai: "ilmu, belajar, dan mengamalkan ilmu"
+
 Tema dari user: "${theme}"
 
 Daftar kategori yang tersedia:
@@ -1794,3 +1819,71 @@ Aturan:
 }
 
 registerThemeClassifier(classifyThemeWithAI);
+
+export async function generateOutlineProposal(
+  jenis: string,
+  parameters: Record<string, unknown>,
+  dalilContext: PromptDalilContext
+): Promise<{ title: string; description: string }[]> {
+  const traceId = `proposal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const theme = String(parameters.temaUtama ?? parameters.tema ?? parameters.topik ?? parameters.topikSingkat ?? "Ketakwaan");
+  const targetLanguage = normalizeLanguage(parameters.bahasa);
+
+  const prompt = `Buat usulan kerangka (outline) dakwah terstruktur untuk jenis naskah "${jenis}" dengan tema "${theme}" dalam bahasa "${targetLanguage}".
+Gunakan dalil-dalil berikut sebagai landasan:
+Quran: ${dalilContext.quran.map(d => `${d.reference} (${d.translation})`).join("; ")}
+Hadits: ${dalilContext.hadith.map(d => `${d.reference} (${d.translation})`).join("; ")}
+
+Kembalikan output dalam format JSON array valid yang berisi object dengan properti "title" (judul bagian/subbahasan) dan "description" (fokus bahasan atau instruksi detail bagian tersebut).
+Format JSON wajib persis seperti ini:
+[
+  {
+    "title": "...",
+    "description": "..."
+  }
+]
+
+Hanya kembalikan JSON array valid. Jangan berikan teks pembuka atau penutup lain di luar JSON.`;
+
+  try {
+    let rawText = "";
+    if (aiProvider === "gemini") {
+      const response = await createGeminiCompletion(geminiModels[0] || geminiModel, prompt, jenis, parameters);
+      rawText = geminiTextFromResponse(response);
+    } else if (client) {
+      const modelName = models[0] || model;
+      const response = await client.chat.completions.create({
+        model: modelName,
+        messages: [
+          { role: "system", content: "Anda adalah asisten pembuat kerangka dakwah terstruktur dalam format JSON." },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 1000
+      });
+      rawText = response.choices[0]?.message.content ?? "";
+    } else {
+      throw new Error("Provider AI tidak terkonfigurasi.");
+    }
+
+    const cleanJson = rawText.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
+    const parsed = JSON.parse(cleanJson);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item: any) => ({
+        title: String(item.title || "").trim(),
+        description: String(item.description || "").trim()
+      })).filter(item => item.title);
+    }
+  } catch (error) {
+    console.error(`[generateOutlineProposal] failed:`, error);
+  }
+
+  // Fallback static outline
+  return [
+    { title: "Mukadimah", description: "Pembuka khutbah/ceramah, salam, puji syukur kepada Allah, syahadat, shalawat, dan wasiat takwa." },
+    { title: "Pembahasan Utama", description: "Menguraikan tema utama dan mengaitkannya dengan dalil Al-Qur'an dan Hadits yang relevan." },
+    { title: "Pesan Praktis", description: "Langkah nyata sehari-hari yang bisa dipraktikkan jamaah dalam kehidupan berkeluarga dan bermasyarakat." },
+    { title: "Doa Penutup", description: "Memohon ampunan, berkah, keselamatan, dan petunjuk bagi seluruh kaum muslimin." }
+  ];
+}
+

@@ -262,9 +262,9 @@ function languageGuidanceFor(parameters: Record<string, unknown>) {
     Indonesia:
       "- Gunakan bahasa Indonesia lisan yang hangat, jernih, dan tidak terasa seperti template.",
     Jawa:
-      "- Gunakan bahasa Jawa krama madya/krama alus yang lazim untuk mimbar: natural, hormat, dan mudah dipahami jamaah.\n- Selain heading struktur, jangan menulis narasi, transisi, terjemah dalil, pesan praktis, atau penutup dalam bahasa Indonesia.",
+      "- Gunakan bahasa Jawa Krama Inggil/Krama Alus yang sangat santun dan khidmat (untuk menghormati jamaah dan sesepuh masjid).\n- Hindari penggunaan kosakata Jawa Ngoko kasar (seperti: kowe, mangan, turu, ndelok, dll). Gantilah dengan Krama Alus (seperti: panjenengan, dhahar, sare, mirsani, dll).\n- Selain heading struktur, jangan menulis narasi, transisi, terjemah dalil, pesan praktis, atau penutup dalam bahasa Indonesia.",
     Sunda:
-      "- Gunakan bahasa Sunda lemes/semi-formal yang natural untuk ceramah atau khutbah.\n- Selain heading struktur, jangan menulis narasi, transisi, terjemah dalil, pesan praktis, atau penutup dalam bahasa Indonesia.",
+      "- Gunakan bahasa Sunda Lemes/Lemes Pisan yang santun, luhur, dan natural untuk ceramah atau khutbah.\n- Hindari kata Sunda kasar/loma (seperti: maneh, urang, dahar, sare, dll). Gunakan kosakata Sunda Lemes (seperti: salira, simkuring, tuang, kulem, nitenan, dll).\n- Selain heading struktur, jangan menulis narasi, transisi, terjemah dalil, pesan praktis, atau penutup dalam bahasa Indonesia.",
     "Ogan (Baturaja)":
       "- Gunakan bahasa Ogan dialek Baturaja yang natural, sopan, dan mudah dipahami jamaah di wilayah Ogan Komering Ulu/Baturaja.\n- Pakai kosakata dan rasa tutur Ogan Baturaja seperti kite, jeme, dang, nian, pacak, idak, nak, bae, galak, dusun, dan sapaan jamaah yang sesuai, tanpa membuatnya terasa karikatural.\n- Selain heading struktur, jangan menulis narasi, transisi, terjemah dalil, pesan praktis, atau penutup dalam bahasa Indonesia baku.",
     Arab:
@@ -532,7 +532,8 @@ WAJIB:
 - Jangan memakai format Markdown seperti **tebal**, ### heading, blockquote >, garis ---, atau bullet dekoratif.
 - Gunakan heading teks biasa yang konsisten.
 - Jangan tampilkan label teknis seperti "Rukun 1/Rukun 2/Rukun 3/Rukun 4/Rukun 5" pada naskah final.
-- Untuk teks Arab, tulis lengkap dan rapi. Setelah ayat/hadits, beri terjemah atau penjelasan singkat dalam bahasa target dan rujukan singkat.
+- WAJIB gunakan heading persis: "Allah SWT berfirman dalam AlQuran" untuk ayat dan "Rasulullah SAW bersabda" untuk hadits. Jangan tambahkan variasi heading lain untuk bagian dalil.
+- Untuk teks Arab dan terjemahan di bawah heading dalil tersebut, tuliskan secara ringkas saja. Sistem kami akan secara otomatis menimpa teks tersebut dengan teks Arab berharakat dan terjemahan resmi hasil verifikasi dari database/API untuk menjamin 100% akurasi. Oleh karena itu, jangan mengarang atau mengubah teks Arab dalil hasil retrieval.
 - Semua teks Arab wajib memakai harakat (tasykil), jangan menulis Arab gundul.
 - Ikuti rukun khutbah mazhab Syafi'i yang umum dipakai di Indonesia: hamdalah, shalawat Nabi, dan wasiat takwa wajib ada di khutbah pertama dan khutbah kedua; ayat Al-Qur'an wajib ada minimal di salah satu khutbah; doa untuk kaum mukminin wajib ada di khutbah kedua dan digabungkan dalam bagian Doa Penutup.
 - Untuk khutbah Jumat, Idul Fitri, dan Idul Adha, mukadimah khutbah pertama wajib memuat syahadat Arab berharakat setelah hamdalah dan sebelum/bersama shalawat.

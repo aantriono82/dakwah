@@ -11,6 +11,7 @@ import {
   type PromptDalilContext,
   wordCount
 } from "./content";
+import { parseQuranReference } from "../services/myquran";
 
 function check(
   id: string,
@@ -342,7 +343,20 @@ function dalilValidationChecks(content: string, dalilContext?: PromptDalilContex
     .filter((item) => gradeNeedsDisplay(item.grade) && !contentContainsReference(content, item.grade ?? ""))
     .map((item) => `${item.reference} (${item.grade})`);
 
+  const invalidQuranReferences = extractedQuranReferences(content).filter((reference) => {
+    return parseQuranReference(reference) === null;
+  });
+
   return [
+    check(
+      "invalid_quran_references",
+      "Format/Batas ayat AlQuran",
+      invalidQuranReferences.length === 0,
+      invalidQuranReferences.length === 0
+        ? "Format dan batasan ayat Al-Qur'an valid."
+        : `Rujukan ayat berikut tidak valid (salah nama surah atau nomor ayat melebihi batas): ${invalidQuranReferences.join(", ")}.`,
+      "critical"
+    ),
     check(
       "selected_dalil_references",
       "Referensi dalil terpilih",

@@ -9,12 +9,20 @@ import { CONTENT_TYPES, titleFromParameters, validateContentParameters } from ".
 import { logInfo } from "../utils/observability";
 import { qualityReportFor } from "../utils/quality";
 import { rateLimit } from "../utils/rate-limit";
-import { generateText, isMeaningfullyDifferentRevision, reviseNaskahContent, streamGeneratedText } from "../services/openai";
+import { generateText, isMeaningfullyDifferentRevision, reviseNaskahContent, streamGeneratedText, generateOutlineProposal } from "../services/openai";
 import { retrieveDalilContext } from "../services/myquran";
 
 const generateSchema = z.object({
   jenis: z.enum(CONTENT_TYPES),
-  parameters: z.record(z.unknown())
+  parameters: z.record(z.unknown()),
+  outline: z.array(z.object({
+    title: z.string(),
+    description: z.string()
+  })).optional(),
+  selectedDalils: z.object({
+    quran: z.array(z.any()),
+    hadith: z.array(z.any())
+  }).optional()
 });
 
 const reviewSchema = z.object({
@@ -36,9 +44,38 @@ export const generateRoutes = new Hono<AppEnv>();
 generateRoutes.use("*", authRequired);
 generateRoutes.use("*", rateLimit({ keyPrefix: "generate", windowMs: generateRateLimitWindowMs, max: generateRateLimitMax }));
 
-generateRoutes.post("/", zValidator("json", generateSchema), async (c) => {
+generateRoutes.post("/prepare", zValidator("json", generateSchema), async (c) => {
   const user = c.get("user");
   const { jenis, parameters } = c.req.valid("json");
+  const validationMessage = validateContentParameters(jenis, parameters);
+  if (validationMessage) return c.json({ message: validationMessage }, 400);
+
+  const quota = await assertGenerateQuota(user.id);
+  if (!quota.allowed) {
+    await recordUsageEvent({ userId: user.id, eventType: "generate", status: "blocked", jenis, route: "/api/generate/prepare", metadata: { reason: "quota" } });
+    return c.json({ message: quota.message }, 429);
+  }
+
+  const startedAt = Date.now();
+  const dalilContext = await retrieveDalilContext(jenis, parameters);
+  const outline = await generateOutlineProposal(jenis, parameters, dalilContext);
+
+  logInfo("generate.prepare", {
+    route: "/api/generate/prepare",
+    jenis,
+    userId: user.id,
+    durationMs: Date.now() - startedAt
+  });
+
+  return c.json({
+    outline,
+    dalilContext
+  });
+});
+
+generateRoutes.post("/", zValidator("json", generateSchema), async (c) => {
+  const user = c.get("user");
+  const { jenis, parameters, outline, selectedDalils } = c.req.valid("json");
   const validationMessage = validateContentParameters(jenis, parameters);
   if (validationMessage) return c.json({ message: validationMessage }, 400);
 
@@ -49,9 +86,17 @@ generateRoutes.post("/", zValidator("json", generateSchema), async (c) => {
   }
 
   const startedAt = Date.now();
-  const dalilContext = await retrieveDalilContext(jenis, parameters);
+  const dalilContext = selectedDalils
+    ? {
+        theme: String(parameters.temaUtama ?? parameters.tema ?? parameters.topik ?? parameters.topikSingkat ?? "Ketakwaan"),
+        source: "Pilihan pengguna",
+        quran: selectedDalils.quran,
+        hadith: selectedDalils.hadith,
+        warnings: []
+      }
+    : await retrieveDalilContext(jenis, parameters);
   const dalilRetrievedAt = Date.now();
-  const content = await generateText(jenis, parameters, dalilContext);
+  const content = await generateText(jenis, parameters, dalilContext, outline);
   const generatedAt = Date.now();
   const quality = qualityReportFor(jenis, content, parameters, dalilContext);
   logInfo("generate.request", {
@@ -91,7 +136,7 @@ generateRoutes.post("/", zValidator("json", generateSchema), async (c) => {
 
 generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => {
   const user = c.get("user");
-  const { jenis, parameters } = c.req.valid("json");
+  const { jenis, parameters, outline, selectedDalils } = c.req.valid("json");
   const validationMessage = validateContentParameters(jenis, parameters);
   if (validationMessage) return c.json({ message: validationMessage }, 400);
 
@@ -104,10 +149,18 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
   c.header("Cache-Control", "no-cache, no-transform");
   return streamText(c, async (stream) => {
     const startedAt = Date.now();
-    const dalilContext = await retrieveDalilContext(jenis, parameters);
+    const dalilContext = selectedDalils
+      ? {
+          theme: String(parameters.temaUtama ?? parameters.tema ?? parameters.topik ?? parameters.topikSingkat ?? "Ketakwaan"),
+          source: "Pilihan pengguna",
+          quran: selectedDalils.quran,
+          hadith: selectedDalils.hadith,
+          warnings: []
+        }
+      : await retrieveDalilContext(jenis, parameters);
     const dalilRetrievedAt = Date.now();
     let content = "";
-    for await (const chunk of streamGeneratedText(jenis, parameters, dalilContext)) {
+    for await (const chunk of streamGeneratedText(jenis, parameters, dalilContext, outline)) {
       content += chunk;
       await stream.write(chunk);
     }

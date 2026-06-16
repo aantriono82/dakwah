@@ -9,6 +9,7 @@
     "start": "NODE_ENV=production bun dist/server/index.js",
     "check": "bun run lint && bun test && bun run build",
     "test": "bun test",
+    "admin:recover": "bun scripts/recover-admin.ts",
     "qa:ui": "bun scripts/ui-smoke.ts",
     "lint": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
