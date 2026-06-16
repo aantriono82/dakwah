@@ -1195,7 +1195,7 @@ export function Generate({
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Parameter {selectedLabel}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Bahasa, standar editorial, durasi, dan konteks akan ikut dikirim ke AI.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Bahasa, durasi, tema, dan konteks inti akan ikut dikirim ke AI. Pengaturan lanjutan tersedia di Advanced.</p>
             </div>
             <div className="flex items-center gap-2">
               <Badge>{parameters.bahasa ?? "Indonesia"}</Badge>
@@ -1256,7 +1256,7 @@ export function Generate({
             <>
               <FormKhutbah jenis={jenis} values={parameters} onChange={setParameters} />
               <Notice className="mt-4">
-                Mode bawaan sekarang menekan akurasi isi, bahasa natural-jelas, dan dalil yang benar-benar sesuai dengan tema. Gunakan catatan editor bila Anda ingin membatasi gaya atau penekanan tertentu.
+                Mode bawaan sekarang memakai baseline moderat: akurasi ketat, bahasa natural-jelas, dan dalil relevan. Buka Advanced hanya jika Anda memang perlu constraint tambahan.
               </Notice>
               {validationMessage && <Notice tone="error" className="mt-4">{validationMessage}</Notice>}
               <div className="mt-4 mb-3">

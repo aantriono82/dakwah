@@ -40,7 +40,7 @@ function stableSerialize(value: unknown): string {
 
 export function requestWantsServerWebResearch(parameters: Record<string, unknown>) {
   const sourceMode = String(parameters.modeSumberInternet ?? "manual").trim().toLowerCase();
-  return sourceMode === "web-search" || sourceMode.includes("web");
+  return sourceMode === "web-search";
 }
 
 function cleanupCache(now: number) {

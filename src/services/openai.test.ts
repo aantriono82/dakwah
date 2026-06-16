@@ -5,9 +5,13 @@ import {
   maxTokensForRequest,
   parseOpenAIModels,
   parseOpenAIWebSearchContextSize,
+  providerTextMeetsAcceptancePolicy,
+  qualityFailureBlocksAcceptance,
+  qualityFailureNeedsDalilRepair,
+  qualityFailureNeedsEditorialRepair,
   reviseNaskahContent
 } from "./openai";
-import { composeTemplatedRukunKhutbah, missingRequiredArabicSections } from "../utils/content";
+import { composeTemplatedRukunKhutbah, minimumWordCountFor, missingRequiredArabicSections } from "../utils/content";
 
 describe("OpenAI generation settings", () => {
   const configuredTokenLimit = Number(process.env.OPENAI_MAX_TOKENS ?? 5500);
@@ -31,18 +35,64 @@ describe("OpenAI generation settings", () => {
     expect(maxTokensForRequest("kultum", { durasi: "panjang" })).toBe(2800);
 
     expect(maxTokensForRequest("ceramah", { durasi: "pendek" })).toBe(3600);
-    expect(maxTokensForRequest("ceramah", { durasi: "sedang" })).toBe(Math.min(effectiveTokenLimit, 5600));
-    expect(maxTokensForRequest("ceramah", { durasi: "panjang" })).toBe(Math.min(effectiveTokenLimit, 7000));
+    expect(maxTokensForRequest("ceramah", { durasi: "sedang" })).toBe(Math.min(effectiveTokenLimit, 6200));
+    expect(maxTokensForRequest("ceramah", { durasi: "panjang" })).toBe(Math.min(effectiveTokenLimit, 7600));
 
     expect(maxTokensForRequest("khutbah-jumat", { durasi: "pendek" })).toBe(3600);
-    expect(maxTokensForRequest("khutbah-jumat", { durasi: "sedang" })).toBe(Math.min(effectiveTokenLimit, 5600));
-    expect(maxTokensForRequest("khutbah-jumat", { durasi: "panjang" })).toBe(Math.min(effectiveTokenLimit, 7200));
+    expect(maxTokensForRequest("khutbah-jumat", { durasi: "sedang" })).toBe(Math.min(effectiveTokenLimit, 6200));
+    expect(maxTokensForRequest("khutbah-jumat", { durasi: "panjang" })).toBe(Math.min(effectiveTokenLimit, 8000));
   });
 
   test("supports numeric minute duration", () => {
-    expect(maxTokensForRequest("ceramah", { durasi: "20" })).toBe(Math.min(effectiveTokenLimit, 7000));
-    expect(maxTokensForRequest("khutbah-jumat", { durasi: "20 menit" })).toBe(Math.min(effectiveTokenLimit, 7200));
+    expect(maxTokensForRequest("ceramah", { durasi: "20" })).toBe(Math.min(effectiveTokenLimit, 7600));
+    expect(maxTokensForRequest("khutbah-jumat", { durasi: "20 menit" })).toBe(Math.min(effectiveTokenLimit, 8000));
     expect(maxTokensForRequest("kultum", { durasi: "7 menit" })).toBe(2200);
+  });
+
+  test("only critical quality failures block first-pass acceptance", () => {
+    expect(qualityFailureBlocksAcceptance({ id: "required_sections", passed: false, severity: "critical" })).toBe(true);
+    expect(qualityFailureBlocksAcceptance({ id: "template_language", passed: false, severity: "warning" })).toBe(false);
+    expect(qualityFailureBlocksAcceptance({ id: "human_review", passed: false, severity: "info" })).toBe(false);
+    expect(qualityFailureBlocksAcceptance({ id: "required_sections", passed: true, severity: "critical" })).toBe(false);
+  });
+
+  test("final acceptance blocks editorial warnings that first pass still allows", () => {
+    expect(qualityFailureBlocksAcceptance({ id: "template_language", passed: false, severity: "warning" }, "first_pass")).toBe(false);
+    expect(qualityFailureBlocksAcceptance({ id: "theme_focus_keywords", passed: false, severity: "warning" }, "first_pass")).toBe(false);
+    expect(qualityFailureBlocksAcceptance({ id: "template_language", passed: false, severity: "warning" }, "final")).toBe(true);
+    expect(qualityFailureBlocksAcceptance({ id: "theme_focus_domain", passed: false, severity: "warning" }, "final")).toBe(true);
+  });
+
+  test("repair passes only trigger for focused dalil and editorial failures", () => {
+    expect(qualityFailureNeedsDalilRepair({ id: "quran_arabic_match", passed: false })).toBe(true);
+    expect(qualityFailureNeedsDalilRepair({ id: "unsupported_hadith_references", passed: false })).toBe(false);
+    expect(qualityFailureNeedsEditorialRepair({ id: "template_language", passed: false })).toBe(true);
+    expect(qualityFailureNeedsEditorialRepair({ id: "hadith_meaning_overlap", passed: false })).toBe(false);
+  });
+
+  test("stream acceptance is looser than first pass for short non-khutbah drafts", () => {
+    const shortDraft = `Ceramah Umum
+
+Pembukaan
+Jamaah yang dirahmati Allah, mari menjaga amanah.
+
+Isi Utama
+Amanah harus dijaga dalam keluarga, pekerjaan, dan muamalah.
+
+Penutup
+Semoga Allah meneguhkan kita di atas kejujuran.`;
+
+    expect(providerTextMeetsAcceptancePolicy("stream", "ceramah", shortDraft, { bahasa: "Indonesia", topik: "Menjaga amanah" })).toBe(true);
+    expect(providerTextMeetsAcceptancePolicy("first_pass", "ceramah", shortDraft, { bahasa: "Indonesia", topik: "Menjaga amanah" })).toBe(
+      false
+    );
+  });
+
+  test("uses more realistic long-duration minimum word counts", () => {
+    expect(minimumWordCountFor("kultum", { durasi: "panjang" })).toBe(850);
+    expect(minimumWordCountFor("ceramah", { durasi: "panjang" })).toBe(1600);
+    expect(minimumWordCountFor("nikah", { durasi: "panjang" })).toBe(1300);
+    expect(minimumWordCountFor("khutbah-jumat", { durasi: "panjang" })).toBe(1400);
   });
 
   test("treats identical revision output as unchanged", () => {

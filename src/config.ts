@@ -29,7 +29,20 @@ function parseList(value: string | undefined) {
 export const providerTimeoutMs = aiConfig.timeoutMs;
 export const aiProvider = aiConfig.provider;
 export const activeModelCount = aiConfig.models.length;
-export const generateClientTimeoutMs = Math.max(120_000, providerTimeoutMs * Math.max(1, activeModelCount) + 30_000);
+export const maxGenerateProviderCallsPerModel = 3;
+
+export function calculateGenerateClientTimeoutMs(providerTimeoutMs: number, activeModelCount: number, maxProviderCallsPerModel: number) {
+  const safeProviderTimeoutMs = Math.max(1, providerTimeoutMs);
+  const safeModelCount = Math.max(1, activeModelCount);
+  const safePassCount = Math.max(1, maxProviderCallsPerModel);
+  return Math.max(120_000, safeProviderTimeoutMs * safeModelCount * safePassCount + 30_000);
+}
+
+export const generateClientTimeoutMs = calculateGenerateClientTimeoutMs(
+  providerTimeoutMs,
+  activeModelCount,
+  maxGenerateProviderCallsPerModel
+);
 export const appPublicUrl = String(process.env.APP_PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? 3000}`).replace(/\/+$/, "");
 export const resendApiKey = process.env.RESEND_API_KEY;
 export const emailFrom = process.env.EMAIL_FROM ?? "Dakwah <onboarding@resend.dev>";

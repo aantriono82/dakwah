@@ -9,6 +9,30 @@ type AdminMonitoring = {
   todayGenerates: number;
   todayExports: number;
   blockedGenerates: number;
+  streamHealth: {
+    sampleCount: number;
+    avgFirstChunkMs: number;
+    validationWarningRate: number;
+    fallbackRate: number;
+    policyPassRate: {
+      stream: number;
+      firstPass: number;
+      final: number;
+    };
+  };
+  streamHealthByModel: Array<{
+    streamProvider: string;
+    streamModel: string;
+    sampleCount: number;
+    avgFirstChunkMs: number;
+    validationWarningRate: number;
+    fallbackRate: number;
+    policyPassRate: {
+      stream: number;
+      firstPass: number;
+      final: number;
+    };
+  }>;
   frontendPerfWindow: "24h" | "7d" | "30d";
   frontendPerfSummary: Array<{
     page: string | null;
@@ -45,6 +69,10 @@ type MonitoringPanelId =
   | "stats-today-generates"
   | "stats-today-exports"
   | "stats-blocked-generates"
+  | "stats-stream-first-chunk"
+  | "stats-stream-validation-warning"
+  | "stats-stream-fallback"
+  | "stream-health-breakdown"
   | "frontend-aggregate-summary"
   | "frontend-session-summary"
   | "usage-monitoring"
@@ -144,7 +172,22 @@ export function AdminMonitoringPage({ onBack }: { onBack: () => void }) {
   const statCards = [
     { id: "stats-today-generates" as const, label: "Generate hari ini", value: monitoring?.todayGenerates ?? 0 },
     { id: "stats-today-exports" as const, label: "Export hari ini", value: monitoring?.todayExports ?? 0 },
-    { id: "stats-blocked-generates" as const, label: "Generate diblokir", value: monitoring?.blockedGenerates ?? 0 }
+    { id: "stats-blocked-generates" as const, label: "Generate diblokir", value: monitoring?.blockedGenerates ?? 0 },
+    {
+      id: "stats-stream-first-chunk" as const,
+      label: `Avg first chunk (${perfWindowLabel(perfWindow)})`,
+      value: monitoring ? `${monitoring.streamHealth.avgFirstChunkMs}ms` : "0ms"
+    },
+    {
+      id: "stats-stream-validation-warning" as const,
+      label: `Validation warning (${perfWindowLabel(perfWindow)})`,
+      value: monitoring ? `${monitoring.streamHealth.validationWarningRate}%` : "0%"
+    },
+    {
+      id: "stats-stream-fallback" as const,
+      label: `Fallback rate (${perfWindowLabel(perfWindow)})`,
+      value: monitoring ? `${monitoring.streamHealth.fallbackRate}%` : "0%"
+    }
   ].filter((item) => !isHidden(item.id));
   const monitoringViews: Array<{ id: MonitoringView; label: string; meta: string }> = [
     { id: "overview", label: "Overview", meta: "KPI dan highlight" },
@@ -217,11 +260,59 @@ export function AdminMonitoringPage({ onBack }: { onBack: () => void }) {
                 </div>
               </Card>
               {statCards.length ? (
-                <section className="grid gap-4 md:grid-cols-3">
+                <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
                   {statCards.map((item) => (
                     <Stat key={item.id} label={item.label} value={item.value} onDismiss={() => hidePanel(item.id)} />
                   ))}
                 </section>
+              ) : null}
+              {monitoring && monitoring.streamHealth.sampleCount > 0 ? (
+                <Card className="p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold">Stream generate health</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {monitoring.streamHealth.sampleCount} sampel stream generate tercatat pada window {perfWindowLabel(perfWindow)}.
+                      </p>
+                    </div>
+                    <Badge>{monitoring.streamHealth.sampleCount} sampel</Badge>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-md border border-border px-3 py-3">
+                      <p className="text-sm text-muted-foreground">Avg first chunk</p>
+                      <p className="mt-2 text-lg font-semibold">{monitoring.streamHealth.avgFirstChunkMs}ms</p>
+                    </div>
+                    <div className="rounded-md border border-border px-3 py-3">
+                      <p className="text-sm text-muted-foreground">Validation warning rate</p>
+                      <p className="mt-2 text-lg font-semibold">{monitoring.streamHealth.validationWarningRate}%</p>
+                    </div>
+                    <div className="rounded-md border border-border px-3 py-3">
+                      <p className="text-sm text-muted-foreground">Fallback rate</p>
+                      <p className="mt-2 text-lg font-semibold">{monitoring.streamHealth.fallbackRate}%</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-md border border-border px-3 py-3">
+                      <p className="text-sm text-muted-foreground">Policy pass: stream</p>
+                      <p className="mt-2 text-lg font-semibold">{monitoring.streamHealth.policyPassRate.stream}%</p>
+                    </div>
+                    <div className="rounded-md border border-border px-3 py-3">
+                      <p className="text-sm text-muted-foreground">Policy pass: first pass</p>
+                      <p className="mt-2 text-lg font-semibold">{monitoring.streamHealth.policyPassRate.firstPass}%</p>
+                    </div>
+                    <div className="rounded-md border border-border px-3 py-3">
+                      <p className="text-sm text-muted-foreground">Policy pass: final</p>
+                      <p className="mt-2 text-lg font-semibold">{monitoring.streamHealth.policyPassRate.final}%</p>
+                    </div>
+                  </div>
+                </Card>
+              ) : null}
+              {monitoring?.streamHealthByModel?.length && !isHidden("stream-health-breakdown") ? (
+                <StreamHealthBreakdown
+                  items={monitoring.streamHealthByModel}
+                  windowLabel={perfWindowLabel(perfWindow)}
+                  onDismiss={() => hidePanel("stream-health-breakdown")}
+                />
               ) : null}
               {monitoring?.metrics?.length && !isHidden("metrics-highlights") ? (
                 <MetricsHighlights metrics={monitoring.metrics} onDismiss={() => hidePanel("metrics-highlights")} />
@@ -692,6 +783,56 @@ const MetricsHighlights = memo(function MetricsHighlights({ metrics, onDismiss }
         </div>
       </Card>
     </section>
+  );
+});
+
+const StreamHealthBreakdown = memo(function StreamHealthBreakdown({
+  items,
+  windowLabel,
+  onDismiss
+}: {
+  items: AdminMonitoring["streamHealthByModel"];
+  windowLabel: string;
+  onDismiss: () => void;
+}) {
+  const sortedItems = [...items].sort((left, right) => {
+    if (right.sampleCount !== left.sampleCount) return right.sampleCount - left.sampleCount;
+    return right.avgFirstChunkMs - left.avgFirstChunkMs;
+  });
+
+  return (
+    <Card className="p-4">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Breakdown stream per provider/model</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Sampel stream generate untuk {windowLabel} terakhir.</p>
+        </div>
+        <DismissPanelButton onClick={onDismiss} label="Hapus card breakdown stream" />
+      </div>
+      <div className="grid gap-2">
+        {sortedItems.map((item) => (
+          <div key={`${item.streamProvider}-${item.streamModel}`} className="rounded-md border border-border px-3 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{item.streamModel}</p>
+                <p className="text-xs text-muted-foreground">{item.streamProvider}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge>{item.sampleCount}x</Badge>
+                <Badge>{item.avgFirstChunkMs}ms</Badge>
+                <Badge>{item.validationWarningRate}% warning</Badge>
+                <Badge>{item.fallbackRate}% fallback</Badge>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-3">
+              <p>stream pass {item.policyPassRate.stream}%</p>
+              <p>first pass {item.policyPassRate.firstPass}%</p>
+              <p>final pass {item.policyPassRate.final}%</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 });
 

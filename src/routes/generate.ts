@@ -9,7 +9,7 @@ import { CONTENT_TYPES, titleFromParameters, validateContentParameters } from ".
 import { logInfo } from "../utils/observability";
 import { qualityReportFor } from "../utils/quality";
 import { rateLimit } from "../utils/rate-limit";
-import { generateText, isMeaningfullyDifferentRevision, reviseNaskahContent, streamGeneratedText, generateOutlineProposal } from "../services/openai";
+import { generateText, generateOutlineProposal, isMeaningfullyDifferentRevision, reviseNaskahContent, streamGeneratedText } from "../services/openai";
 import { retrieveDalilContext } from "../services/myquran";
 
 const generateSchema = z.object({
@@ -149,6 +149,17 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
   c.header("Cache-Control", "no-cache, no-transform");
   return streamText(c, async (stream) => {
     const startedAt = Date.now();
+    let streamTraceId = "";
+    let streamProvider = "";
+    let streamModel = "";
+    let firstChunkMs: number | null = null;
+    let totalStreamMs: number | null = null;
+    let validationWarning = false;
+    let validationReason = "";
+    let usedFallback = false;
+    let streamPolicyPass = true;
+    let firstPassPolicyPass = true;
+    let finalPolicyPass = true;
     const dalilContext = selectedDalils
       ? {
           theme: String(parameters.temaUtama ?? parameters.tema ?? parameters.topik ?? parameters.topikSingkat ?? "Ketakwaan"),
@@ -160,7 +171,27 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
       : await retrieveDalilContext(jenis, parameters);
     const dalilRetrievedAt = Date.now();
     let content = "";
-    for await (const chunk of streamGeneratedText(jenis, parameters, dalilContext, outline)) {
+    for await (const chunk of streamGeneratedText(jenis, parameters, dalilContext, outline, {
+      onFirstChunk: (info) => {
+        streamTraceId = info.traceId;
+        streamProvider = info.provider;
+        streamModel = info.model;
+        firstChunkMs = info.firstChunkMs;
+      },
+      onComplete: (info) => {
+        streamTraceId = info.traceId;
+        streamProvider = info.provider;
+        streamModel = info.model;
+        firstChunkMs = info.firstChunkMs;
+        totalStreamMs = info.totalStreamMs;
+        validationWarning = info.validationWarning;
+        validationReason = info.validationReason ?? "";
+        usedFallback = info.usedFallback;
+        streamPolicyPass = info.policyPass?.stream ?? true;
+        firstPassPolicyPass = info.policyPass?.firstPass ?? true;
+        finalPolicyPass = info.policyPass?.final ?? true;
+      }
+    })) {
       content += chunk;
       await stream.write(chunk);
     }
@@ -172,8 +203,19 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
       userId: user.id,
       dalilMs: dalilRetrievedAt - startedAt,
       generateMs: generatedAt - dalilRetrievedAt,
+      firstChunkMs: firstChunkMs ?? generatedAt - dalilRetrievedAt,
+      totalStreamMs: totalStreamMs ?? generatedAt - dalilRetrievedAt,
       totalMs: Date.now() - startedAt,
-      wordCount
+      wordCount,
+      streamTraceId,
+      streamProvider,
+      streamModel,
+      validationWarning,
+      validationReason: validationReason || undefined,
+      usedFallback,
+      streamPolicyPass,
+      firstPassPolicyPass,
+      finalPolicyPass
     });
     await recordUsageEvent({
       userId: user.id,
@@ -184,6 +226,17 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
       durationMs: Date.now() - startedAt,
       metadata: {
         wordCount,
+        firstChunkMs: firstChunkMs ?? generatedAt - dalilRetrievedAt,
+        totalStreamMs: totalStreamMs ?? generatedAt - dalilRetrievedAt,
+        streamTraceId,
+        streamProvider,
+        streamModel,
+        validationWarning,
+        validationReason: validationReason || undefined,
+        usedFallback,
+        streamPolicyPass,
+        firstPassPolicyPass,
+        finalPolicyPass,
         quotaUsed: quota.used + 1,
         quotaLimit: quota.limit,
         dalilSource: dalilContext.source,

@@ -72,6 +72,50 @@ describe("content utilities", () => {
     expect(prompt).toContain("- Fokus akurasi: maksimal");
   });
 
+  test("buildPrompt without advanced parameters uses moderate editorial defaults", () => {
+    const prompt = buildPrompt("ceramah", {
+      bahasa: "Indonesia",
+      topik: "Menjaga lisan"
+    });
+
+    expect(prompt).toContain("Standar editorial:");
+    expect(prompt).toContain("Akurasi isi wajib dijaga.");
+    expect(prompt).toContain("Pilih dan jelaskan dalil yang paling dekat dengan tema.");
+    expect(prompt).not.toContain("Akurasi isi wajib sangat ketat");
+    expect(prompt).not.toContain("Dalil wajib benar-benar melayani tema yang dipilih");
+  });
+
+  test("buildPrompt initial mode keeps core constraints but drops expensive editorial sections", () => {
+    const prompt = buildPrompt(
+      "ceramah",
+      {
+        bahasa: "Indonesia",
+        topik: "Menjaga lisan",
+        fokusAkurasi: "maksimal",
+        gayaBahasaNaskah: "natural-jelas",
+        gayaRetorika: "buya-hamka",
+        strategiDalil: "sangat-relevan",
+        catatanEditor: "hindari bahasa terlalu puitis",
+        haditsReferensi: "HR. Bukhari Muslim",
+        sumberInternet: "https://example.com/artikel"
+      },
+      undefined,
+      undefined,
+      { mode: "initial" }
+    );
+
+    expect(prompt).toContain("Bahasa target: Indonesia");
+    expect(prompt).toContain('Semua bagian Ceramah wajib spesifik membahas "Menjaga lisan"');
+    expect(prompt).toContain("Struktur wajib:");
+    expect(prompt).toContain("- bahasa: Indonesia");
+    expect(prompt).toContain("- topik: Menjaga lisan");
+    expect(prompt).not.toContain("Standar editorial:");
+    expect(prompt).not.toContain("Referensi hadits dari user:");
+    expect(prompt).not.toContain("Sumber internet dari user:");
+    expect(prompt).not.toContain("STYLE PROFILE:");
+    expect(prompt).not.toContain("- Fokus akurasi: maksimal");
+  });
+
   test("buildPrompt includes server-side web context as supporting material", () => {
     const webContext: PromptWebContext = {
       query: "menjaga lisan dakwah artikel terpercaya",
@@ -455,10 +499,10 @@ Ayat ini menegaskan kemuliaan bulan haram.`);
   test("ceramah minimum length stays above kultum for generated output quality", () => {
     expect(minimumWordCountFor("kultum", { durasi: "pendek" })).toBe(500);
     expect(minimumWordCountFor("kultum", { durasi: "sedang" })).toBe(700);
-    expect(minimumWordCountFor("kultum", { durasi: "panjang" })).toBe(900);
+    expect(minimumWordCountFor("kultum", { durasi: "panjang" })).toBe(850);
     expect(minimumWordCountFor("ceramah", { durasi: "pendek" })).toBe(900);
     expect(minimumWordCountFor("ceramah", { durasi: "sedang" })).toBe(1300);
-    expect(minimumWordCountFor("ceramah", { durasi: "panjang" })).toBe(1800);
+    expect(minimumWordCountFor("ceramah", { durasi: "panjang" })).toBe(1600);
     expect(minimumWordCountFor("ceramah", { durasi: "sedang" })).toBeGreaterThan(
       minimumWordCountFor("kultum", { durasi: "sedang" })
     );
@@ -467,7 +511,7 @@ Ayat ini menegaskan kemuliaan bulan haram.`);
   test("khutbah nikah minimum length follows requested duration", () => {
     expect(minimumWordCountFor("nikah", { durasi: "pendek" })).toBe(800);
     expect(minimumWordCountFor("nikah", { durasi: "sedang" })).toBe(1100);
-    expect(minimumWordCountFor("nikah", { durasi: "panjang" })).toBe(1500);
+    expect(minimumWordCountFor("nikah", { durasi: "panjang" })).toBe(1300);
     expect(minimumWordCountFor("nikah", { durasi: "sedang" })).toBeGreaterThan(
       minimumWordCountFor("kultum", { durasi: "sedang" })
     );

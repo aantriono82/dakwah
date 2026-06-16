@@ -33,6 +33,8 @@ export type PromptWebContext = {
   warnings?: string[];
 };
 
+type PromptBuildMode = "initial" | "full";
+
 const editorialParameterLabels: Record<string, string> = {
   fokusAkurasi: "Fokus akurasi",
   gayaBahasaNaskah: "Gaya bahasa naskah",
@@ -285,7 +287,7 @@ function normalizedEditorialMode(parameters: Record<string, unknown>, key: strin
 function editorialGuidanceFor(parameters: Record<string, unknown>) {
   const accuracyFocus = normalizedEditorialMode(parameters, "fokusAkurasi", "ketat");
   const languageStyle = normalizedEditorialMode(parameters, "gayaBahasaNaskah", "natural-jelas");
-  const dalilStrategy = normalizedEditorialMode(parameters, "strategiDalil", "sangat-relevan");
+  const dalilStrategy = normalizedEditorialMode(parameters, "strategiDalil", "relevan");
   const editorNote = String(parameters.catatanEditor ?? "").trim();
 
   const accuracyRule =
@@ -355,7 +357,7 @@ function lengthGuidanceFor(jenis: string, parameters: Record<string, unknown>) {
   const duration = normalizedDuration(parameters.durasi);
 
   if (jenis === "kultum") {
-    const range = duration === "pendek" ? "500-700" : duration === "panjang" ? "900-1200" : "700-900";
+    const range = duration === "pendek" ? "500-700" : duration === "panjang" ? "850-1100" : "700-900";
     return `Panjang naskah:
 - Jangan terlalu ringkas. Targetkan ${range} kata untuk kultum, dengan pembuka singkat, isi yang tetap utuh, satu renungan, tiga langkah praktis, dan penutup.
 - Isi utama minimal 4 paragraf narasi, bukan daftar poin pendek.
@@ -363,7 +365,7 @@ function lengthGuidanceFor(jenis: string, parameters: Record<string, unknown>) {
   }
 
   if (jenis === "ceramah") {
-    const range = duration === "pendek" ? "900-1200" : duration === "panjang" ? "1800-2400" : "1300-1800";
+    const range = duration === "pendek" ? "900-1200" : duration === "panjang" ? "1600-2200" : "1300-1800";
     return `Panjang naskah:
 - Jangan terlalu ringkas. Targetkan ${range} kata untuk ceramah; jangan berhenti di batas bawah jika uraian masih bisa dikembangkan.
 - Isi utama minimal 8 paragraf narasi yang utuh: pengantar masalah, dalil, penjelasan dalil, contoh dekat jamaah, kisah/analogi, renungan, langkah praktis, penguatan akhir, lalu doa.
@@ -371,14 +373,14 @@ function lengthGuidanceFor(jenis: string, parameters: Record<string, unknown>) {
   }
 
   if (jenis === "nikah") {
-    const range = duration === "pendek" ? "800-1100" : duration === "panjang" ? "1500-2000" : "1100-1500";
+    const range = duration === "pendek" ? "800-1100" : duration === "panjang" ? "1300-1800" : "1100-1500";
     return `Panjang naskah:
 - Jangan terlalu ringkas. Targetkan ${range} kata untuk khutbah nikah.
 - Nasihat untuk mempelai minimal 6 paragraf narasi yang lembut dan konkret, ditambah pesan untuk keluarga dan doa.
 - Jangan hanya memberi nasihat umum; uraikan sakinah, mawaddah, rahmah, komunikasi, nafkah, sabar, dan saling memaafkan secara praktis.`;
   }
 
-  const range = duration === "pendek" ? "1000-1300" : duration === "panjang" ? "2000-2600" : "1500-2000";
+  const range = duration === "pendek" ? "1000-1300" : duration === "panjang" ? "1700-2300" : "1500-2000";
   const secondKhutbahGuidance = isKhutbahRukunType(jenis)
     ? "- Khutbah Kedua harus hanya berisi teks Arab berharakat: mukadimah, shalawat, wasiat takwa, dan doa; khusus Idul Fitri/Idul Adha diawali takbir Arab 7 kali. Jangan ada Pesan Praktis, Doa Penutup, terjemah, transliterasi, atau narasi bahasa Indonesia di bagian itu."
     : "- Khutbah Kedua tetap lebih ringkas, tetapi jangan hanya doa; beri 2-3 paragraf penguatan takwa sebelum doa.";
@@ -488,18 +490,45 @@ export function buildPrompt(
   jenis: string,
   parameters: Record<string, unknown>,
   retrievedDalil?: PromptDalilContext,
-  retrievedWeb?: PromptWebContext
+  retrievedWeb?: PromptWebContext,
+  options?: { mode?: PromptBuildMode }
 ) {
+  const mode = options?.mode ?? "full";
   const label = contentTypeLabels[jenis as ContentType] ?? jenis;
   const tema = topicFromParameters(parameters);
   const thematicDalil =
     retrievedDalil && (retrievedDalil.quran.length > 0 || retrievedDalil.hadith.length > 0)
       ? "Dalil retrieval sudah tersedia di bagian atas. Pakai dalil retrieval itu saja; jangan menampilkan paket dalil tematik fallback dan jangan mengulang kutipan dalil yang sama."
       : dalilGuidanceFor(jenis, tema);
+  const coreParameterKeys = new Set([
+    "bahasa",
+    "durasi",
+    "temaUtama",
+    "tema",
+    "temaPesan",
+    "topik",
+    "topikSingkat",
+    "subTema",
+    "mempelaiPria",
+    "mempelaiWanita",
+    "nuansa",
+    "momenSpesifik",
+    "kisahNabi",
+    "targetAudiens",
+    "setting",
+    "waktu"
+  ]);
   const parameterList = Object.entries(parameters)
+    .filter(([key]) => mode === "full" || coreParameterKeys.has(key))
     .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== "")
     .map(([key, value]) => `- ${editorialParameterLabels[key] ?? key}: ${String(value)}`)
     .join("\n");
+  const editorialGuidance = mode === "full" ? editorialGuidanceFor(parameters) : "";
+  const userReferenceGuidance = mode === "full" ? userReferenceGuidanceFor(parameters) : "";
+  const rhetoricGuidance = mode === "full" ? rhetoricStyleGuidanceFor(parameters) : "";
+  const styleProfile = mode === "full" ? styleProfileFor(jenis) : "";
+  const styleExamples = mode === "full" ? styleExamplesFor(jenis) : "";
+  const parameterSection = parameterList ? `\n\nParameter:\n${parameterList}` : "";
 
   return `Tulis ${label} FINAL yang siap dibacakan oleh dai/khatib.
 
@@ -511,11 +540,11 @@ ${mainThemeConstraintPrompt(tema)}
 
 ${themeAlignmentGuidanceFor(jenis, tema, parameters)}
 
-${rhetoricStyleGuidanceFor(parameters)}
+${rhetoricGuidance}
 
-${editorialGuidanceFor(parameters)}
+${editorialGuidance}
 
-${userReferenceGuidanceFor(parameters)}
+${userReferenceGuidance}
 
 ${retrievedDalilGuidanceFor(retrievedDalil)}
 
@@ -556,14 +585,11 @@ Ketentuan:
 ${thematicDalil}
 
 ${styleGuidanceFor(jenis)}
-${styleProfileFor(jenis)}
-${styleExamplesFor(jenis)}
+${styleProfile}
+${styleExamples}
 
 Struktur wajib:
-${structureRequirementsFor(jenis)}
-
-Parameter:
-${parameterList}`;
+${structureRequirementsFor(jenis)}${parameterSection}`;
 }
 
 const finalStartPatterns = [
@@ -837,24 +863,24 @@ export function minimumWordCountFor(jenis: string, parameters: Record<string, un
 
   if (jenis === "kultum") {
     if (duration === "pendek") return 500;
-    if (duration === "panjang") return 900;
+    if (duration === "panjang") return 850;
     return 700;
   }
 
   if (jenis === "ceramah") {
     if (duration === "pendek") return 900;
-    if (duration === "panjang") return 1800;
+    if (duration === "panjang") return 1600;
     return 1300;
   }
 
   if (jenis === "nikah") {
     if (duration === "pendek") return 800;
-    if (duration === "panjang") return 1500;
+    if (duration === "panjang") return 1300;
     return 1100;
   }
 
   if (duration === "pendek") return 700;
-  if (duration === "panjang") return 1500;
+  if (duration === "panjang") return 1400;
   return 1100;
 }
 

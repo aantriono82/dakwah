@@ -81,7 +81,7 @@ async function adminOverviewStats() {
 }
 
 async function adminMonitoringStats(perfWindow: FrontendPerfWindow = "7d") {
-  const [todayGenerates, todayExports, blockedGenerates, usageByUser, recentUsage, frontendPerfSummary, previousFrontendPerfSummary] = await Promise.all([
+  const [todayGenerates, todayExports, blockedGenerates, usageByUser, recentUsage, frontendPerfSummary, previousFrontendPerfSummary, streamGenerateHealth, streamGenerateHealthByModel] = await Promise.all([
     db
       .select({ value: count() })
       .from(usageEvents)
@@ -133,11 +133,49 @@ async function adminMonitoringStats(perfWindow: FrontendPerfWindow = "7d") {
       .from(usageEvents)
       .where(and(eq(usageEvents.eventType, "frontend_page_load"), previousFrontendPerfWindowClause(perfWindow)))
       .groupBy(usageEvents.route)
+      .orderBy(desc(sql`count(*)`)),
+    db
+      .select({
+        sampleCount: count(),
+        avgFirstChunkMs: sql<number>`round(avg(cast(json_extract(${usageEvents.metadata}, '$.firstChunkMs') as integer)))`,
+        validationWarningCount: sql<number>`sum(case when json_extract(${usageEvents.metadata}, '$.validationWarning') = true then 1 else 0 end)`,
+        fallbackCount: sql<number>`sum(case when json_extract(${usageEvents.metadata}, '$.usedFallback') = true then 1 else 0 end)`,
+        streamPolicyPassCount: sql<number>`sum(case when json_extract(${usageEvents.metadata}, '$.streamPolicyPass') = true then 1 else 0 end)`,
+        firstPassPolicyPassCount: sql<number>`sum(case when json_extract(${usageEvents.metadata}, '$.firstPassPolicyPass') = true then 1 else 0 end)`,
+        finalPolicyPassCount: sql<number>`sum(case when json_extract(${usageEvents.metadata}, '$.finalPolicyPass') = true then 1 else 0 end)`
+      })
+      .from(usageEvents)
+      .where(and(eq(usageEvents.eventType, "generate"), eq(usageEvents.status, "ok"), eq(usageEvents.route, "/api/generate/stream"), frontendPerfWindowClause(perfWindow))),
+    db
+      .select({
+        streamProvider: sql<string>`coalesce(cast(json_extract(${usageEvents.metadata}, '$.streamProvider') as text), 'unknown')`,
+        streamModel: sql<string>`coalesce(cast(json_extract(${usageEvents.metadata}, '$.streamModel') as text), 'unknown')`,
+        sampleCount: count(),
+        avgFirstChunkMs: sql<number>`round(avg(cast(json_extract(${usageEvents.metadata}, '$.firstChunkMs') as integer)))`,
+        validationWarningCount: sql<number>`sum(case when json_extract(${usageEvents.metadata}, '$.validationWarning') = true then 1 else 0 end)`,
+        fallbackCount: sql<number>`sum(case when json_extract(${usageEvents.metadata}, '$.usedFallback') = true then 1 else 0 end)`,
+        streamPolicyPassCount: sql<number>`sum(case when json_extract(${usageEvents.metadata}, '$.streamPolicyPass') = true then 1 else 0 end)`,
+        firstPassPolicyPassCount: sql<number>`sum(case when json_extract(${usageEvents.metadata}, '$.firstPassPolicyPass') = true then 1 else 0 end)`,
+        finalPolicyPassCount: sql<number>`sum(case when json_extract(${usageEvents.metadata}, '$.finalPolicyPass') = true then 1 else 0 end)`
+      })
+      .from(usageEvents)
+      .where(and(eq(usageEvents.eventType, "generate"), eq(usageEvents.status, "ok"), eq(usageEvents.route, "/api/generate/stream"), frontendPerfWindowClause(perfWindow)))
+      .groupBy(
+        sql`coalesce(cast(json_extract(${usageEvents.metadata}, '$.streamProvider') as text), 'unknown')`,
+        sql`coalesce(cast(json_extract(${usageEvents.metadata}, '$.streamModel') as text), 'unknown')`
+      )
       .orderBy(desc(sql`count(*)`))
   ]);
   const metrics = getMetricSummaries()
     .sort((a, b) => b.count - a.count)
     .slice(0, 20);
+  const streamHealthRow = streamGenerateHealth[0];
+  const streamSampleCount = streamHealthRow?.sampleCount ?? 0;
+  const validationWarningCount = streamHealthRow?.validationWarningCount ?? 0;
+  const fallbackCount = streamHealthRow?.fallbackCount ?? 0;
+  const streamPolicyPassCount = streamHealthRow?.streamPolicyPassCount ?? 0;
+  const firstPassPolicyPassCount = streamHealthRow?.firstPassPolicyPassCount ?? 0;
+  const finalPolicyPassCount = streamHealthRow?.finalPolicyPassCount ?? 0;
 
   return {
     todayGenerates: todayGenerates[0]?.value ?? 0,
@@ -146,6 +184,30 @@ async function adminMonitoringStats(perfWindow: FrontendPerfWindow = "7d") {
     usageByUser,
     metrics,
     frontendPerfWindow: perfWindow,
+    streamHealth: {
+      sampleCount: streamSampleCount,
+      avgFirstChunkMs: streamHealthRow?.avgFirstChunkMs ?? 0,
+      validationWarningRate: streamSampleCount > 0 ? Math.round((validationWarningCount / streamSampleCount) * 1000) / 10 : 0,
+      fallbackRate: streamSampleCount > 0 ? Math.round((fallbackCount / streamSampleCount) * 1000) / 10 : 0,
+      policyPassRate: {
+        stream: streamSampleCount > 0 ? Math.round((streamPolicyPassCount / streamSampleCount) * 1000) / 10 : 0,
+        firstPass: streamSampleCount > 0 ? Math.round((firstPassPolicyPassCount / streamSampleCount) * 1000) / 10 : 0,
+        final: streamSampleCount > 0 ? Math.round((finalPolicyPassCount / streamSampleCount) * 1000) / 10 : 0
+      }
+    },
+    streamHealthByModel: streamGenerateHealthByModel.map((item) => ({
+      streamProvider: item.streamProvider,
+      streamModel: item.streamModel,
+      sampleCount: item.sampleCount,
+      avgFirstChunkMs: item.avgFirstChunkMs ?? 0,
+      validationWarningRate: item.sampleCount > 0 ? Math.round(((item.validationWarningCount ?? 0) / item.sampleCount) * 1000) / 10 : 0,
+      fallbackRate: item.sampleCount > 0 ? Math.round(((item.fallbackCount ?? 0) / item.sampleCount) * 1000) / 10 : 0,
+      policyPassRate: {
+        stream: item.sampleCount > 0 ? Math.round(((item.streamPolicyPassCount ?? 0) / item.sampleCount) * 1000) / 10 : 0,
+        firstPass: item.sampleCount > 0 ? Math.round(((item.firstPassPolicyPassCount ?? 0) / item.sampleCount) * 1000) / 10 : 0,
+        final: item.sampleCount > 0 ? Math.round(((item.finalPolicyPassCount ?? 0) / item.sampleCount) * 1000) / 10 : 0
+      }
+    })),
     frontendPerfSummary: frontendPerfSummary
       .filter((item) => item.page)
       .map((item) => {

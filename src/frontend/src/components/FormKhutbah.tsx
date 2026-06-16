@@ -26,7 +26,7 @@ const strategiDalilOptions = [
 ];
 const modeSumberInternetOptions = [
   { value: "manual", label: "Manual / tidak browsing" },
-  { value: "web-search", label: "Web search otomatis" }
+  { value: "web-search", label: "Aktifkan web search (lebih lambat)" }
 ];
 
 // ─── Voice Input Button ───────────────────────────────────────────────────────
@@ -139,10 +139,10 @@ function VoicedInput({
 export function defaultParameters(jenis: JenisId): Parameters {
   const common = {
     bahasa: "Indonesia",
-    fokusAkurasi: "maksimal",
+    fokusAkurasi: "ketat",
     gayaBahasaNaskah: "natural-jelas",
     gayaRetorika: "standar",
-    strategiDalil: "sangat-relevan",
+    strategiDalil: "relevan",
     haditsReferensi: "",
     sumberInternet: "",
     modeSumberInternet: "manual",
@@ -167,6 +167,7 @@ export function FormKhutbah({
   onChange: (values: Parameters) => void;
 }) {
   const set = (key: string, value: string) => onChange({ ...values, [key]: value });
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   return (
     <div className="grid gap-4">
@@ -174,79 +175,6 @@ export function FormKhutbah({
         <Select value={values.bahasa ?? "Indonesia"} onChange={(event) => set("bahasa", event.target.value)}>
           {bahasaOptions.map((item) => (
             <option key={item}>{item}</option>
-          ))}
-        </Select>
-      </Field>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Fokus akurasi">
-          <Select value={values.fokusAkurasi ?? "maksimal"} onChange={(event) => set("fokusAkurasi", event.target.value)}>
-            {fokusAkurasiOptions.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Gaya bahasa">
-          <Select value={values.gayaBahasaNaskah ?? "natural-jelas"} onChange={(event) => set("gayaBahasaNaskah", event.target.value)}>
-            {gayaBahasaOptions.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Gaya retorika">
-          <Select value={values.gayaRetorika ?? "standar"} onChange={(event) => set("gayaRetorika", event.target.value)}>
-            {gayaRetorikaOptions.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Strategi dalil">
-          <Select value={values.strategiDalil ?? "sangat-relevan"} onChange={(event) => set("strategiDalil", event.target.value)}>
-            {strategiDalilOptions.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
-
-      <Field label="Catatan editor">
-        <Textarea
-          value={values.catatanEditor ?? ""}
-          onChange={(event) => set("catatanEditor", event.target.value)}
-          placeholder="Contoh: hindari bahasa terlalu puitis, jelaskan makna dalil dengan sederhana, fokus untuk jamaah remaja."
-        />
-      </Field>
-
-      <Field label="Hadits referensi">
-        <Textarea
-          value={values.haditsReferensi ?? ""}
-          onChange={(event) => set("haditsReferensi", event.target.value)}
-          placeholder="Contoh: HR. Bukhari dan Muslim tentang berkata baik atau diam; HR. Bukhari tentang muslim yang selamat dari gangguan lisan dan tangannya."
-        />
-      </Field>
-
-      <Field label="Sumber internet">
-        <Textarea
-          value={values.sumberInternet ?? ""}
-          onChange={(event) => set("sumberInternet", event.target.value)}
-          placeholder="Isi URL, nama website, atau ringkasan artikel tepercaya. Jika mode manual, AI hanya memakai teks yang Anda tulis di sini."
-        />
-      </Field>
-
-      <Field label="Mode sumber internet">
-        <Select value={values.modeSumberInternet ?? "manual"} onChange={(event) => set("modeSumberInternet", event.target.value)}>
-          {modeSumberInternetOptions.map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
           ))}
         </Select>
       </Field>
@@ -386,6 +314,98 @@ export function FormKhutbah({
           </Field>
         </>
       )}
+
+      <section className="grid gap-3 rounded-md border border-border px-3 py-3">
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((current) => !current)}
+          className="flex items-center justify-between gap-3 text-left"
+          aria-expanded={advancedOpen}
+        >
+          <div>
+            <p className="text-sm font-medium text-foreground">Advanced</p>
+            <p className="mt-1 text-xs text-muted-foreground">Akurasi, gaya, referensi tambahan, dan web search. Tidak perlu diubah untuk generate biasa.</p>
+          </div>
+          <span className="text-xs text-muted-foreground">{advancedOpen ? "Tutup" : "Buka"}</span>
+        </button>
+
+        {advancedOpen ? (
+          <div className="grid gap-4 border-t border-border pt-3">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Fokus akurasi">
+                <Select value={values.fokusAkurasi ?? "ketat"} onChange={(event) => set("fokusAkurasi", event.target.value)}>
+                  {fokusAkurasiOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Gaya bahasa">
+                <Select value={values.gayaBahasaNaskah ?? "natural-jelas"} onChange={(event) => set("gayaBahasaNaskah", event.target.value)}>
+                  {gayaBahasaOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Gaya retorika">
+                <Select value={values.gayaRetorika ?? "standar"} onChange={(event) => set("gayaRetorika", event.target.value)}>
+                  {gayaRetorikaOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Strategi dalil">
+                <Select value={values.strategiDalil ?? "relevan"} onChange={(event) => set("strategiDalil", event.target.value)}>
+                  {strategiDalilOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+
+            <Field label="Catatan editor">
+              <Textarea
+                value={values.catatanEditor ?? ""}
+                onChange={(event) => set("catatanEditor", event.target.value)}
+                placeholder="Contoh: hindari bahasa terlalu puitis, jelaskan makna dalil dengan sederhana, fokus untuk jamaah remaja."
+              />
+            </Field>
+
+            <Field label="Hadits referensi">
+              <Textarea
+                value={values.haditsReferensi ?? ""}
+                onChange={(event) => set("haditsReferensi", event.target.value)}
+                placeholder="Contoh: HR. Bukhari dan Muslim tentang berkata baik atau diam; HR. Bukhari tentang muslim yang selamat dari gangguan lisan dan tangannya."
+              />
+            </Field>
+
+            <Field label="Sumber internet opsional">
+              <Textarea
+                value={values.sumberInternet ?? ""}
+                onChange={(event) => set("sumberInternet", event.target.value)}
+                placeholder="Isi URL, nama website, atau ringkasan artikel tepercaya. Web search hanya aktif jika Anda memilih mode web search di bawah."
+              />
+            </Field>
+
+            <Field label="Mode sumber internet">
+              <Select value={values.modeSumberInternet ?? "manual"} onChange={(event) => set("modeSumberInternet", event.target.value)}>
+                {modeSumberInternetOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }
