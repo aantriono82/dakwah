@@ -53,7 +53,7 @@ generateRoutes.post("/prepare", zValidator("json", generateSchema), async (c) =>
   const quota = await assertGenerateQuota(user.id);
   if (!quota.allowed) {
     await recordUsageEvent({ userId: user.id, eventType: "generate", status: "blocked", jenis, route: "/api/generate/prepare", metadata: { reason: "quota" } });
-    return c.json({ message: quota.message }, 429);
+    return c.json({ code: "quota_exceeded", message: quota.message, used: quota.used, limit: quota.limit }, 429);
   }
 
   const startedAt = Date.now();
@@ -82,7 +82,7 @@ generateRoutes.post("/", zValidator("json", generateSchema), async (c) => {
   const quota = await assertGenerateQuota(user.id);
   if (!quota.allowed) {
     await recordUsageEvent({ userId: user.id, eventType: "generate", status: "blocked", jenis, route: "/api/generate", metadata: { reason: "quota" } });
-    return c.json({ message: quota.message }, 429);
+    return c.json({ code: "quota_exceeded", message: quota.message, used: quota.used, limit: quota.limit }, 429);
   }
 
   const startedAt = Date.now();
@@ -143,7 +143,7 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
   const quota = await assertGenerateQuota(user.id);
   if (!quota.allowed) {
     await recordUsageEvent({ userId: user.id, eventType: "generate", status: "blocked", jenis, route: "/api/generate/stream", metadata: { reason: "quota" } });
-    return c.json({ message: quota.message }, 429);
+    return c.json({ code: "quota_exceeded", message: quota.message, used: quota.used, limit: quota.limit }, 429);
   }
 
   c.header("Cache-Control", "no-cache, no-transform");
@@ -273,7 +273,7 @@ generateRoutes.post("/refine", zValidator("json", refineDraftSchema), async (c) 
   const quota = await assertGenerateQuota(user.id);
   if (!quota.allowed) {
     await recordUsageEvent({ userId: user.id, eventType: "generate", status: "blocked", jenis, route: "/api/generate/refine", metadata: { reason: "quota" } });
-    return c.json({ message: quota.message }, 429);
+    return c.json({ code: "quota_exceeded", message: quota.message, used: quota.used, limit: quota.limit }, 429);
   }
 
   const startedAt = Date.now();

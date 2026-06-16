@@ -54,6 +54,19 @@ export function useGenerateContentActions({
   setMobileParametersCollapsed: (value: boolean) => void;
   applySectionContent: (nextContent: string, nextCursorPosition?: number) => void;
 }) {
+  async function readResponseError(response: Response) {
+    const body = await response.json().catch(() => null) as { message?: string; retryAfterSeconds?: number } | null;
+    const retryAfterSeconds = Number(response.headers.get("Retry-After") ?? body?.retryAfterSeconds ?? 0);
+    const message = body?.message?.trim();
+    if (message) {
+      return new Error(message);
+    }
+    if (response.status === 429 && retryAfterSeconds > 0) {
+      return new Error(`Terlalu banyak percobaan. Coba lagi dalam ${retryAfterSeconds} detik.`);
+    }
+    return new Error(response.statusText || "Permintaan gagal.");
+  }
+
   function makeTitle() {
     return `${selectedLabel}: ${parameters.temaUtama || parameters.tema || parameters.topik || parameters.topikSingkat || parameters.temaPesan || "Tanpa Tema"}`;
   }
@@ -175,7 +188,8 @@ export function useGenerateContentActions({
           selectedDalils: customDalils
         })
       });
-      if (!response.ok || !response.body) throw new Error("Generate gagal.");
+      if (!response.ok) throw await readResponseError(response);
+      if (!response.body) throw new Error("Generate gagal.");
       const reader = response.body.getReader();
       let nextContent = "";
       const decoder = new TextDecoder();
@@ -215,6 +229,9 @@ export function useGenerateContentActions({
       if (isAbort) {
         setMessageTone("error");
         setMessage("Generate terlalu lama. Coba ulangi, kurangi durasi, atau ganti daftar model.");
+      } else if (error instanceof Error && /quota generate harian|terlalu banyak percobaan/i.test(error.message)) {
+        setMessageTone("error");
+        setMessage(error.message);
       } else {
         setMessageTone("neutral");
         setMessage("Koneksi streaming gagal. Mencoba mode kompatibilitas...");

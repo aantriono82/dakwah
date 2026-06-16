@@ -57,6 +57,7 @@ export function rateLimit(options: RateLimitOptions) {
       c.header("Retry-After", String(retryAfterSeconds));
       return c.json(
         {
+          code: "rate_limited",
           message: `Terlalu banyak percobaan. Coba lagi dalam ${retryAfterSeconds} detik.`,
           retryAfterSeconds
         },
