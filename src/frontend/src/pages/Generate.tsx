@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { IconChevronDown, IconChevronUp, IconFileText, IconShield, IconSync, IconTrash } from "../components/icons";
-import { FormKhutbah } from "../components/FormKhutbah";
+import { IconEye, IconFileText, IconShield } from "../components/icons";
+import { defaultParameters } from "../components/FormKhutbah";
 import { GenerateEditorPanel } from "../components/generate/GenerateEditorPanel";
 import { GenerateSetupPanel } from "../components/generate/GenerateSetupPanel";
 import { ReviewOutlineStep } from "../components/generate/ReviewOutlineStep";
-import { Badge, Button, Notice } from "../components/ui";
 import { categoryForJenis, jenisCategoryMeta, jenisCategoryOrder } from "../lib/generate-meta";
 import { completePageTransition } from "../lib/perf";
 import { useGenerateDraft } from "../lib/useGenerateDraft";
-import { cn, jenisOptions, type JenisId } from "../lib/utils";
+import { validateGenerateParameters } from "../lib/validation";
+import { api, cn, jenisOptions, type JenisId } from "../lib/utils";
 import type { Template } from "../types";
 
 export function Generate({
@@ -44,6 +44,8 @@ export function Generate({
     loading,
     message,
     messageTone,
+    setMessage,
+    setMessageTone,
     savedNaskahId,
     exporting,
     saving,
@@ -84,6 +86,7 @@ export function Generate({
     duplicateSection,
     moveSection,
     cleanupSpacing,
+    applyQuickFix,
     refineActiveSection,
     save,
     saveTemplate,
@@ -200,6 +203,7 @@ export function Generate({
   const categoryJenisOptions = useMemo(() => visibleJenisOptions.filter((item) => categoryForJenis(item.id) === activeCategory), [activeCategory, visibleJenisOptions]);
   const selectedQuranRefSet = useMemo(() => new Set(selectedQuranRefs), [selectedQuranRefs]);
   const selectedHadithRefSet = useMemo(() => new Set(selectedHadithRefs), [selectedHadithRefs]);
+  const handleChangeJenis = (nextJenis: JenisId) => changeJenis(nextJenis, defaultParameters);
   const chosenQuranDalils = useMemo(
     () => dalilProposal.quran.filter((item) => selectedQuranRefSet.has(item.reference)),
     [dalilProposal.quran, selectedQuranRefSet]
@@ -261,7 +265,7 @@ export function Generate({
         visibleJenisOptions={visibleJenisOptions}
         categoryJenisOptions={categoryJenisOptions}
         jenis={jenis}
-        changeJenis={changeJenis}
+        changeJenis={handleChangeJenis}
         selectedLabel={selectedLabel}
         parameters={parameters}
         setParameters={setParameters}

@@ -6,6 +6,7 @@ import { type SectionAiAction, type MessageTone } from "./generate-draft-types";
 import { useGenerateEditorOperations } from "./useGenerateEditorOperations";
 import { useGenerateNetworkActions } from "./useGenerateNetworkActions";
 import { useGeneratePersistence } from "./useGeneratePersistence";
+import { validateGenerateParameters } from "./validation";
 import { jenisOptions, type JenisId } from "./utils";
 import type { QualityReport, Template } from "../types";
 
@@ -190,6 +191,8 @@ export function useGenerateDraft({
     loading,
     message,
     messageTone,
+    setMessage,
+    setMessageTone,
     savedNaskahId,
     exporting,
     saving,
@@ -230,6 +233,7 @@ export function useGenerateDraft({
     duplicateSection,
     moveSection,
     cleanupSpacing,
+    applyQuickFix,
     refineActiveSection,
     save,
     saveTemplate,
