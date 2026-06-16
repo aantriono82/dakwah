@@ -49,6 +49,8 @@ export async function migrate() {
 
     CREATE INDEX IF NOT EXISTS naskah_user_idx ON naskah(user_id);
     CREATE INDEX IF NOT EXISTS naskah_jenis_idx ON naskah(jenis);
+    CREATE INDEX IF NOT EXISTS naskah_created_at_idx ON naskah(created_at);
+    CREATE INDEX IF NOT EXISTS naskah_user_created_at_idx ON naskah(user_id, created_at);
 
     CREATE TABLE IF NOT EXISTS naskah_versions (
       id TEXT PRIMARY KEY NOT NULL,
@@ -66,6 +68,7 @@ export async function migrate() {
 
     CREATE INDEX IF NOT EXISTS naskah_versions_naskah_idx ON naskah_versions(naskah_id);
     CREATE INDEX IF NOT EXISTS naskah_versions_user_idx ON naskah_versions(user_id);
+    CREATE INDEX IF NOT EXISTS naskah_versions_naskah_version_idx ON naskah_versions(naskah_id, version_number);
 
     CREATE TABLE IF NOT EXISTS templates (
       id TEXT PRIMARY KEY NOT NULL,
@@ -94,6 +97,7 @@ export async function migrate() {
     CREATE INDEX IF NOT EXISTS usage_events_user_idx ON usage_events(user_id);
     CREATE INDEX IF NOT EXISTS usage_events_event_type_idx ON usage_events(event_type);
     CREATE INDEX IF NOT EXISTS usage_events_created_at_idx ON usage_events(created_at);
+    CREATE INDEX IF NOT EXISTS usage_events_quota_lookup_idx ON usage_events(user_id, event_type, status, created_at);
 
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY NOT NULL,
@@ -161,6 +165,28 @@ export async function migrate() {
     );
   `);
 
+  sqlite.exec(`
+    DROP TRIGGER IF EXISTS naskah_search_after_insert;
+    DROP TRIGGER IF EXISTS naskah_search_after_update;
+    DROP TRIGGER IF EXISTS naskah_search_after_delete;
+
+    CREATE TRIGGER naskah_search_after_insert AFTER INSERT ON naskah BEGIN
+      INSERT INTO naskah_search (id, title, jenis, bahasa, duration)
+      VALUES (NEW.id, NEW.title, NEW.jenis, NEW.bahasa, COALESCE(NEW.duration, ''));
+    END;
+
+    CREATE TRIGGER naskah_search_after_update
+    AFTER UPDATE OF title, jenis, bahasa, duration ON naskah BEGIN
+      DELETE FROM naskah_search WHERE id = OLD.id;
+      INSERT INTO naskah_search (id, title, jenis, bahasa, duration)
+      VALUES (NEW.id, NEW.title, NEW.jenis, NEW.bahasa, COALESCE(NEW.duration, ''));
+    END;
+
+    CREATE TRIGGER naskah_search_after_delete AFTER DELETE ON naskah BEGIN
+      DELETE FROM naskah_search WHERE id = OLD.id;
+    END;
+  `);
+
   ensureColumn("users", "daily_generate_limit", "INTEGER");
   ensureColumn("naskah", "status", "TEXT NOT NULL DEFAULT 'draft'");
   ensureColumn("naskah", "version", "INTEGER NOT NULL DEFAULT 1");
@@ -176,12 +202,7 @@ export async function migrate() {
   ensureColumn("curated_dalil", "status", "TEXT NOT NULL DEFAULT 'approved'");
   sqlite.run("UPDATE curated_dalil SET status = 'approved' WHERE status IS NULL OR status = ''");
   sqlite.run("CREATE INDEX IF NOT EXISTS curated_dalil_status_idx ON curated_dalil(status)");
-  sqlite.run("DELETE FROM naskah_search");
-  sqlite.run(`
-    INSERT INTO naskah_search (id, title, jenis, bahasa, duration)
-    SELECT id, title, jenis, bahasa, COALESCE(duration, '')
-    FROM naskah
-  `);
+  backfillNaskahSearchIfNeeded();
 
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "admin123";
   const userPassword = process.env.SEED_USER_PASSWORD ?? "user123";
@@ -193,12 +214,27 @@ export async function migrate() {
   await seedUser("admin", "Administrator", "admin", adminPassword);
   await seedUser("user", "Pengguna", "user", userPassword);
   await seedCuratedDalil();
+  sqlite.run("PRAGMA optimize");
 }
 
 function ensureColumn(tableName: string, columnName: string, definition: string) {
   const columns = sqlite.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
   if (columns.some((column) => column.name === columnName)) return;
   sqlite.run(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+}
+
+function backfillNaskahSearchIfNeeded() {
+  const naskahCount = Number((sqlite.prepare("SELECT COUNT(*) AS value FROM naskah").get() as { value: number } | null)?.value ?? 0);
+  const searchCount = Number((sqlite.prepare("SELECT COUNT(*) AS value FROM naskah_search").get() as { value: number } | null)?.value ?? 0);
+
+  if (naskahCount === searchCount) return;
+
+  sqlite.run("DELETE FROM naskah_search");
+  sqlite.run(`
+    INSERT INTO naskah_search (id, title, jenis, bahasa, duration)
+    SELECT id, title, jenis, bahasa, COALESCE(duration, '')
+    FROM naskah
+  `);
 }
 
 async function seedUser(username: string, name: string, role: "admin" | "user", password: string) {

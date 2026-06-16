@@ -12,7 +12,10 @@ if (!databaseUrl.startsWith(":memory:")) {
 
 const sqlite = new Database(databaseUrl);
 sqlite.run("PRAGMA journal_mode = WAL");
+sqlite.run("PRAGMA synchronous = NORMAL");
 sqlite.run("PRAGMA foreign_keys = ON");
+sqlite.run("PRAGMA temp_store = MEMORY");
+sqlite.run("PRAGMA busy_timeout = 5000");
 
 export const db = drizzle(sqlite, { schema });
 export { sqlite };

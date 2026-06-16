@@ -1,5 +1,5 @@
 import { IconCopy, IconDocx, IconDownload, IconFileDown, IconHistory, IconPdf, IconPencil, IconRotateCcw, IconSave, IconSparkles, IconTrash, IconX } from "../components/icons";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "../components/EmptyState";
 import { NaskahPreview } from "../components/NaskahPreview";
 import { QualityPanel } from "../components/QualityPanel";
@@ -39,15 +39,24 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const contextCacheRef = useRef(new Map<string, NaskahContextResponse>());
+  const normalizedQuery = useMemo(() => query.trim(), [query]);
 
   useEffect(() => {
     completePageTransition("History");
   }, []);
 
-  async function load(nextPage = page) {
+  async function load(nextPage = page, searchQuery = normalizedQuery, jenis = jenisFilter) {
     setLoading(true);
     try {
-      const data = await api<NaskahListResponse>(`/api/naskah?summary=1&page=${nextPage}&pageSize=${historyPageSize}`);
+      const search = new URLSearchParams({
+        summary: "1",
+        page: String(nextPage),
+        pageSize: String(historyPageSize)
+      });
+      if (searchQuery) search.set("q", searchQuery);
+      if (jenis !== "all") search.set("jenis", jenis);
+      const data = await api<NaskahListResponse>(`/api/naskah?${search.toString()}`);
       setItems(data.data);
       setPage(data.pagination?.page ?? nextPage);
       setTotalItems(data.pagination?.total ?? data.data.length);
@@ -76,12 +85,16 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
   }
 
   useEffect(() => {
-    void load(1);
-  }, []);
-
-  useEffect(() => {
     setQuery(initialQuery);
   }, [initialQuery]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void load(1, normalizedQuery, jenisFilter);
+    }, normalizedQuery || jenisFilter !== "all" ? 250 : 0);
+
+    return () => window.clearTimeout(timer);
+  }, [normalizedQuery, jenisFilter]);
 
   useEffect(() => {
     if (!selectedId || items.length === 0) return;
@@ -101,12 +114,22 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
       return;
     }
 
+    const cached = contextCacheRef.current.get(selected.id);
+    if (cached) {
+      setSelected(cached.data);
+      setVersions(cached.versions);
+      setLoadingDetail(false);
+      setLoadingVersions(false);
+      return;
+    }
+
     let cancelled = false;
     setLoadingDetail(true);
     setLoadingVersions(true);
     api<NaskahContextResponse>(`/api/naskah/${selected.id}/context`)
       .then((data) => {
         if (cancelled) return;
+        contextCacheRef.current.set(selected.id, data);
         setSelected(data.data);
         setVersions(data.versions);
       })
@@ -134,16 +157,17 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
     setAutosaveStatus("Menyimpan draft...");
     const timer = window.setTimeout(async () => {
       try {
-        const data = await api<{ data: Naskah }>(`/api/naskah/${selected.id}`, {
-          method: "PUT",
-          body: JSON.stringify({
-            title: editTitle,
-            content: editContent,
-            status: editStatus,
-            autosave: true
-          })
-        });
-        setSelected(data.data);
+      const data = await api<{ data: Naskah }>(`/api/naskah/${selected.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          title: editTitle,
+          content: editContent,
+          status: editStatus,
+          autosave: true
+        })
+      });
+      contextCacheRef.current.delete(selected.id);
+      setSelected(data.data);
         setItems((current) => current.map((item) => (item.id === selected.id ? { ...item, ...data.data } : item)));
         setAutosaveStatus("Draft tersimpan");
       } catch {
@@ -159,6 +183,8 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
     try {
       const data = await api<{ data: NaskahVersion[] }>(`/api/naskah/${id}/versions`);
       setVersions(data.data);
+      const current = contextCacheRef.current.get(id);
+      if (current) contextCacheRef.current.set(id, { ...current, versions: data.data });
     } catch {
       setVersions([]);
     } finally {
@@ -170,6 +196,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
     if (!confirm("Hapus naskah ini?")) return;
     setMessage("");
     await api(`/api/naskah/${id}`, { method: "DELETE" });
+    contextCacheRef.current.delete(id);
     setSelected(null);
     setEditing(false);
     await load(page);
@@ -259,6 +286,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
         method: "PUT",
         body: JSON.stringify({ title: editTitle, content: editContent, status: editStatus, changeSummary: "Simpan manual dari editor" })
       });
+      contextCacheRef.current.delete(selected.id);
       setItems((current) => current.map((item) => (item.id === selected.id ? { ...item, ...data.data } : item)));
       setSelected(data.data);
       setEditing(false);
@@ -275,6 +303,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
     if (!selected || loadingDetail || !confirm("Kembalikan isi naskah ke versi ini? Versi saat ini tetap disimpan sebagai snapshot baru.")) return;
     setMessage("");
     const data = await api<{ data: Naskah }>(`/api/naskah/${selected.id}/versions/${versionId}/restore`, { method: "POST", body: "{}" });
+    contextCacheRef.current.delete(selected.id);
     setSelected(data.data);
     setItems((current) => current.map((item) => (item.id === selected.id ? { ...item, ...data.data } : item)));
     setEditing(false);
@@ -295,6 +324,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
         method: "POST",
         body: JSON.stringify({ instruction: refineInstruction })
       });
+      contextCacheRef.current.delete(selected.id);
       setSelected(data.data);
       setItems((current) => current.map((item) => (item.id === selected.id ? { ...item, ...data.data } : item)));
       setRefineInstruction("");
@@ -332,6 +362,7 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
         method: "POST",
         body: JSON.stringify({ instruction: quickFixInstruction(fixId), changeSummary: quickFixSummary(fixId) })
       });
+      contextCacheRef.current.delete(selected.id);
       setSelected(data.data);
       setItems((current) => current.map((item) => (item.id === selected.id ? { ...item, ...data.data } : item)));
       await loadVersions(selected.id);
@@ -344,16 +375,6 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
   }
 
   const selectedLink = selected ? exportLinks[selected.id] || selected.fileUrl || "" : "";
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredItems = useMemo(
-    () =>
-      items.filter((item) => {
-        const matchesJenis = jenisFilter === "all" || item.jenis === jenisFilter;
-        const searchable = [item.title, item.bahasa, item.user?.name, item.user?.username].filter(Boolean).join(" ").toLowerCase();
-        return matchesJenis && (!normalizedQuery || searchable.includes(normalizedQuery));
-      }),
-    [items, jenisFilter, normalizedQuery]
-  );
 
   return (
     <div className="grid min-w-0 gap-6">
@@ -385,11 +406,11 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
               ))}
             </Select>
             <p className="text-xs text-muted-foreground">
-              {filteredItems.length} dari {items.length} naskah di halaman ini
+              {totalItems} naskah ditemukan
             </p>
           </Card>
           {loading && items.length === 0 && <HistoryListSkeleton />}
-          {filteredItems.map((item) => (
+          {items.map((item) => (
             <button
               key={item.id}
               className="block w-full text-left"
@@ -414,7 +435,6 @@ export function History({ user, initialQuery = "", selectedId = "" }: { user: Us
             </button>
           ))}
           {!loading && items.length === 0 && <EmptyState text="Belum ada riwayat." />}
-          {items.length > 0 && filteredItems.length === 0 && <EmptyState text="Tidak ada naskah yang cocok." />}
           {!loading && totalPages > 1 && (
             <Card className="grid gap-3 p-3">
               <p className="text-xs text-muted-foreground">

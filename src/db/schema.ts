@@ -73,7 +73,9 @@ export const naskah = sqliteTable(
   },
   (table) => ({
     userIdx: index("naskah_user_idx").on(table.userId),
-    jenisIdx: index("naskah_jenis_idx").on(table.jenis)
+    jenisIdx: index("naskah_jenis_idx").on(table.jenis),
+    createdAtIdx: index("naskah_created_at_idx").on(table.createdAt),
+    userCreatedAtIdx: index("naskah_user_created_at_idx").on(table.userId, table.createdAt)
   })
 );
 
@@ -98,7 +100,8 @@ export const naskahVersions = sqliteTable(
   },
   (table) => ({
     naskahIdx: index("naskah_versions_naskah_idx").on(table.naskahId),
-    userIdx: index("naskah_versions_user_idx").on(table.userId)
+    userIdx: index("naskah_versions_user_idx").on(table.userId),
+    naskahVersionIdx: index("naskah_versions_naskah_version_idx").on(table.naskahId, table.versionNumber)
   })
 );
 
@@ -136,7 +139,8 @@ export const usageEvents = sqliteTable(
   (table) => ({
     userIdx: index("usage_events_user_idx").on(table.userId),
     eventTypeIdx: index("usage_events_event_type_idx").on(table.eventType),
-    createdAtIdx: index("usage_events_created_at_idx").on(table.createdAt)
+    createdAtIdx: index("usage_events_created_at_idx").on(table.createdAt),
+    quotaLookupIdx: index("usage_events_quota_lookup_idx").on(table.userId, table.eventType, table.status, table.createdAt)
   })
 );
 

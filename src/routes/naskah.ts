@@ -187,18 +187,6 @@ function resetExportCacheFields() {
   } as const;
 }
 
-function syncNaskahSearchIndex(row: Pick<Naskah, "id" | "title" | "jenis" | "bahasa" | "duration">) {
-  sqlite.run("DELETE FROM naskah_search WHERE id = ?", [row.id]);
-  sqlite.run(
-    "INSERT INTO naskah_search (id, title, jenis, bahasa, duration) VALUES (?, ?, ?, ?, ?)",
-    [row.id, row.title, row.jenis, row.bahasa, row.duration ?? ""]
-  );
-}
-
-function removeNaskahSearchIndex(id: string) {
-  sqlite.run("DELETE FROM naskah_search WHERE id = ?", [id]);
-}
-
 function buildNaskahSearchMatch(query: string) {
   return query
     .trim()
@@ -206,6 +194,10 @@ function buildNaskahSearchMatch(query: string) {
     .filter(Boolean)
     .map((term) => `"${term.replace(/"/g, '""')}"*`)
     .join(" ");
+}
+
+function validJenisFilter(value: string | undefined) {
+  return value && CONTENT_TYPES.includes(value as (typeof CONTENT_TYPES)[number]) ? value : undefined;
 }
 
 async function createVersionSnapshot(input: {
@@ -232,6 +224,7 @@ naskahRoutes.get("/", async (c) => {
   const user = c.get("user");
   const summaryOnly = c.req.query("summary") === "1";
   const query = c.req.query("q")?.trim();
+  const jenisFilter = validJenisFilter(c.req.query("jenis"));
   const pageQuery = Number(c.req.query("page") ?? "");
   const pageSizeQuery = Number(c.req.query("pageSize") ?? "");
   const paginated = Number.isFinite(pageQuery) || Number.isFinite(pageSizeQuery);
@@ -240,7 +233,8 @@ naskahRoutes.get("/", async (c) => {
     ? Math.min(maxListPageSize, Math.max(1, Math.floor(pageSizeQuery)))
     : defaultListPageSize;
   const ownershipWhere = user.role === "admin" ? undefined : eq(naskah.userId, user.id);
-  const where = ownershipWhere;
+  const where =
+    ownershipWhere && jenisFilter ? and(ownershipWhere, eq(naskah.jenis, jenisFilter)) : ownershipWhere ?? (jenisFilter ? eq(naskah.jenis, jenisFilter) : undefined);
 
   if (query) {
     const match = buildNaskahSearchMatch(query);
@@ -256,55 +250,41 @@ naskahRoutes.get("/", async (c) => {
       });
     }
 
-    const idRows =
-      user.role === "admin"
-        ? (sqlite
-            .prepare(
-              `
-                SELECT n.id
-                FROM naskah_search
-                JOIN naskah n ON n.id = naskah_search.id
-                WHERE naskah_search MATCH ?
-                ORDER BY bm25(naskah_search), n.created_at DESC
-                LIMIT ? OFFSET ?
-              `
-            )
-            .all(match, pageSize, (page - 1) * pageSize) as Array<{ id: string }>)
-        : (sqlite
-            .prepare(
-              `
-                SELECT n.id
-                FROM naskah_search
-                JOIN naskah n ON n.id = naskah_search.id
-                WHERE naskah_search MATCH ? AND n.user_id = ?
-                ORDER BY bm25(naskah_search), n.created_at DESC
-                LIMIT ? OFFSET ?
-              `
-            )
-            .all(match, user.id, pageSize, (page - 1) * pageSize) as Array<{ id: string }>);
+    const filterClauses = ["naskah_search MATCH ?"];
+    const sharedArgs: Array<string> = [match];
+    if (user.role !== "admin") {
+      filterClauses.push("n.user_id = ?");
+      sharedArgs.push(user.id);
+    }
+    if (jenisFilter) {
+      filterClauses.push("n.jenis = ?");
+      sharedArgs.push(jenisFilter);
+    }
+    const whereSql = filterClauses.join(" AND ");
 
-    const totalResult =
-      user.role === "admin"
-        ? (sqlite
-            .prepare(
-              `
-                SELECT COUNT(*) AS value
-                FROM naskah_search
-                JOIN naskah n ON n.id = naskah_search.id
-                WHERE naskah_search MATCH ?
-              `
-            )
-            .get(match) as { value: number } | null)
-        : (sqlite
-            .prepare(
-              `
-                SELECT COUNT(*) AS value
-                FROM naskah_search
-                JOIN naskah n ON n.id = naskah_search.id
-                WHERE naskah_search MATCH ? AND n.user_id = ?
-              `
-            )
-            .get(match, user.id) as { value: number } | null);
+    const idRows = sqlite
+      .prepare(
+        `
+          SELECT n.id
+          FROM naskah_search
+          JOIN naskah n ON n.id = naskah_search.id
+          WHERE ${whereSql}
+          ORDER BY bm25(naskah_search), n.created_at DESC
+          LIMIT ? OFFSET ?
+        `
+      )
+      .all(...sharedArgs, pageSize, (page - 1) * pageSize) as Array<{ id: string }>;
+
+    const totalResult = sqlite
+      .prepare(
+        `
+          SELECT COUNT(*) AS value
+          FROM naskah_search
+          JOIN naskah n ON n.id = naskah_search.id
+          WHERE ${whereSql}
+        `
+      )
+      .get(...sharedArgs) as { value: number } | null;
     const total = totalResult?.value ?? 0;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const ids = idRows.map((row) => row.id);
@@ -432,7 +412,6 @@ naskahRoutes.post("/", zValidator("json", saveSchema), async (c) => {
   });
   const row = await db.query.naskah.findFirst({ where: eq(naskah.id, id), with: { user: true } });
   if (row) {
-    syncNaskahSearchIndex(row);
     await createVersionSnapshot({
       row,
       versionNumber: 1,
@@ -537,15 +516,12 @@ naskahRoutes.put("/:id", zValidator("json", saveSchema.partial()), async (c) => 
 
   const row = await db.query.naskah.findFirst({ where: eq(naskah.id, id), with: { user: true } });
   if (row && shouldCreateVersion) {
-    syncNaskahSearchIndex(row);
     await createVersionSnapshot({
       row,
       versionNumber: nextVersion,
       qualityReport,
       changeSummary: changeSummary ?? "Perubahan naskah"
     });
-  } else if (row) {
-    syncNaskahSearchIndex(row);
   }
   return c.json({ data: row ? publicNaskah(row) : null });
 });
@@ -590,7 +566,6 @@ naskahRoutes.post("/:id/versions/:versionId/restore", async (c) => {
 
   const restored = await db.query.naskah.findFirst({ where: eq(naskah.id, id), with: { user: true } });
   if (restored) {
-    syncNaskahSearchIndex(restored);
     await createVersionSnapshot({
       row: restored,
       versionNumber: restoredVersion,
@@ -672,7 +647,6 @@ naskahRoutes.post("/:id/refine", zValidator("json", refineSchema), async (c) => 
 
   const row = await db.query.naskah.findFirst({ where: eq(naskah.id, id), with: { user: true } });
   if (row) {
-    syncNaskahSearchIndex(row);
     await createVersionSnapshot({
       row,
       versionNumber: nextVersion,
@@ -700,6 +674,5 @@ naskahRoutes.delete("/:id", async (c) => {
   if (!existing) return c.json({ message: "Naskah tidak ditemukan." }, 404);
   if (!canAccessOwner(c, existing.userId)) return c.json({ message: "Tidak berhak menghapus naskah ini." }, 403);
   await db.delete(naskah).where(eq(naskah.id, id));
-  removeNaskahSearchIndex(id);
   return c.json({ ok: true });
 });
