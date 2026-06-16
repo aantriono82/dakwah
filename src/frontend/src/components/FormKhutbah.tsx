@@ -6,23 +6,9 @@ type Parameters = Record<string, string>;
 
 const bahasaOptions = ["Indonesia", "Jawa", "Sunda", "Ogan (Baturaja)", "Arab"];
 const durasiOptions = ["pendek", "sedang", "panjang"];
-const fokusAkurasiOptions = [
-  { value: "ketat", label: "Ketat" },
-  { value: "maksimal", label: "Maksimal" }
-];
 const gayaBahasaOptions = [
   { value: "natural-jelas", label: "Natural dan jelas" },
   { value: "sangat-natural", label: "Sangat natural" }
-];
-const gayaRetorikaOptions = [
-  { value: "standar", label: "Standar / Netral" },
-  { value: "quraish-shihab", label: "Teduh & Akademik" },
-  { value: "zainuddin-mz", label: "Komunikatif & Praktis" },
-  { value: "buya-hamka", label: "Sastra & Filosofis" }
-];
-const strategiDalilOptions = [
-  { value: "relevan", label: "Relevan" },
-  { value: "sangat-relevan", label: "Sangat relevan" }
 ];
 const modeSumberInternetOptions = [
   { value: "manual", label: "Manual / tidak browsing" },
@@ -148,13 +134,12 @@ export function defaultParameters(jenis: JenisId): Parameters {
     modeSumberInternet: "manual",
     catatanEditor: ""
   };
-  if (jenis === "khutbah-jumat") return { ...common, temaUtama: "", subTema: "", ayatReferensi: "", durasi: "sedang" };
-  if (jenis === "idul-fitri") return { ...common, tema: "", nuansa: "reflektif", momenSpesifik: "" };
-  if (jenis === "idul-adha") return { ...common, tema: "", kisahNabi: "Nabi Ibrahim dan Nabi Ismail" };
-  if (jenis === "nikah")
-    return { ...common, mempelaiPria: "", mempelaiWanita: "", temaPesan: "", referensi: "", nuansa: "hangat", durasi: "sedang" };
-  if (jenis === "ceramah") return { ...common, topik: "", targetAudiens: "campuran", setting: "masjid", durasi: "sedang" };
-  return { ...common, topikSingkat: "", waktu: "maghrib", durasi: "sedang" };
+  if (jenis === "khutbah-jumat") return { ...common, temaUtama: "", durasi: "sedang" };
+  if (jenis === "idul-fitri") return { ...common, tema: "", durasi: "sedang" };
+  if (jenis === "idul-adha") return { ...common, tema: "", durasi: "sedang" };
+  if (jenis === "nikah") return { ...common, mempelaiPria: "", mempelaiWanita: "", temaPesan: "", durasi: "sedang" };
+  if (jenis === "ceramah") return { ...common, topik: "", durasi: "sedang" };
+  return { ...common, topikSingkat: "", durasi: "sedang" };
 }
 
 export function FormKhutbah({
@@ -184,12 +169,6 @@ export function FormKhutbah({
           <Field label="Tema utama">
             <VoicedInput value={values.temaUtama ?? ""} onChange={(v) => set("temaUtama", v)} required />
           </Field>
-          <Field label="Sub-tema">
-            <VoicedInput value={values.subTema ?? ""} onChange={(v) => set("subTema", v)} />
-          </Field>
-          <Field label="Ayat Al-Quran referensi">
-            <Textarea value={values.ayatReferensi ?? ""} onChange={(event) => set("ayatReferensi", event.target.value)} />
-          </Field>
           <Field label="Durasi">
             <Select value={values.durasi ?? "sedang"} onChange={(event) => set("durasi", event.target.value)}>
               {durasiOptions.map((item) => (
@@ -205,15 +184,12 @@ export function FormKhutbah({
           <Field label="Tema">
             <VoicedInput value={values.tema ?? ""} onChange={(v) => set("tema", v)} required />
           </Field>
-          <Field label="Nuansa">
-            <Select value={values.nuansa ?? "reflektif"} onChange={(event) => set("nuansa", event.target.value)}>
-              {["haru", "semangat", "reflektif"].map((item) => (
+          <Field label="Durasi">
+            <Select value={values.durasi ?? "sedang"} onChange={(event) => set("durasi", event.target.value)}>
+              {durasiOptions.map((item) => (
                 <option key={item}>{item}</option>
               ))}
             </Select>
-          </Field>
-          <Field label="Momen spesifik">
-            <VoicedInput value={values.momenSpesifik ?? ""} onChange={(v) => set("momenSpesifik", v)} />
           </Field>
         </>
       )}
@@ -223,8 +199,12 @@ export function FormKhutbah({
           <Field label="Tema">
             <VoicedInput value={values.tema ?? ""} onChange={(v) => set("tema", v)} required />
           </Field>
-          <Field label="Kisah nabi sebagai referensi">
-            <VoicedInput value={values.kisahNabi ?? ""} onChange={(v) => set("kisahNabi", v)} />
+          <Field label="Durasi">
+            <Select value={values.durasi ?? "sedang"} onChange={(event) => set("durasi", event.target.value)}>
+              {durasiOptions.map((item) => (
+                <option key={item}>{item}</option>
+              ))}
+            </Select>
           </Field>
         </>
       )}
@@ -242,16 +222,6 @@ export function FormKhutbah({
           <Field label="Tema pesan pernikahan">
             <VoicedInput value={values.temaPesan ?? ""} onChange={(v) => set("temaPesan", v)} required />
           </Field>
-          <Field label="Hadits/ayat tentang pernikahan">
-            <Textarea value={values.referensi ?? ""} onChange={(event) => set("referensi", event.target.value)} />
-          </Field>
-          <Field label="Nuansa">
-            <Select value={values.nuansa ?? "hangat"} onChange={(event) => set("nuansa", event.target.value)}>
-              {["formal", "hangat", "puitis"].map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </Select>
-          </Field>
           <Field label="Durasi">
             <Select value={values.durasi ?? "sedang"} onChange={(event) => set("durasi", event.target.value)}>
               {durasiOptions.map((item) => (
@@ -267,21 +237,7 @@ export function FormKhutbah({
           <Field label="Topik bebas">
             <VoicedInput value={values.topik ?? ""} onChange={(v) => set("topik", v)} required />
           </Field>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Target audiens">
-              <Select value={values.targetAudiens ?? "campuran"} onChange={(event) => set("targetAudiens", event.target.value)}>
-                {["remaja", "dewasa", "lansia", "campuran"].map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Setting">
-              <Select value={values.setting ?? "masjid"} onChange={(event) => set("setting", event.target.value)}>
-                {["masjid", "kampus", "kantor", "online"].map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </Select>
-            </Field>
+          <div className="grid gap-4 sm:grid-cols-1">
             <Field label="Durasi">
               <Select value={values.durasi ?? "sedang"} onChange={(event) => set("durasi", event.target.value)}>
                 {durasiOptions.map((item) => (
@@ -297,13 +253,6 @@ export function FormKhutbah({
         <>
           <Field label="Topik singkat">
             <VoicedInput value={values.topikSingkat ?? ""} onChange={(v) => set("topikSingkat", v)} required />
-          </Field>
-          <Field label="Waktu">
-            <Select value={values.waktu ?? "maghrib"} onChange={(event) => set("waktu", event.target.value)}>
-              {["subuh", "maghrib", "tarawih"].map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </Select>
           </Field>
           <Field label="Durasi">
             <Select value={values.durasi ?? "sedang"} onChange={(event) => set("durasi", event.target.value)}>
@@ -324,44 +273,17 @@ export function FormKhutbah({
         >
           <div>
             <p className="text-sm font-medium text-foreground">Advanced</p>
-            <p className="mt-1 text-xs text-muted-foreground">Akurasi, gaya, referensi tambahan, dan web search. Tidak perlu diubah untuk generate biasa.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Gaya bahasa, catatan tambahan, referensi hadits, dan web search. Default sistem sudah cukup untuk generate biasa.</p>
           </div>
           <span className="text-xs text-muted-foreground">{advancedOpen ? "Tutup" : "Buka"}</span>
         </button>
 
         {advancedOpen ? (
           <div className="grid gap-4 border-t border-border pt-3">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Fokus akurasi">
-                <Select value={values.fokusAkurasi ?? "ketat"} onChange={(event) => set("fokusAkurasi", event.target.value)}>
-                  {fokusAkurasiOptions.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+            <div className="grid gap-4 sm:grid-cols-1">
               <Field label="Gaya bahasa">
                 <Select value={values.gayaBahasaNaskah ?? "natural-jelas"} onChange={(event) => set("gayaBahasaNaskah", event.target.value)}>
                   {gayaBahasaOptions.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Gaya retorika">
-                <Select value={values.gayaRetorika ?? "standar"} onChange={(event) => set("gayaRetorika", event.target.value)}>
-                  {gayaRetorikaOptions.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Strategi dalil">
-                <Select value={values.strategiDalil ?? "relevan"} onChange={(event) => set("strategiDalil", event.target.value)}>
-                  {strategiDalilOptions.map((item) => (
                     <option key={item.value} value={item.value}>
                       {item.label}
                     </option>
