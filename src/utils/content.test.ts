@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildPrompt,
+  composeTemplatedRukunKhutbah,
   completeMissingSecondKhutbah,
   appearsTruncatedText,
   dedupeRepeatedDalilBlocks,
@@ -128,12 +129,25 @@ describe("content utilities", () => {
         }
       ]
     };
-    const prompt = buildPrompt("ceramah", { bahasa: "Indonesia", topik: "Menjaga lisan", modeSumberInternet: "web-search" }, undefined, webContext);
+    const prompt = buildPrompt("ceramah", { bahasa: "Indonesia", topik: "Menjaga lisan" }, undefined, webContext);
 
     expect(prompt).toContain('Konteks web hasil pencarian/crawl server untuk query "menjaga lisan dakwah artikel terpercaya"');
     expect(prompt).toContain("Artikel Akhlak Menjaga Lisan");
     expect(prompt).toContain("Pakai konteks web hanya sebagai penguat penjelasan sosial");
     expect(prompt).toContain("Jangan jadikan artikel web sebagai sumber utama ayat, hadits");
+  });
+
+  test("buildPrompt treats user internet sources as searchable supporting context", () => {
+    const prompt = buildPrompt("ceramah", {
+      bahasa: "Indonesia",
+      topik: "Menjaga lisan",
+      sumberInternet: "https://example.com/artikel-akhlak"
+    });
+
+    expect(prompt).toContain("Sumber internet dari user:");
+    expect(prompt).toContain("https://example.com/artikel-akhlak");
+    expect(prompt).toContain("Jika web search tersedia, telusuri sumber/tema ini dan utamakan website yang kredibel.");
+    expect(prompt).not.toContain("Mode manual berarti sistem tidak otomatis membuka URL.");
   });
 
   test("buildPrompt aligns kultum and khutbah nikah length guidance with quality floor", () => {
@@ -665,6 +679,14 @@ Ayat ini menegaskan kemuliaan bulan haram.`);
     expect(isGeneratedTextAcceptable("khutbah-jumat", draft)).toBe(true);
   });
 
+  test("fallback khutbah does not force quran and hadith together at the start of isi", () => {
+    const draft = fallbackNaskah("khutbah-jumat", { bahasa: "Indonesia", temaUtama: "Amanah" });
+    const isiBody = draft.match(/Isi Khutbah\n([\s\S]*?)\n\nPenutup Khutbah Pertama/)?.[1] ?? "";
+
+    expect(isiBody.startsWith("Allah SWT berfirman dalam AlQuran")).toBe(false);
+    expect(isiBody).toMatch(/\n\nAllah SWT berfirman dalam AlQuran\n[\s\S]*\n\nRasulullah SAW bersabda\n/);
+  });
+
   test("khutbah validation accepts standard headings with colon", () => {
     const draft = fallbackNaskah("khutbah-jumat", { bahasa: "Indonesia", temaUtama: "Amanah" })
       .replace(/^Khutbah Pertama$/m, "Khutbah Pertama:")
@@ -957,6 +979,26 @@ Amin.`;
     expect(injected).toContain("وَمِنْ آيَاتِهِ أَنْ خَلَقَ لَكُمْ مِنْ أَنْفُسِكُمْ أَزْوَاجًا");
     expect(injected).toContain("أَكْمَلُ الْمُؤْمِنِينَ إِيمَانًا أَحْسَنُهُمْ خُلُقًا");
     expect(injected).toContain("[Derajat: Hasan Sahih]");
+  });
+
+  test("composeTemplatedRukunKhutbah spreads dalil across relevant editorial paragraphs", () => {
+    const draft = composeTemplatedRukunKhutbah(
+      "khutbah-jumat",
+      { bahasa: "Indonesia", temaUtama: "Menjaga amanah" },
+      `Amanah bukan sekadar istilah akhlak. Ia hadir dalam janji, pekerjaan, keluarga, dan cara kita menjaga hak orang lain.
+
+Ketika kepercayaan dianggap ringan, kerusakan mulai masuk ke rumah, pasar, kantor, dan kepemimpinan.
+
+Karena itu jamaah perlu melihat amanah sebagai ibadah yang akan dimintai pertanggungjawaban di hadapan Allah.
+
+Setelah dalil dijelaskan, tugas kita adalah membiasakan jujur, menepati janji, dan mengembalikan hak kepada pemiliknya.`
+    );
+    const isiBody = draft.match(/Isi Khutbah\n([\s\S]*?)\n\nPenutup Khutbah Pertama/)?.[1] ?? "";
+
+    expect(isiBody.startsWith("Allah SWT berfirman dalam AlQuran")).toBe(false);
+    expect(isiBody).toContain("Allah SWT berfirman dalam AlQuran");
+    expect(isiBody).toContain("Rasulullah SAW bersabda");
+    expect(isiBody.indexOf("Allah SWT berfirman dalam AlQuran")).toBeLessThan(isiBody.indexOf("Rasulullah SAW bersabda"));
   });
 
   test("buildPrompt includes preacher style profiles instructions when requested", () => {

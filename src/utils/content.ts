@@ -319,7 +319,6 @@ ${editorNoteRule}`.trim();
 function userReferenceGuidanceFor(parameters: Record<string, unknown>) {
   const hadithReference = String(parameters.haditsReferensi ?? "").trim();
   const internetSources = String(parameters.sumberInternet ?? "").trim();
-  const sourceMode = String(parameters.modeSumberInternet ?? "manual").trim().toLowerCase();
   const sections: string[] = [];
 
   if (hadithReference) {
@@ -333,14 +332,13 @@ Aturan:
   }
 
   if (internetSources) {
-    const automaticMode = sourceMode === "web-search" || sourceMode.includes("web");
     sections.push(`Sumber internet dari user:
 ${internetSources}
 
 Aturan:
 - Sumber internet hanya dipakai untuk penguat penjelasan sosial, contoh, atau konteks umum; jangan jadikan sumber utama ayat, hadits, takhrij, derajat hadits, atau hukum syar'i.
 - Jangan menyalin artikel panjang. Olah menjadi narasi mimbar yang orisinal dan ringkas.
-- ${automaticMode ? "Jika web search tersedia, telusuri sumber/tema ini dan utamakan website yang kredibel." : "Mode manual berarti sistem tidak otomatis membuka URL. Pakai hanya ringkasan/teks yang ditulis user di field ini, dan jangan mengarang isi halaman dari URL mentah."}`);
+- Jika web search tersedia, telusuri sumber/tema ini dan utamakan website yang kredibel.`);
   }
 
   return sections.join("\n\n");
@@ -563,6 +561,7 @@ WAJIB:
 - Jangan tampilkan label teknis seperti "Rukun 1/Rukun 2/Rukun 3/Rukun 4/Rukun 5" pada naskah final.
 - WAJIB gunakan heading persis: "Allah SWT berfirman dalam AlQuran" untuk ayat dan "Rasulullah SAW bersabda" untuk hadits. Jangan tambahkan variasi heading lain untuk bagian dalil.
 - Jangan tempatkan heading "Allah SWT berfirman dalam AlQuran" atau "Rasulullah SAW bersabda" di mukadimah/pembukaan. Keduanya harus muncul di dalam isi naskah atau isi khutbah setelah pengantar selesai.
+- Tempatkan ayat dan hadits di paragraf yang paling relevan dengan alurnya. Tidak wajib berdampingan, tidak wajib urut baris pertama-kedua, dan jangan biasakan menaruh keduanya sekaligus di awal bagian isi.
 - Untuk teks Arab dan terjemahan di bawah heading dalil tersebut, tuliskan secara ringkas saja. Sistem kami akan secara otomatis menimpa teks tersebut dengan teks Arab berharakat dan terjemahan resmi hasil verifikasi dari database/API untuk menjamin 100% akurasi. Oleh karena itu, jangan mengarang atau mengubah teks Arab dalil hasil retrieval.
 - Semua teks Arab wajib memakai harakat (tasykil), jangan menulis Arab gundul.
 - Ikuti rukun khutbah mazhab Syafi'i yang umum dipakai di Indonesia: hamdalah, shalawat Nabi, dan wasiat takwa wajib ada di khutbah pertama dan khutbah kedua; ayat Al-Qur'an wajib ada minimal di salah satu khutbah; doa untuk kaum mukminin wajib ada di khutbah kedua dan digabungkan dalam bagian Doa Penutup.
@@ -4360,6 +4359,28 @@ function fallbackRukunKhutbah(jenis: string, label: string, bahasa: string, tema
     : "";
   const audience = audienceFor(jenis, language);
   const secondKhutbahBlock = secondKhutbahArabicOnly(jenis === "idul-fitri" || jenis === "idul-adha" ? takbirTujuh : "", seed);
+  const editorialWithDalil = interleaveKhutbahDalilBlocks(
+    [
+      subsections
+        .map(
+          (section) => `${section.title}
+${section.body}`
+        )
+        .join("\n\n"),
+      idulMessage,
+      khutbahDeepeningFor(jenis, language, tema, selectedDalil.label)
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    [
+      `${QURAN_HEADING}
+${ayat.arab}
+${meaningLineFor(ayat, language)}`,
+      `${HADITH_HEADING}
+${hadith.arab}
+${meaningLineFor(hadith, language)}`
+    ]
+  );
 
   return `${label}
 
@@ -4378,24 +4399,7 @@ ${wasiatTakwaArab}
 ${audience}, ${takwaIntroFor(language)}
 
 Isi Khutbah
-${QURAN_HEADING}
-${ayat.arab}
-${meaningLineFor(ayat, language)}
-
-${HADITH_HEADING}
-${hadith.arab}
-${meaningLineFor(hadith, language)}
-
-${subsections
-  .map(
-    (section) => `${section.title}
-${section.body}`
-  )
-  .join("\n\n")}
-
-${idulMessage}
-
-${khutbahDeepeningFor(jenis, language, tema, selectedDalil.label)}
+${editorialWithDalil}
 
 Penutup Khutbah Pertama
 ${penutupPertamaArab}
@@ -4445,6 +4449,46 @@ function normalizeEditorialKhutbahBody(text: string) {
   return paragraphs.length > 0 ? paragraphs.join("\n\n") : withoutRukunHeadings;
 }
 
+function interleaveKhutbahDalilBlocks(editorial: string, dalilBlocks: string[]) {
+  const trimmedBlocks = dalilBlocks.map((block) => block.trim()).filter(Boolean);
+  if (trimmedBlocks.length === 0) return editorial.trim();
+
+  const paragraphs = editorial
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  if (paragraphs.length === 0) return trimmedBlocks.join("\n\n");
+  if (paragraphs.length === 1) return [paragraphs[0], ...trimmedBlocks].join("\n\n");
+  if (paragraphs.length === 2) return [paragraphs[0], trimmedBlocks[0], paragraphs[1], trimmedBlocks[1]].filter(Boolean).join("\n\n");
+
+  const insertIndexes =
+    trimmedBlocks.length === 1
+      ? [Math.min(paragraphs.length - 1, Math.max(1, Math.ceil(paragraphs.length / 2) - 1))]
+      : [
+          Math.min(paragraphs.length - 1, Math.max(1, Math.floor(paragraphs.length / 3))),
+          Math.min(paragraphs.length - 1, Math.max(2, Math.floor((paragraphs.length * 2) / 3)))
+        ];
+
+  const result: string[] = [];
+  let blockIndex = 0;
+
+  paragraphs.forEach((paragraph, index) => {
+    result.push(paragraph);
+    while (blockIndex < trimmedBlocks.length && insertIndexes[blockIndex] === index) {
+      result.push(trimmedBlocks[blockIndex]);
+      blockIndex++;
+    }
+  });
+
+  while (blockIndex < trimmedBlocks.length) {
+    result.push(trimmedBlocks[blockIndex]);
+    blockIndex++;
+  }
+
+  return result.join("\n\n");
+}
+
 export function composeTemplatedRukunKhutbah(
   jenis: string,
   parameters: Record<string, unknown>,
@@ -4471,6 +4515,14 @@ export function composeTemplatedRukunKhutbah(
   const firstTakbir = jenis === "idul-fitri" || jenis === "idul-adha" ? `${takbirSembilan}\n\n` : "";
   const secondTakbir = jenis === "idul-fitri" || jenis === "idul-adha" ? takbirTujuh : "";
   const editorial = normalizeEditorialKhutbahBody(editorialBody) || khutbahDeepeningFor(jenis, language, tema, selectedDalil.label);
+  const editorialWithDalil = interleaveKhutbahDalilBlocks(editorial, [
+    `${QURAN_HEADING}
+${ayat.arab}
+${meaningLineFor(ayat, language)}`,
+    `${HADITH_HEADING}
+${hadith.arab}
+${meaningLineFor(hadith, language)}`
+  ]);
   const output = `${label}
 
 ${labels.topic}: ${tema}
@@ -4488,15 +4540,7 @@ ${pick(khutbahArabicVariants.wasiat, seed, 5)}
 ${audienceFor(jenis, language)}, ${takwaIntroFor(language)}
 
 Isi Khutbah
-${QURAN_HEADING}
-${ayat.arab}
-${meaningLineFor(ayat, language)}
-
-${HADITH_HEADING}
-${hadith.arab}
-${meaningLineFor(hadith, language)}
-
-${editorial}
+${editorialWithDalil}
 
 Penutup Khutbah Pertama
 ${pick(khutbahArabicVariants.penutupPertama, seed, 9)}

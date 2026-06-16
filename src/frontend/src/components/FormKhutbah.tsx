@@ -10,11 +10,6 @@ const gayaBahasaOptions = [
   { value: "natural-jelas", label: "Natural dan jelas" },
   { value: "sangat-natural", label: "Sangat natural" }
 ];
-const modeSumberInternetOptions = [
-  { value: "manual", label: "Manual / tidak browsing" },
-  { value: "web-search", label: "Aktifkan web search (lebih lambat)" }
-];
-
 // ─── Voice Input Button ───────────────────────────────────────────────────────
 interface SpeechRecognitionEvent {
   results: { [index: number]: { [index: number]: { transcript: string } } };
@@ -131,7 +126,7 @@ export function defaultParameters(jenis: JenisId): Parameters {
     strategiDalil: "relevan",
     haditsReferensi: "",
     sumberInternet: "",
-    modeSumberInternet: "manual",
+    modeSumberInternet: "web-search",
     catatanEditor: ""
   };
   if (jenis === "khutbah-jumat") return { ...common, temaUtama: "", durasi: "sedang" };
@@ -273,7 +268,7 @@ export function FormKhutbah({
         >
           <div>
             <p className="text-sm font-medium text-foreground">Advanced</p>
-            <p className="mt-1 text-xs text-muted-foreground">Gaya bahasa, catatan tambahan, referensi hadits, dan web search. Default sistem sudah cukup untuk generate biasa.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Gaya bahasa, catatan tambahan, referensi hadits, dan sumber internet pendukung. Web search berjalan otomatis saat generate.</p>
           </div>
           <span className="text-xs text-muted-foreground">{advancedOpen ? "Tutup" : "Buka"}</span>
         </button>
@@ -312,18 +307,8 @@ export function FormKhutbah({
               <Textarea
                 value={values.sumberInternet ?? ""}
                 onChange={(event) => set("sumberInternet", event.target.value)}
-                placeholder="Isi URL, nama website, atau ringkasan artikel tepercaya. Web search hanya aktif jika Anda memilih mode web search di bawah."
+                placeholder="Isi URL, nama website, atau ringkasan artikel tepercaya. Sistem akan memakai ini sebagai petunjuk tambahan saat web search berjalan."
               />
-            </Field>
-
-            <Field label="Mode sumber internet">
-              <Select value={values.modeSumberInternet ?? "manual"} onChange={(event) => set("modeSumberInternet", event.target.value)}>
-                {modeSumberInternetOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </Select>
             </Field>
           </div>
         ) : null}
