@@ -95,9 +95,9 @@ function structureRequirementsFor(jenis: string) {
   Judul
   Khutbah Pertama
   Mukadimah Arab berharakat yang memuat hamdalah, syahadat, shalawat Nabi, dan wasiat takwa
-  ${QURAN_HEADING} berisi ayat Arab berharakat, terjemah, dan rujukan
-  ${HADITH_HEADING} berisi hadits Arab berharakat, terjemah, dan rujukan
   Isi Khutbah dengan 2-4 subbahasan
+  Di dalam Isi Khutbah, masukkan heading ${QURAN_HEADING} berisi ayat Arab berharakat, terjemah, dan rujukan
+  Di dalam Isi Khutbah, masukkan heading ${HADITH_HEADING} berisi hadits Arab berharakat, terjemah, dan rujukan
   Penutup Khutbah Pertama
   Khutbah Kedua
   Seluruh isi Khutbah Kedua hanya teks Arab berharakat: mukadimah, shalawat, wasiat takwa, dan doa penutup untuk kaum mukminin
@@ -110,9 +110,9 @@ function structureRequirementsFor(jenis: string) {
   Khutbah Pertama
   Takbir Arab berharakat sebanyak 9 kali
   Mukadimah Arab berharakat yang memuat hamdalah, syahadat, shalawat Nabi, dan wasiat takwa
-  ${QURAN_HEADING} berisi ayat Arab berharakat, terjemah, dan rujukan
-  ${HADITH_HEADING} berisi hadits Arab berharakat, terjemah, dan rujukan yang masyhur
   Isi Khutbah dengan 2-4 subbahasan
+  Di dalam Isi Khutbah, masukkan heading ${QURAN_HEADING} berisi ayat Arab berharakat, terjemah, dan rujukan
+  Di dalam Isi Khutbah, masukkan heading ${HADITH_HEADING} berisi hadits Arab berharakat, terjemah, dan rujukan yang masyhur
   Penutup Khutbah Pertama
   Khutbah Kedua
   Seluruh isi Khutbah Kedua hanya teks Arab berharakat: takbir 7 kali, mukadimah, shalawat, wasiat takwa, dan doa penutup untuk kaum mukminin
@@ -125,9 +125,9 @@ function structureRequirementsFor(jenis: string) {
   Khutbah Pertama
   Takbir Arab berharakat sebanyak 9 kali
   Mukadimah Arab berharakat yang memuat hamdalah, syahadat, shalawat Nabi, dan wasiat takwa
-  ${QURAN_HEADING} berisi ayat Arab berharakat, terjemah, dan rujukan
-  ${HADITH_HEADING} berisi hadits Arab berharakat, terjemah, dan rujukan yang masyhur
   Isi Khutbah dengan 2-4 subbahasan tentang kurban, haji, ketakwaan, dan kepedulian sosial
+  Di dalam Isi Khutbah, masukkan heading ${QURAN_HEADING} berisi ayat Arab berharakat, terjemah, dan rujukan
+  Di dalam Isi Khutbah, masukkan heading ${HADITH_HEADING} berisi hadits Arab berharakat, terjemah, dan rujukan yang masyhur
   Penutup Khutbah Pertama
   Khutbah Kedua
   Seluruh isi Khutbah Kedua hanya teks Arab berharakat: takbir 7 kali, mukadimah, shalawat, wasiat takwa, dan doa penutup untuk kaum mukminin
@@ -138,9 +138,9 @@ function structureRequirementsFor(jenis: string) {
     return `Khutbah Nikah harus terdiri dari:
   Judul
   Pembukaan Arab berharakat yang memuat hamdalah, syahadat, dan shalawat Nabi
-  ${QURAN_HEADING} berisi ayat Arab berharakat yang relevan dengan pernikahan/tema pesan, terjemah, dan rujukan
-  ${HADITH_HEADING} berisi hadits Arab berharakat yang relevan dengan pernikahan/tema pesan, terjemah, dan rujukan
   Nasihat untuk Mempelai
+  Di dalam isi nasihat, masukkan heading ${QURAN_HEADING} berisi ayat Arab berharakat yang relevan dengan pernikahan/tema pesan, terjemah, dan rujukan
+  Di dalam isi nasihat, masukkan heading ${HADITH_HEADING} berisi hadits Arab berharakat yang relevan dengan pernikahan/tema pesan, terjemah, dan rujukan
   Pesan untuk Keluarga
   Doa Penutup`;
   }
@@ -148,9 +148,9 @@ function structureRequirementsFor(jenis: string) {
   return `Naskah harus terdiri dari:
   Judul
   Pembukaan
-  ${QURAN_HEADING} berisi ayat Arab berharakat yang relevan dengan tema, terjemah, dan rujukan
-  ${HADITH_HEADING} berisi hadits Arab berharakat yang relevan dengan tema, terjemah, dan rujukan
   Isi Utama
+  Di dalam Isi Utama, masukkan heading ${QURAN_HEADING} berisi ayat Arab berharakat yang relevan dengan tema, terjemah, dan rujukan
+  Di dalam Isi Utama, masukkan heading ${HADITH_HEADING} berisi hadits Arab berharakat yang relevan dengan tema, terjemah, dan rujukan
   Pesan Praktis
   Penutup`;
 }
@@ -562,6 +562,7 @@ WAJIB:
 - Gunakan heading teks biasa yang konsisten.
 - Jangan tampilkan label teknis seperti "Rukun 1/Rukun 2/Rukun 3/Rukun 4/Rukun 5" pada naskah final.
 - WAJIB gunakan heading persis: "Allah SWT berfirman dalam AlQuran" untuk ayat dan "Rasulullah SAW bersabda" untuk hadits. Jangan tambahkan variasi heading lain untuk bagian dalil.
+- Jangan tempatkan heading "Allah SWT berfirman dalam AlQuran" atau "Rasulullah SAW bersabda" di mukadimah/pembukaan. Keduanya harus muncul di dalam isi naskah atau isi khutbah setelah pengantar selesai.
 - Untuk teks Arab dan terjemahan di bawah heading dalil tersebut, tuliskan secara ringkas saja. Sistem kami akan secara otomatis menimpa teks tersebut dengan teks Arab berharakat dan terjemahan resmi hasil verifikasi dari database/API untuk menjamin 100% akurasi. Oleh karena itu, jangan mengarang atau mengubah teks Arab dalil hasil retrieval.
 - Semua teks Arab wajib memakai harakat (tasykil), jangan menulis Arab gundul.
 - Ikuti rukun khutbah mazhab Syafi'i yang umum dipakai di Indonesia: hamdalah, shalawat Nabi, dan wasiat takwa wajib ada di khutbah pertama dan khutbah kedua; ayat Al-Qur'an wajib ada minimal di salah satu khutbah; doa untuk kaum mukminin wajib ada di khutbah kedua dan digabungkan dalam bagian Doa Penutup.
@@ -4376,6 +4377,7 @@ ${wasiatTakwaArab}
 
 ${audience}, ${takwaIntroFor(language)}
 
+Isi Khutbah
 ${QURAN_HEADING}
 ${ayat.arab}
 ${meaningLineFor(ayat, language)}
@@ -4485,6 +4487,7 @@ ${pick(khutbahArabicVariants.wasiat, seed, 5)}
 
 ${audienceFor(jenis, language)}, ${takwaIntroFor(language)}
 
+Isi Khutbah
 ${QURAN_HEADING}
 ${ayat.arab}
 ${meaningLineFor(ayat, language)}
@@ -4493,7 +4496,6 @@ ${HADITH_HEADING}
 ${hadith.arab}
 ${meaningLineFor(hadith, language)}
 
-Isi Khutbah
 ${editorial}
 
 Penutup Khutbah Pertama
@@ -4545,6 +4547,7 @@ ${wasiatTakwa}
 ${labels.weddingIntro}
 ${wedding.intro}
 
+${labels.weddingAdvice}
 ${QURAN_HEADING}
 ${weddingAyat.arab}
 ${meaningLineFor(weddingAyat, language)}
@@ -4553,7 +4556,6 @@ ${HADITH_HEADING}
 ${weddingHadith.arab}
 ${meaningLineFor(weddingHadith, language)}
 
-${labels.weddingAdvice}
 ${wedding.advice}
 ${"extendedAdvice" in wedding ? `\n\n${wedding.extendedAdvice}` : ""}
 
@@ -4586,6 +4588,7 @@ ${shalawat}
 ${labels.introduction}
 ${bodyIntro}
 
+${labels.mainContent}
 ${labels.dalil}
 ${ayat.arab}
 ${meaningLineFor(ayat, language)}
@@ -4596,7 +4599,7 @@ ${meaningLineFor(hadith, language)}
 ${labels.reflection}
 ${reflection} ${reflectionClosingFor(language)}
 
-${jenis === "ceramah" ? `${labels.mainContent}\n${ceramahExpansionFor(language, tema, selectedDalil.label)}\n\n` : ""}${jenis === "kultum" ? `${labels.practical}\n${kultumExpansionFor(language, tema, selectedDalil.label)}\n\n` : ""}${labels.keyPoints}
+${jenis === "ceramah" ? `${ceramahExpansionFor(language, tema, selectedDalil.label)}\n\n` : ""}${jenis === "kultum" ? `${labels.practical}\n${kultumExpansionFor(language, tema, selectedDalil.label)}\n\n` : ""}${labels.keyPoints}
 1. ${keyPoints[0]}
 2. ${keyPoints[1]}
 3. ${keyPoints[2]}
