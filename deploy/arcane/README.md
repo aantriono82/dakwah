@@ -124,7 +124,7 @@ Opsional tapi umum dipakai di production:
 - `AUTH_CAPTCHA_PROVIDER` (`manual` default, `turnstile` untuk Cloudflare Turnstile)
 - `TURNSTILE_SITE_KEY` jika `AUTH_CAPTCHA_PROVIDER=turnstile`
 - `TURNSTILE_SECRET_KEY` jika `AUTH_CAPTCHA_PROVIDER=turnstile`
-- `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, atau `GEMINI_API_KEY`
+- `OPENAI_API_KEY` atau `DEEPSEEK_API_KEY`
 - `RESEND_API_KEY`
 - `EMAIL_FROM`
 

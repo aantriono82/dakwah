@@ -222,7 +222,7 @@ Variabel penting:
 | `MYQURAN_API_BASE_URL` | `https://api.myquran.com/v3` | Base URL myQuran API v3 |
 | `MYQURAN_TIMEOUT_MS` | `2500` | Timeout request myQuran dalam milidetik. Jika gagal, aplikasi memakai fallback lokal |
 | `MYQURAN_CACHE_TTL_SECONDS` | `2592000` | TTL cache respons myQuran di SQLite |
-| `AI_PROVIDER` | `openai` | Provider AI: `openai`, `deepseek`, atau `gemini`. Untuk OpenRouter/custom OpenAI-compatible, gunakan `openai` dengan `OPENAI_BASE_URL` |
+| `AI_PROVIDER` | `openai` | Provider AI: `openai` atau `deepseek`. Untuk OpenRouter/custom OpenAI-compatible, gunakan `openai` dengan `OPENAI_BASE_URL` |
 | `OPENAI_API_KEY` | kosong | API key OpenAI resmi. Jika kosong saat `AI_PROVIDER=openai`, aplikasi memakai generator fallback lokal |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model OpenAI untuk generate |
 | `OPENAI_MODELS` | kosong | Opsional. Daftar model prioritas dipisah koma; jika diisi, aplikasi mencoba model berurutan sebelum fallback lokal |
@@ -241,11 +241,6 @@ Variabel penting:
 | `WEB_RESEARCH_SEARCH_ENABLED` | `true` | Izinkan backend melakukan pencarian web bila user tidak memberi URL langsung |
 | `WEB_RESEARCH_MAX_RESULTS` | `4` | Jumlah maksimum halaman yang diringkas untuk dikirim sebagai konteks AI |
 | `WEB_RESEARCH_TIMEOUT_MS` | `7000` | Timeout per request pencarian/crawl web dalam milidetik |
-| `GEMINI_API_KEY` | kosong | API key Google AI Studio. Dipakai saat `AI_PROVIDER=gemini` |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | Model Gemini utama |
-| `GEMINI_MODELS` | kosong | Opsional. Daftar model Gemini prioritas dipisah koma |
-| `GEMINI_MAX_TOKENS` | `9000` | Plafon global token output Gemini |
-| `GEMINI_TIMEOUT_MS` | `30000` | Timeout request Gemini dalam milidetik |
 | `RESEND_API_KEY` | kosong | API key Resend untuk email reset password. Jika kosong, link reset dicetak ke log server |
 | `EMAIL_FROM` | `Dakwah <onboarding@resend.dev>` | Sender email reset password |
 | `RESET_PASSWORD_DEBUG_LINK` | `false` | Jika `true` di non-production, API forgot password mengembalikan link reset untuk testing |
@@ -279,11 +274,6 @@ OPENAI_MAX_TOKENS=9000
 OPENAI_TIMEOUT_MS=30000
 OPENAI_WEB_SEARCH_ENABLED=true
 OPENAI_WEB_SEARCH_CONTEXT_SIZE=medium
-
-# Untuk Gemini, ubah AI_PROVIDER=gemini lalu isi konfigurasi berikut:
-GEMINI_API_KEY=AIza...
-GEMINI_MODEL=gemini-2.5-flash
-# GEMINI_MODELS=gemini-2.5-flash,gemini-2.5-flash-lite
 
 WEB_RESEARCH_ENABLED=true
 WEB_RESEARCH_SEARCH_ENABLED=true
@@ -363,7 +353,7 @@ Semua endpoint berada di bawah `/api`.
 
 ## Catatan Produksi
 
-- Set API key sesuai `AI_PROVIDER`: `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, atau `GEMINI_API_KEY`. Tanpa key, aplikasi tetap berjalan dengan contoh naskah fallback.
+- Set API key sesuai `AI_PROVIDER`: `OPENAI_API_KEY` atau `DEEPSEEK_API_KEY`. Tanpa key, aplikasi tetap berjalan dengan contoh naskah fallback.
 - Web search tersedia untuk OpenAI resmi ketika `OPENAI_WEB_SEARCH_ENABLED=true`, `OPENAI_BASE_URL` kosong, dan user memilih mode `Web search otomatis` di kartu parameter.
 - Untuk DeepSeek/OpenRouter/provider kompatibel, aplikasi memakai crawler server-side `WEB_RESEARCH_*`: backend mencari/membuka halaman web, mengambil ringkasan, lalu mengirim ringkasan itu sebagai konteks ke model. Mode manual tidak membuka URL; field sumber internet hanya memakai teks/ringkasan yang ditulis user.
 - Untuk DeepSeek, gunakan `AI_PROVIDER=deepseek` dan `DEEPSEEK_*`. `OPENAI_*` tetap dibaca sebagai fallback agar deployment lama tidak langsung rusak.

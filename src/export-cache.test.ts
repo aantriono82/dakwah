@@ -60,7 +60,6 @@ beforeAll(async () => {
   process.env.AI_PROVIDER = "openai";
   process.env.MYQURAN_ENABLED = "false";
   delete process.env.OPENAI_API_KEY;
-  delete process.env.GEMINI_API_KEY;
 
   ({ app } = await import("./index"));
   ({ db } = await import("./db/client"));

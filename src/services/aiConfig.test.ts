@@ -68,16 +68,12 @@ describe("AI provider config", () => {
     ).toBe(false);
   });
 
-  test("does not reuse OpenAI model names for Gemini", () => {
-    const config = resolveAiProviderConfig({
-      AI_PROVIDER: "gemini",
-      OPENAI_MODEL: "gpt-4o-mini",
-      OPENAI_MODELS: "gpt-4o-mini,gpt-4o",
-      OPENAI_MAX_TOKENS: "7000"
-    });
-
-    expect(config.model).toBe("gemini-2.5-flash");
-    expect(config.models).toEqual(["gemini-2.5-flash"]);
-    expect(config.maxTokens).toBe(7000);
+  test("rejects Gemini as an unsupported provider", () => {
+    expect(() =>
+      resolveAiProviderConfig({
+        AI_PROVIDER: "gemini",
+        GEMINI_API_KEY: "legacy-gemini-key"
+      })
+    ).toThrow("AI_PROVIDER=gemini tidak lagi didukung");
   });
 });

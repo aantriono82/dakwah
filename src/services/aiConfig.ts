@@ -1,4 +1,4 @@
-export type AiAdapter = "openai-compatible" | "gemini";
+export type AiAdapter = "openai-compatible";
 
 export type AiProviderConfig = {
   provider: string;
@@ -51,7 +51,6 @@ export function parseOpenAIWebSearchContextSize(value?: string) {
 }
 
 function defaultModelFor(provider: string) {
-  if (provider === "gemini") return "gemini-2.5-flash";
   if (provider === "deepseek") return "deepseek-v4-pro";
   return "gpt-4o-mini";
 }
@@ -70,21 +69,7 @@ function providerEnvNames(provider: string, suffix: string) {
 export function resolveAiProviderConfig(env: Env = process.env): AiProviderConfig {
   const provider = String(env.AI_PROVIDER ?? "openai").trim().toLowerCase();
   const prefix = providerPrefix(provider);
-
-  if (provider === "gemini") {
-    const model = firstEnv(env, ["GEMINI_MODEL"]) ?? defaultModelFor(provider);
-    return {
-      provider,
-      adapter: "gemini",
-      apiKey: firstEnv(env, ["GEMINI_API_KEY"]),
-      model,
-      models: parseAIModels(firstEnv(env, ["GEMINI_MODELS"]), model),
-      maxTokens: positiveInteger(firstEnv(env, ["GEMINI_MAX_TOKENS", "OPENAI_MAX_TOKENS"]), 9000),
-      timeoutMs: positiveInteger(firstEnv(env, ["GEMINI_TIMEOUT_MS", "OPENAI_TIMEOUT_MS"]), 30_000),
-      nativeWebSearchEnabled: false,
-      webSearchContextSize: "medium"
-    };
-  }
+  if (provider === "gemini") throw new Error("AI_PROVIDER=gemini tidak lagi didukung. Gunakan openai atau deepseek.");
 
   const model = firstEnv(env, providerEnvNames(provider, "MODEL")) ?? defaultModelFor(provider);
   const baseURL = firstEnv(env, providerEnvNames(provider, "BASE_URL")) ?? defaultBaseURLFor(provider);

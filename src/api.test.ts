@@ -23,7 +23,6 @@ beforeAll(async () => {
   process.env.MYQURAN_ENABLED = "false";
   delete process.env.S3_REQUIRED;
   delete process.env.OPENAI_API_KEY;
-  delete process.env.GEMINI_API_KEY;
   delete process.env.GOOGLE_OAUTH_CLIENT_ID;
   delete process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   delete process.env.GOOGLE_OAUTH_REDIRECT_URL;
@@ -363,6 +362,22 @@ describe("API auth and roles", () => {
     const allowed = await request("/api/admin/users", {}, adminCookie);
     expect(allowed.status).toBe(200);
     expect((await allowed.json()).data.some((item: { role: string }) => item.role === "admin")).toBe(true);
+  });
+
+  test("admin monitoring exposes stream health metrics", async () => {
+    const response = await request("/api/admin/stats?scope=monitoring&perfWindow=7d", {}, adminCookie);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.streamHealth).toBeDefined();
+    expect(Array.isArray(body.data.streamHealthByModel)).toBe(true);
+    expect(typeof body.data.streamHealth.sampleCount).toBe("number");
+    expect(typeof body.data.streamHealth.avgFirstChunkMs).toBe("number");
+    expect(typeof body.data.streamHealth.validationWarningRate).toBe("number");
+    expect(typeof body.data.streamHealth.fallbackRate).toBe("number");
+    expect(typeof body.data.streamHealth.policyPassRate.stream).toBe("number");
+    expect(typeof body.data.streamHealth.policyPassRate.firstPass).toBe("number");
+    expect(typeof body.data.streamHealth.policyPassRate.final).toBe("number");
   });
 
   test("admin can create, update, and delete users", async () => {
