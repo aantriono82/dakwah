@@ -117,15 +117,15 @@ export function GenerateEditorPanel({
           </Field>
           <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-end">
             <Button onClick={save} disabled={!content || loading || saving || Boolean(exporting)}>
-              <IconSave className="size-4" />
+              {saving ? <InlineSpinner /> : <IconSave className="size-4" />}
               {saving ? "Menyimpan..." : "Simpan"}
             </Button>
             <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => exportFile("pdf")} disabled={!content || loading || saving || Boolean(exporting)}>
-              <IconPdf className="size-4" />
+              {exporting === "pdf" ? <InlineSpinner /> : <IconPdf className="size-4" />}
               {exporting === "pdf" ? "PDF..." : "PDF"}
             </Button>
             <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => exportFile("docx")} disabled={!content || loading || saving || Boolean(exporting)}>
-              <IconDocx className="size-4" />
+              {exporting === "docx" ? <InlineSpinner /> : <IconDocx className="size-4" />}
               {exporting === "docx" ? "DOCX..." : "DOCX"}
             </Button>
             <Button className="bg-secondary text-secondary-foreground" onClick={copyExportLink} disabled={!exportUrl || Boolean(exporting)}>
@@ -135,7 +135,12 @@ export function GenerateEditorPanel({
           </div>
         </div>
         <div className="mb-4 grid gap-2 sm:grid-cols-3">
-          <Status label="Status" value={loading ? "Generating" : saving ? "Menyimpan" : exporting ? "Exporting" : savedNaskahId ? "Tersimpan" : hasContent ? "Belum disimpan" : "Siap"} />
+          <Status
+            label="Status"
+            value={loading ? "Generating" : saving ? "Menyimpan" : exporting ? "Exporting" : savedNaskahId ? "Tersimpan" : hasContent ? "Belum disimpan" : "Siap"}
+            loading={loading}
+            tone={savedNaskahId ? "success" : loading || saving || exporting ? "active" : "default"}
+          />
           <Status label="Jenis" value={selectedLabel} />
           <Status label="Panjang" value={`${wordCount.toLocaleString("id-ID")} kata`} />
         </div>
@@ -231,11 +236,35 @@ export function GenerateEditorPanel({
   );
 }
 
-function Status({ label, value }: { label: string; value: string }) {
+function InlineSpinner() {
+  return <span className="inline-button-spinner" aria-hidden="true" />;
+}
+
+function Status({
+  label,
+  value,
+  loading = false,
+  tone = "default"
+}: {
+  label: string;
+  value: string;
+  loading?: boolean;
+  tone?: "default" | "active" | "success";
+}) {
+  const valueClassName =
+    tone === "success"
+      ? "text-primary"
+      : tone === "active"
+        ? "text-foreground"
+        : "text-foreground";
+
   return (
     <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-sm font-medium">{value}</p>
+      <div className="mt-1 flex items-center gap-2">
+        {loading ? <span className="generate-status-dot" aria-hidden="true" /> : null}
+        <p className={`truncate text-sm font-medium ${valueClassName}`}>{value}</p>
+      </div>
     </div>
   );
 }

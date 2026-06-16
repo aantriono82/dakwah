@@ -55,12 +55,29 @@ export function NaskahPreview({
         </div>
       ) : (
         <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-4 text-center text-muted-foreground sm:min-h-[360px] sm:p-5 xl:min-h-[320px]">
-          <IconFileText className="size-10" />
+          {loading ? <GeneratingIndicator /> : <IconFileText className="size-10" />}
           <p className="max-w-sm text-sm">
             {loading ? "Naskah sedang dihasilkan dan akan tampil bertahap di sini." : "Isi parameter, lalu jalankan generate untuk melihat naskah."}
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function GeneratingIndicator() {
+  return (
+    <div className="generate-indicator" aria-hidden="true">
+      <div className="generate-indicator__spinner" />
+      <div className="generate-indicator__grid">
+        {Array.from({ length: 9 }).map((_, index) => (
+          <span
+            key={index}
+            className="generate-indicator__cell"
+            style={{ animationDelay: `${index * 120}ms` }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
