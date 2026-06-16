@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
 import { useMemo } from "react";
-import { IconCheckCircle, IconCopy, IconDocx, IconPdf, IconRotateCcw, IconSave } from "../icons";
+import { IconCheckCircle, IconCopy, IconDocx, IconMaximize, IconMinimize, IconPdf, IconRotateCcw, IconSave } from "../icons";
 import { GenerateSectionWorkspace } from "./GenerateSectionWorkspace";
 import { NaskahPreview } from "../NaskahPreview";
 import { QualityPanel } from "../QualityPanel";
