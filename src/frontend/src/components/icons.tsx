@@ -702,6 +702,17 @@ export function IconBookOpen({ className }: IconProps) {
   );
 }
 
+// 57. IconTelegram - Kontak via Telegram
+export function IconTelegram({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M21.2 4.4L2.8 11.3c-1.2.5-1.2 1.2-.2 1.5l4.6 1.4 1.8 5.4c.2.6.5.8.9.8.3 0 .6-.1.9-.4l2.7-2.6 5.2 3.8c1 .5 1.7.3 1.9-.9l2.7-13c.4-1.5-.5-2.2-1.1-1.9z" fill="currentColor" fillOpacity="0.07" />
+      <path d="M21.2 4.4L2.8 11.3c-1.2.5-1.2 1.2-.2 1.5l4.6 1.4 1.8 5.4c.2.6.5.8.9.8.3 0 .6-.1.9-.4l2.7-2.6 5.2 3.8c1 .5 1.7.3 1.9-.9l2.7-13c.4-1.5-.5-2.2-1.1-1.9z" />
+      <line x1="7.2" y1="14.2" x2="10.5" y2="17.5" />
+    </svg>
+  );
+}
+
 // 56. IconVolume2 - Ikon speaker/suara untuk TTS/Talqin
 export function IconVolume2({ className }: IconProps) {
   return (

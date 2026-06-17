@@ -1,6 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
-import { IconQuran, IconMicrophone, IconCrescent, IconFileText, IconPhone, IconMail, IconMapPin, IconDakwahLogo, IconCrescentStar } from "../components/icons";
+import { IconQuran, IconMicrophone, IconCrescent, IconFileText, IconTelegram, IconMail, IconMapPin, IconDakwahLogo, IconCrescentStar } from "../components/icons";
 import { Badge, Button } from "../components/ui";
 import { ensureArabicFont } from "../lib/fonts";
 import { api, jenisOptions, type JenisId } from "../lib/utils";
@@ -209,8 +209,8 @@ function HomeFooter({
           <h3 className="text-lg font-semibold">Kontak</h3>
           <div className="mt-6 grid gap-4 text-sm text-white/75">
             <p className="flex gap-3">
-              <IconPhone className="mt-0.5 size-4 shrink-0 text-primary" />
-              085789786635
+              <IconTelegram className="mt-0.5 size-4 shrink-0 text-primary" />
+              <a href="https://t.me/aantriono" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">@aantriono</a>
             </p>
             <p className="flex gap-3">
               <IconMail className="mt-0.5 size-4 shrink-0 text-primary" />
