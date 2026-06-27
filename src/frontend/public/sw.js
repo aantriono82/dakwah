@@ -1,5 +1,5 @@
-const APP_SHELL_CACHE = "dakwah-app-shell-v1";
-const RUNTIME_CACHE = "dakwah-runtime-v1";
+const APP_SHELL_CACHE = "dakwah-app-shell-v2";
+const RUNTIME_CACHE = "dakwah-runtime-v2";
 const APP_SHELL_URLS = [
   "/",
   "/index.html",
@@ -66,7 +66,22 @@ async function networkFirstNavigation(request) {
     }
     return response;
   } catch {
-    return (await caches.match("/index.html")) || caches.match("/");
+    const cachedIndex = await caches.match("/index.html");
+    if (cachedIndex) return cachedIndex;
+
+    const cachedRoot = await caches.match("/");
+    if (cachedRoot) return cachedRoot;
+
+    return new Response(
+      "<!doctype html><html lang=\"id\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Dakwah</title></head><body>Halaman tidak tersedia saat offline.</body></html>",
+      {
+        status: 503,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store"
+        }
+      }
+    );
   }
 }
 
@@ -91,7 +106,16 @@ async function networkFirst(request) {
     }
     return response;
   } catch {
-    return caches.match(request);
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) return cachedResponse;
+
+    return new Response("Resource tidak tersedia saat offline.", {
+      status: 503,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store"
+      }
+    });
   }
 }
 

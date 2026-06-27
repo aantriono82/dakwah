@@ -1,18 +1,18 @@
 export function registerPwa() {
-  if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
+  if (!("serviceWorker" in navigator)) return;
 
   window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("/sw.js")
-      .then((registration) => {
-        document.addEventListener("visibilitychange", () => {
-          if (document.visibilityState === "visible") {
-            void registration.update();
-          }
-        });
+    void navigator.serviceWorker
+      .getRegistrations()
+      .then(async (registrations) => {
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+        if ("caches" in window) {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+        }
       })
       .catch(() => {
-        // PWA support is progressive; the app remains usable when registration fails.
+        // Cleanup is best-effort. The app remains usable when it fails.
       });
   });
 }
