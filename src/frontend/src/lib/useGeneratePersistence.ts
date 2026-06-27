@@ -217,20 +217,20 @@ export function useGeneratePersistence({
         if (Number.isFinite(clientTimeoutMs)) {
           setGenerateTimeoutMs(clientTimeoutMs);
         }
-        const configuredModels = (data.data.aiModels ?? []).map((item) => item.trim()).filter(Boolean);
-        if (configuredModels.length > 0) {
-          await applyModelSelection(configuredModels, data.data.aiModel?.trim() || undefined, storedCustomModels);
-          return;
-        }
-
-        const baseURL = data.data.aiBaseURL?.trim();
         const provider = String(data.data.aiProvider ?? "").trim().toLowerCase();
-        if (provider === "openrouter" || /openrouter\.ai/i.test(baseURL ?? "")) {
+        const baseURL = data.data.aiBaseURL?.trim();
+        const isOpenRouter = provider === "openrouter" || /openrouter\.ai/i.test(baseURL ?? "");
+        if (isOpenRouter) {
           const publicModels = await loadPublicModels(baseURL || "https://openrouter.ai/api/v1");
           if (publicModels.length > 0) {
             await applyModelSelection(publicModels, data.data.aiModel?.trim() || undefined, storedCustomModels);
             return;
           }
+        }
+        const configuredModels = (data.data.aiModels ?? []).map((item) => item.trim()).filter(Boolean);
+        if (configuredModels.length > 0) {
+          await applyModelSelection(configuredModels, data.data.aiModel?.trim() || undefined, storedCustomModels);
+          return;
         }
 
         await applyModelSelection(configuredModels.length > 0 ? configuredModels : [data.data.aiModel?.trim() || ""].filter(Boolean), data.data.aiModel?.trim() || undefined, storedCustomModels);

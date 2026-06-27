@@ -249,7 +249,7 @@ export function Generate({
   }
 
   return (
-    <div className={cn("grid gap-6", focusMode ? "2xl:grid-cols-1" : "2xl:grid-cols-[minmax(520px,620px)_minmax(0,1fr)]")}>
+    <div className={cn("grid gap-6", focusMode ? "2xl:grid-cols-1" : "2xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]")}>
       {hasContent && (
         <div className="sticky bottom-3 z-10 flex gap-2 rounded-lg border border-border bg-background/95 p-2 shadow-sm backdrop-blur sm:hidden">
           <Button type="button" className="flex-1 bg-secondary text-secondary-foreground" onClick={() => scrollToPanel(editorPanelRef)}>

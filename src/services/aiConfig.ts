@@ -167,12 +167,12 @@ export async function fetchOpenRouterModelCatalog(config: PublicAiModelConfig): 
   }
 
   const endpoint = new URL("/models", "https://openrouter.ai/api/v1").toString();
-  try {
+  async function requestCatalog(useAuth: boolean) {
     const response = await fetch(endpoint, {
       headers: {
         Accept: "application/json",
         "User-Agent": "dakwah-ai-model-picker/1.0",
-        ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {})
+        ...(useAuth && config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {})
       }
     });
     if (!response.ok) throw new Error(`OpenRouter models request failed with ${response.status}`);
@@ -196,13 +196,30 @@ export async function fetchOpenRouterModelCatalog(config: PublicAiModelConfig): 
         isFree
       });
     }
-    const models = Array.from(deduped.values());
+    return Array.from(deduped.values());
+  }
+
+  try {
+    const authModels = config.apiKey ? await requestCatalog(true) : [];
+    const models = authModels.length > 0 ? authModels : await requestCatalog(false);
     if (models.length > 0) {
       openRouterModelCache.set(cacheKey, { expiresAt: Date.now() + 6 * 60 * 60 * 1000, models });
       return models;
     }
   } catch (error) {
-    console.warn("[fetchOpenRouterModelCatalog] failed to fetch OpenRouter model catalog:", error);
+    if (config.apiKey) {
+      try {
+        const fallbackModels = await requestCatalog(false);
+        if (fallbackModels.length > 0) {
+          openRouterModelCache.set(cacheKey, { expiresAt: Date.now() + 6 * 60 * 60 * 1000, models: fallbackModels });
+          return fallbackModels;
+        }
+      } catch (fallbackError) {
+        console.warn("[fetchOpenRouterModelCatalog] failed to fetch OpenRouter model catalog with and without auth:", error, fallbackError);
+      }
+    } else {
+      console.warn("[fetchOpenRouterModelCatalog] failed to fetch OpenRouter model catalog:", error);
+    }
   }
 
   return OPENROUTER_MODEL_SEEDS.map((id) => ({ id, name: id, pricingLabel: "Tidak diketahui", isFree: false }));

@@ -58,6 +58,17 @@ describe("AI provider config", () => {
     expect(config.baseURL).toBe("https://api.deepseek.com/v1");
   });
 
+  test("uses OPENROUTER_API_KEY for OpenRouter provider", () => {
+    const config = resolveAiProviderConfig({
+      AI_PROVIDER: "openrouter",
+      OPENROUTER_API_KEY: "openrouter-key",
+      OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1"
+    });
+
+    expect(config.apiKey).toBe("openrouter-key");
+    expect(config.baseURL).toBe("https://openrouter.ai/api/v1");
+  });
+
   test("enables native web search only for official OpenAI", () => {
     expect(
       resolveAiProviderConfig({
@@ -113,5 +124,37 @@ describe("AI provider config", () => {
     });
 
     expect(models).toEqual(["openrouter/model-a", "openrouter/model-b"]);
+  });
+
+  test("falls back to anonymous OpenRouter catalog fetch when auth fails", async () => {
+    let callCount = 0;
+    const fetchMock = mock(async () => {
+      callCount += 1;
+      if (callCount === 1) {
+        return new Response("unauthorized", { status: 401, headers: { "Content-Type": "text/plain" } });
+      }
+      return new Response(
+        JSON.stringify({
+          data: [
+            { id: "openrouter/model-c" },
+            { canonical_slug: "openrouter/model-d" }
+          ]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const models = await resolvePublicAiModels({
+      provider: "deepseek",
+      model: "deepseek-v4-pro",
+      models: ["deepseek-v4-pro"],
+      baseURL: "https://openrouter.ai/api/v1?cache=2",
+      apiKey: "bad-openrouter-key"
+    });
+
+    expect(models).toEqual(["openrouter/model-c", "openrouter/model-d"]);
+    expect(callCount).toBe(2);
   });
 });

@@ -223,6 +223,7 @@ Variabel penting:
 | `MYQURAN_TIMEOUT_MS` | `2500` | Timeout request myQuran dalam milidetik. Jika gagal, aplikasi memakai fallback lokal |
 | `MYQURAN_CACHE_TTL_SECONDS` | `2592000` | TTL cache respons myQuran di SQLite |
 | `AI_PROVIDER` | `openai` | Provider AI: `openai`, `deepseek`, atau `openrouter`. Untuk OpenRouter/custom OpenAI-compatible, atur `*_BASE_URL` sesuai provider |
+| `OPENROUTER_API_KEY` | kosong | API key OpenRouter. Dipakai saat `AI_PROVIDER=openrouter` atau saat aplikasi mengambil katalog model OpenRouter |
 | `OPENAI_API_KEY` | kosong | API key OpenAI resmi. Jika kosong saat `AI_PROVIDER=openai`, aplikasi memakai generator fallback lokal |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model OpenAI untuk generate |
 | `OPENAI_MODELS` | kosong | Opsional. Daftar model prioritas dipisah koma; jika diisi, aplikasi mencoba model berurutan sebelum fallback lokal |
@@ -266,6 +267,7 @@ DEEPSEEK_MAX_TOKENS=9000
 DEEPSEEK_TIMEOUT_MS=90000
 
 # Untuk OpenAI resmi, ubah AI_PROVIDER=openai lalu isi konfigurasi berikut:
+OPENROUTER_API_KEY=
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o-mini
 # OPENAI_MODELS=model-utama,model-cadangan-1,model-cadangan-2
@@ -353,7 +355,7 @@ Semua endpoint berada di bawah `/api`.
 
 ## Catatan Produksi
 
-- Set API key sesuai `AI_PROVIDER`: `OPENAI_API_KEY` atau `DEEPSEEK_API_KEY`. Tanpa key, aplikasi tetap berjalan dengan contoh naskah fallback.
+- Set API key sesuai `AI_PROVIDER`: `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, atau `OPENROUTER_API_KEY`. Tanpa key, aplikasi tetap berjalan dengan contoh naskah fallback.
 - Web search tersedia untuk OpenAI resmi ketika `OPENAI_WEB_SEARCH_ENABLED=true`, `OPENAI_BASE_URL` kosong, dan user memilih mode `Web search otomatis` di kartu parameter.
 - Untuk DeepSeek/OpenRouter/provider kompatibel, aplikasi memakai crawler server-side `WEB_RESEARCH_*`: backend mencari/membuka halaman web, mengambil ringkasan, lalu mengirim ringkasan itu sebagai konteks ke model. Mode manual tidak membuka URL; field sumber internet hanya memakai teks/ringkasan yang ditulis user.
 - Untuk DeepSeek, gunakan `AI_PROVIDER=deepseek` dan `DEEPSEEK_*`. `OPENAI_*` tetap dibaca sebagai fallback agar deployment lama tidak langsung rusak.

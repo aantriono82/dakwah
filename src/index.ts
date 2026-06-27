@@ -24,6 +24,7 @@ import {
   googleOAuthEnabled,
   myQuranEnabled,
   providerTimeoutMs,
+  openRouterApiKey,
   turnstileEnabled,
   turnstileSiteKey
 } from "./config";
@@ -81,7 +82,7 @@ api.get("/ai/models", async (c) => {
     model: aiModel,
     models: aiModels,
     baseURL: aiBaseURL,
-    apiKey: process.env.OPENAI_API_KEY?.trim() || undefined
+    apiKey: openRouterApiKey
   });
   return c.json({
     data: {

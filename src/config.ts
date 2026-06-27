@@ -28,6 +28,8 @@ function parseList(value: string | undefined) {
 
 export const providerTimeoutMs = aiConfig.timeoutMs;
 export const aiProvider = aiConfig.provider;
+export const aiApiKey = aiConfig.apiKey;
+export const openRouterApiKey = process.env.OPENROUTER_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || undefined;
 export const aiModel = aiConfig.model;
 export const aiModels = aiConfig.models;
 export const aiBaseURL = aiConfig.baseURL;

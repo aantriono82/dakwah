@@ -3,6 +3,7 @@ import { IconChevronDown, IconChevronUp, IconSave, IconSync } from "../icons";
 import { defaultParameters, FormKhutbah } from "../FormKhutbah";
 import { JenisCard } from "../JenisCard";
 import { Badge, Button, Card, Field, Input, Notice } from "../ui";
+import { getPublicConfig } from "../../lib/public-config";
 import { api, cn, jenisOptions, type JenisId } from "../../lib/utils";
 import { Plus, X } from "lucide-react";
 
@@ -134,20 +135,48 @@ export function GenerateSetupPanel({
     setCatalogLoading(true);
     setCatalogError("");
     try {
-      const response = await api<{ data: { models: OpenRouterModelEntry[] } }>("/api/ai/models");
-      const nextModels = Array.from(
-        new Map(
-          response.data.models
-            .map((model) => ({
-              id: model.id.trim(),
-              name: model.name.trim() || model.id.trim(),
-              pricingLabel: model.pricingLabel,
-              isFree: model.isFree
-            }))
-            .filter((model) => model.id)
-            .map((model) => [model.id, model] as const)
-        ).values()
-      ).sort((a, b) => a.name.localeCompare(b.name));
+      const config = await getPublicConfig();
+      const provider = String(config.data.aiProvider ?? "").trim().toLowerCase();
+      const baseURL = String(config.data.aiBaseURL ?? "").trim();
+      const isOpenRouter = provider === "openrouter" || /openrouter\.ai/i.test(baseURL);
+      const nextModels = isOpenRouter
+        ? Array.from(
+            new Map(
+              (((await fetch(`${baseURL || "https://openrouter.ai/api/v1"}/models`, {
+                credentials: "omit",
+                headers: { Accept: "application/json", "User-Agent": "dakwah-ai-model-picker/1.0" }
+              }).then((response) => response.json())) as { data?: Array<{ id?: string; canonical_slug?: string; name?: string; pricing?: { prompt?: string; completion?: string } }> }).data ?? [])
+                .map((model) => {
+                  const id = model.id?.trim() || model.canonical_slug?.trim() || "";
+                  const prompt = Number(model.pricing?.prompt ?? "0");
+                  const completion = Number(model.pricing?.completion ?? "0");
+                  const isFree = Number.isFinite(prompt) && Number.isFinite(completion) && prompt === 0 && completion === 0;
+                  return {
+                    id,
+                    name: model.name?.trim() || id,
+                    pricingLabel: isFree ? "Gratis" : "Berbayar",
+                    isFree
+                  } satisfies OpenRouterModelEntry;
+                })
+                .filter((model) => model.id)
+                .map((model) => [model.id, model] as const)
+            ).values()
+          ).sort((a, b) => a.name.localeCompare(b.name))
+        : Array.from(
+            new Map(
+              (
+                (await api<{ data: { models: OpenRouterModelEntry[] } }>("/api/ai/models")).data.models ?? []
+              )
+                .map((model) => ({
+                  id: model.id.trim(),
+                  name: model.name.trim() || model.id.trim(),
+                  pricingLabel: model.pricingLabel,
+                  isFree: model.isFree
+                }))
+                .filter((model) => model.id)
+                .map((model) => [model.id, model] as const)
+            ).values()
+          ).sort((a, b) => a.name.localeCompare(b.name));
       setCatalogModels(nextModels);
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : "Gagal memuat katalog OpenRouter.");
@@ -206,46 +235,19 @@ export function GenerateSetupPanel({
         </div>
       </div>
       <Card className="p-4">
-        <div className="mb-4 grid gap-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-semibold">Parameter {selectedLabel}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Bahasa, durasi, tema, dan konteks inti akan ikut dikirim ke AI. Pengaturan lanjutan tersedia di Advanced.
-              </p>
-            </div>
-            <Button
-              type="button"
-              className="h-8 bg-secondary px-2 text-secondary-foreground sm:hidden"
-              onClick={() => setMobileParametersCollapsed((current) => !current)}
-              aria-label={mobileParametersCollapsed ? "Buka parameter" : "Ciutkan parameter"}
-            >
-              {mobileParametersCollapsed ? <IconChevronDown className="size-4" /> : <IconChevronUp className="size-4" />}
-            </Button>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold">Parameter {selectedLabel}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Bahasa, durasi, tema, dan konteks inti akan ikut dikirim ke AI. Pengaturan lanjutan tersedia di Advanced.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge>{parameters.bahasa ?? "Indonesia"}</Badge>
-            {selectedModel && (
-              <>
-                <Badge className="max-w-full truncate" title={selectedModel}>
-                  {selectedModel}
-                </Badge>
-                {selectedModelEntry && (
-                  <Badge
-                    className={
-                      selectedModelEntry.pricingLabel === "Gratis"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : selectedModelEntry.pricingLabel === "Berbayar"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-muted text-muted-foreground"
-                    }
-                  >
-                    {selectedModelEntry.pricingLabel}
-                  </Badge>
-                )}
-              </>
-            )}
-          </div>
+          <Button
+            type="button"
+            className="h-8 bg-secondary px-2 text-secondary-foreground sm:hidden"
+            onClick={() => setMobileParametersCollapsed((current) => !current)}
+            aria-label={mobileParametersCollapsed ? "Buka parameter" : "Ciutkan parameter"}
+          >
+            {mobileParametersCollapsed ? <IconChevronDown className="size-4" /> : <IconChevronUp className="size-4" />}
+          </Button>
         </div>
         {mobileParametersCollapsed ? (
           <div className="grid gap-4 sm:hidden">
