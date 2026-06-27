@@ -4,6 +4,10 @@ export type AuthCaptchaConfig = { provider: "manual" } | { provider: "turnstile"
 
 export type PublicConfig = {
   generateClientTimeoutMs?: number;
+  aiProvider?: string;
+  aiModel?: string;
+  aiModels?: string[];
+  aiBaseURL?: string;
   authCaptcha?: AuthCaptchaConfig;
   googleOAuthEnabled?: boolean;
 };
@@ -17,4 +21,3 @@ export function getPublicConfig() {
   });
   return publicConfigRequest;
 }
-

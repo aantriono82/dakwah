@@ -68,6 +68,14 @@ export function Generate({
     qualityPanelRef,
     previewViewportRef,
     selectedLabel,
+    availableModels,
+    customModels,
+    selectedModel,
+    setSelectedModel,
+    customModelDraft,
+    setCustomModelDraft,
+    addCustomModel,
+    removeCustomModel,
     validationMessage,
     hasContent,
     wordCount,
@@ -115,7 +123,7 @@ export function Generate({
     try {
       const data = await api<{ outline: { title: string; description: string }[]; dalilContext: { quran: any[]; hadith: any[] } }>("/api/generate/prepare", {
         method: "POST",
-        body: JSON.stringify({ jenis, parameters })
+        body: JSON.stringify({ jenis, parameters, model: selectedModel || undefined })
       });
       setOutlineProposal(data.outline || []);
       setDalilProposal(data.dalilContext || { quran: [], hadith: [] });
@@ -269,6 +277,14 @@ export function Generate({
         jenis={jenis}
         changeJenis={handleChangeJenis}
         selectedLabel={selectedLabel}
+        availableModels={availableModels}
+        customModels={customModels}
+        selectedModel={selectedModel}
+        setSelectedModel={setSelectedModel}
+        customModelDraft={customModelDraft}
+        setCustomModelDraft={setCustomModelDraft}
+        addCustomModel={addCustomModel}
+        removeCustomModel={removeCustomModel}
         parameters={parameters}
         setParameters={setParameters}
         mobileParametersCollapsed={mobileParametersCollapsed}

@@ -15,6 +15,7 @@ import { retrieveDalilContext } from "../services/myquran";
 const generateSchema = z.object({
   jenis: z.enum(CONTENT_TYPES),
   parameters: z.record(z.unknown()),
+  model: z.string().trim().min(1).optional(),
   outline: z.array(z.object({
     title: z.string(),
     description: z.string()
@@ -46,7 +47,7 @@ generateRoutes.use("*", rateLimit({ keyPrefix: "generate", windowMs: generateRat
 
 generateRoutes.post("/prepare", zValidator("json", generateSchema), async (c) => {
   const user = c.get("user");
-  const { jenis, parameters } = c.req.valid("json");
+  const { jenis, parameters, model } = c.req.valid("json");
   const validationMessage = validateContentParameters(jenis, parameters);
   if (validationMessage) return c.json({ message: validationMessage }, 400);
 
@@ -58,12 +59,13 @@ generateRoutes.post("/prepare", zValidator("json", generateSchema), async (c) =>
 
   const startedAt = Date.now();
   const dalilContext = await retrieveDalilContext(jenis, parameters);
-  const outline = await generateOutlineProposal(jenis, parameters, dalilContext);
+  const outline = await generateOutlineProposal(jenis, parameters, dalilContext, model);
 
   logInfo("generate.prepare", {
     route: "/api/generate/prepare",
     jenis,
     userId: user.id,
+    requestedModel: model ?? undefined,
     durationMs: Date.now() - startedAt
   });
 
@@ -75,7 +77,7 @@ generateRoutes.post("/prepare", zValidator("json", generateSchema), async (c) =>
 
 generateRoutes.post("/", zValidator("json", generateSchema), async (c) => {
   const user = c.get("user");
-  const { jenis, parameters, outline, selectedDalils } = c.req.valid("json");
+  const { jenis, parameters, model, outline, selectedDalils } = c.req.valid("json");
   const validationMessage = validateContentParameters(jenis, parameters);
   if (validationMessage) return c.json({ message: validationMessage }, 400);
 
@@ -96,13 +98,14 @@ generateRoutes.post("/", zValidator("json", generateSchema), async (c) => {
       }
     : await retrieveDalilContext(jenis, parameters);
   const dalilRetrievedAt = Date.now();
-  const content = await generateText(jenis, parameters, dalilContext, outline);
+  const content = await generateText(jenis, parameters, dalilContext, outline, model);
   const generatedAt = Date.now();
   const quality = qualityReportFor(jenis, content, parameters, dalilContext);
   logInfo("generate.request", {
     route: "/api/generate",
     jenis,
     userId: user.id,
+    requestedModel: model ?? undefined,
     dalilMs: dalilRetrievedAt - startedAt,
     generateMs: generatedAt - dalilRetrievedAt,
     qualityMs: Date.now() - generatedAt,
@@ -122,6 +125,7 @@ generateRoutes.post("/", zValidator("json", generateSchema), async (c) => {
       wordCount: quality.wordCount,
       quotaUsed: quota.used + 1,
       quotaLimit: quota.limit,
+      requestedModel: model ?? undefined,
       dalilSource: dalilContext.source,
       quranReference: dalilContext.quran[0]?.reference,
       hadithReference: dalilContext.hadith[0]?.reference
@@ -136,7 +140,7 @@ generateRoutes.post("/", zValidator("json", generateSchema), async (c) => {
 
 generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => {
   const user = c.get("user");
-  const { jenis, parameters, outline, selectedDalils } = c.req.valid("json");
+  const { jenis, parameters, model, outline, selectedDalils } = c.req.valid("json");
   const validationMessage = validateContentParameters(jenis, parameters);
   if (validationMessage) return c.json({ message: validationMessage }, 400);
 
@@ -171,7 +175,7 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
       : await retrieveDalilContext(jenis, parameters);
     const dalilRetrievedAt = Date.now();
     let content = "";
-    for await (const chunk of streamGeneratedText(jenis, parameters, dalilContext, outline, {
+    for await (const chunk of streamGeneratedText(jenis, parameters, dalilContext, outline, model, {
       onFirstChunk: (info) => {
         streamTraceId = info.traceId;
         streamProvider = info.provider;
@@ -201,6 +205,7 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
       route: "/api/generate/stream",
       jenis,
       userId: user.id,
+      requestedModel: model ?? undefined,
       dalilMs: dalilRetrievedAt - startedAt,
       generateMs: generatedAt - dalilRetrievedAt,
       firstChunkMs: firstChunkMs ?? generatedAt - dalilRetrievedAt,
@@ -239,6 +244,7 @@ generateRoutes.post("/stream", zValidator("json", generateSchema), async (c) => 
         finalPolicyPass,
         quotaUsed: quota.used + 1,
         quotaLimit: quota.limit,
+        requestedModel: model ?? undefined,
         dalilSource: dalilContext.source,
         quranReference: dalilContext.quran[0]?.reference,
         hadithReference: dalilContext.hadith[0]?.reference

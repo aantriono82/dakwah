@@ -222,11 +222,11 @@ Variabel penting:
 | `MYQURAN_API_BASE_URL` | `https://api.myquran.com/v3` | Base URL myQuran API v3 |
 | `MYQURAN_TIMEOUT_MS` | `2500` | Timeout request myQuran dalam milidetik. Jika gagal, aplikasi memakai fallback lokal |
 | `MYQURAN_CACHE_TTL_SECONDS` | `2592000` | TTL cache respons myQuran di SQLite |
-| `AI_PROVIDER` | `openai` | Provider AI: `openai` atau `deepseek`. Untuk OpenRouter/custom OpenAI-compatible, gunakan `openai` dengan `OPENAI_BASE_URL` |
+| `AI_PROVIDER` | `openai` | Provider AI: `openai`, `deepseek`, atau `openrouter`. Untuk OpenRouter/custom OpenAI-compatible, atur `*_BASE_URL` sesuai provider |
 | `OPENAI_API_KEY` | kosong | API key OpenAI resmi. Jika kosong saat `AI_PROVIDER=openai`, aplikasi memakai generator fallback lokal |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model OpenAI untuk generate |
 | `OPENAI_MODELS` | kosong | Opsional. Daftar model prioritas dipisah koma; jika diisi, aplikasi mencoba model berurutan sebelum fallback lokal |
-| `OPENAI_BASE_URL` | kosong | Base URL custom untuk provider OpenAI-compatible lama. Kosongkan untuk OpenAI resmi |
+| `OPENAI_BASE_URL` | kosong | Base URL custom untuk provider OpenAI-compatible. Untuk OpenRouter gunakan `https://openrouter.ai/api/v1` |
 | `OPENAI_MAX_TOKENS` | `9000` | Plafon global token output AI. Request tetap dibatasi lagi secara dinamis berdasarkan jenis naskah dan durasi |
 | `OPENAI_TIMEOUT_MS` | `30000` | Timeout request provider AI dalam milidetik |
 | `OPENAI_WEB_SEARCH_ENABLED` | `true` untuk OpenAI resmi | Izinkan web search native OpenAI Responses API ketika user memilih mode `Web search otomatis`. Fitur native ini hanya dipakai saat `OPENAI_BASE_URL` kosong |

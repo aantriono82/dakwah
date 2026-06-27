@@ -1,7 +1,16 @@
-import { describe, expect, test } from "bun:test";
-import { resolveAiProviderConfig } from "./aiConfig";
-
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { preferredAIModels, resolveAiProviderConfig, resolvePublicAiModels } from "./aiConfig";
 describe("AI provider config", () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
   test("resolves DeepSeek as an OpenAI-compatible provider", () => {
     const config = resolveAiProviderConfig({
       AI_PROVIDER: "deepseek",
@@ -75,5 +84,34 @@ describe("AI provider config", () => {
         GEMINI_API_KEY: "legacy-gemini-key"
       })
     ).toThrow("AI_PROVIDER=gemini tidak lagi didukung");
+  });
+
+  test("moves the selected model to the front of the request order", () => {
+    expect(preferredAIModels(["model-a", "model-b", "model-c"], "model-b")).toEqual(["model-b", "model-a", "model-c"]);
+    expect(preferredAIModels(["model-a", "model-b"], "unknown")).toEqual(["unknown", "model-a", "model-b"]);
+  });
+
+  test("prefers the OpenRouter catalog even when env models are present", async () => {
+    global.fetch = mock(async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            { id: "openrouter/model-a" },
+            { canonical_slug: "openrouter/model-b" }
+          ]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    ) as unknown as typeof fetch;
+
+    const models = await resolvePublicAiModels({
+      provider: "deepseek",
+      model: "deepseek-v4-pro",
+      models: ["deepseek-v4-pro", "deepseek-v4-flash"],
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: "openrouter-key"
+    });
+
+    expect(models).toEqual(["openrouter/model-a", "openrouter/model-b"]);
   });
 });

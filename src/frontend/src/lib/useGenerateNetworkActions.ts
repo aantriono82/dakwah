@@ -13,6 +13,7 @@ export function useGenerateNetworkActions({
   title,
   savedNaskahId,
   selectedLabel,
+  selectedModel,
   generateTimeoutMs,
   manualDraftKey,
   activeSection,
@@ -42,6 +43,7 @@ export function useGenerateNetworkActions({
   title: string;
   savedNaskahId: string;
   selectedLabel: string;
+  selectedModel: string;
   generateTimeoutMs: number;
   manualDraftKey: string;
   activeSection: SectionBlock | null;
@@ -70,6 +72,7 @@ export function useGenerateNetworkActions({
     parameters,
     content,
     selectedLabel,
+    selectedModel,
     generateTimeoutMs,
     manualDraftKey,
     activeSection,

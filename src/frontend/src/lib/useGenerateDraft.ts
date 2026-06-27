@@ -33,6 +33,10 @@ export function useGenerateDraft({
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<MessageTone>("neutral");
   const [generateTimeoutMs, setGenerateTimeoutMs] = useState(defaultGenerateTimeoutMs);
+  const [baseModels, setBaseModels] = useState<string[]>([]);
+  const [customModels, setCustomModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState("");
+  const [customModelDraft, setCustomModelDraft] = useState("");
   const [savedNaskahId, setSavedNaskahId] = useState("");
   const [exporting, setExporting] = useState<"" | "pdf" | "docx">("");
   const [saving, setSaving] = useState(false);
@@ -66,6 +70,24 @@ export function useGenerateDraft({
   const sectionBlocks = useMemo(() => buildSectionBlocks(content, sectionMarkers), [content, sectionMarkers]);
   const activeSectionIndex = useMemo(() => findActiveSectionIndex(content, sectionBlocks, cursorPosition), [content, sectionBlocks, cursorPosition]);
   const activeSection = activeSectionIndex >= 0 ? sectionBlocks[activeSectionIndex] : null;
+  const availableModels = useMemo(() => Array.from(new Set([...baseModels, ...customModels])), [baseModels, customModels]);
+
+  function addCustomModel(model: string) {
+    const nextModel = model.trim();
+    if (!nextModel || /\s/.test(nextModel)) return;
+    setCustomModels((current) => (current.includes(nextModel) ? current : [...current, nextModel]));
+    setCustomModelDraft("");
+    setSelectedModel(nextModel);
+  }
+
+  function removeCustomModel(model: string) {
+    setCustomModels((current) => current.filter((item) => item !== model));
+    setSelectedModel((current) => {
+      if (current !== model) return current;
+      const fallback = availableModels.find((item) => item !== model) ?? "";
+      return fallback;
+    });
+  }
 
   useGeneratePersistence({
     initialJenis,
@@ -76,12 +98,17 @@ export function useGenerateDraft({
     parameters,
     content,
     manualDraftKey,
+    selectedModel,
+    customModels,
     setJenis,
     setParameters,
     setContent,
     setQuality,
     setTitle,
     setGenerateTimeoutMs,
+    setAvailableModels: setBaseModels,
+    setCustomModels,
+    setSelectedModel,
     setSavedNaskahId,
     setExportUrl,
     setManualEditDirty,
@@ -151,6 +178,7 @@ export function useGenerateDraft({
     title,
     savedNaskahId,
     selectedLabel,
+    selectedModel,
     generateTimeoutMs,
     manualDraftKey,
     activeSection,
@@ -214,6 +242,14 @@ export function useGenerateDraft({
     qualityPanelRef,
     previewViewportRef,
     selectedLabel,
+    availableModels,
+    customModels,
+    selectedModel,
+    setSelectedModel,
+    customModelDraft,
+    setCustomModelDraft,
+    addCustomModel,
+    removeCustomModel,
     validationMessage,
     hasContent,
     wordCount,

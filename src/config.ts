@@ -28,6 +28,9 @@ function parseList(value: string | undefined) {
 
 export const providerTimeoutMs = aiConfig.timeoutMs;
 export const aiProvider = aiConfig.provider;
+export const aiModel = aiConfig.model;
+export const aiModels = aiConfig.models;
+export const aiBaseURL = aiConfig.baseURL;
 export const activeModelCount = aiConfig.models.length;
 export const maxGenerateProviderCallsPerModel = 3;
 

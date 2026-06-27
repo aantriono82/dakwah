@@ -28,7 +28,7 @@ import { retrieveDalilContext } from "./myquran";
 import { requestWantsServerWebResearch, retrieveWebContext } from "./webResearch";
 import { registerThemeClassifier } from "../utils/themeClassifier";
 import { logInfo } from "../utils/observability";
-import { resolveAiProviderConfig } from "./aiConfig";
+import { preferredAIModels, resolveAiProviderConfig } from "./aiConfig";
 export { parseAIModels as parseOpenAIModels, parseOpenAIWebSearchContextSize } from "./aiConfig";
 
 const aiConfig = resolveAiProviderConfig();
@@ -58,6 +58,10 @@ const maxTokensByDurationMinutes: Record<number, number> = {
   15: 6200,
   20: 8000
 };
+
+function modelsForRequest(selectedModel?: string) {
+  return preferredAIModels(models, selectedModel);
+}
 
 function shouldUseOpenAIWebSearch(preferStreaming = false) {
   return !preferStreaming && aiProvider === "openai" && Boolean(client) && openAIWebSearchEnabled && !baseURL;
@@ -933,12 +937,13 @@ async function generateTemplatedRukunKhutbahWithOpenAI(
   jenis: string,
   parameters: Record<string, unknown>,
   traceId: string,
-  dalilContext?: PromptDalilContext
+  dalilContext?: PromptDalilContext,
+  selectedModel?: string
 ) {
   const webContext = await retrieveWebContextForPrompt(jenis, parameters, traceId);
   const prompt = editorialKhutbahPrompt(jenis, parameters, dalilContext, webContext);
 
-  for (const modelName of models) {
+  for (const modelName of modelsForRequest(selectedModel)) {
     try {
       const firstBody = await createOpenAITextPass(
         modelName,
@@ -1013,13 +1018,14 @@ export async function generateText(
   jenis: string,
   parameters: Record<string, unknown>,
   dalilContext?: PromptDalilContext,
-  customOutline?: { title: string; description: string }[]
+  customOutline?: { title: string; description: string }[],
+  selectedModel?: string
 ) {
   const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const startedAt = Date.now();
   if (!client) return fallbackNaskah(jenis, parametersWithVariation(parameters, traceId));
   if (shouldUseTemplatedRukunKhutbah(jenis, parameters)) {
-    const generated = await generateTemplatedRukunKhutbahWithOpenAI(jenis, parameters, traceId, dalilContext);
+    const generated = await generateTemplatedRukunKhutbahWithOpenAI(jenis, parameters, traceId, dalilContext, selectedModel);
     if (generated) {
       logInfo("openai.generate", {
         traceId,
@@ -1036,7 +1042,7 @@ export async function generateText(
   const initialPrompt = await buildPromptWithRetrievedDalil(jenis, parameters, traceId, dalilContext, { promptMode: "initial" });
   const fullPrompt = await buildPromptWithRetrievedDalil(jenis, parameters, traceId, dalilContext, { promptMode: "full" });
 
-  for (const modelName of models) {
+  for (const modelName of modelsForRequest(selectedModel)) {
     try {
       const outline = customOutline
         ? customOutline.map((sec, idx) => `${idx + 1}. ${sec.title}\nDetail: ${sec.description}`).join("\n\n")
@@ -1129,6 +1135,7 @@ export async function* streamGeneratedText(
   parameters: Record<string, unknown>,
   dalilContext?: PromptDalilContext,
   customOutline?: { title: string; description: string }[],
+  selectedModel?: string,
   hooks?: {
     onFirstChunk?: (info: { traceId: string; provider: string; model: string; firstChunkMs: number }) => void;
     onComplete?: (info: {
@@ -1178,7 +1185,7 @@ export async function* streamGeneratedText(
   const traceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const startedAt = Date.now();
   if (shouldUseTemplatedRukunKhutbah(jenis, parameters)) {
-    const generated = await generateTemplatedRukunKhutbahWithOpenAI(jenis, parameters, traceId, dalilContext);
+    const generated = await generateTemplatedRukunKhutbahWithOpenAI(jenis, parameters, traceId, dalilContext, selectedModel);
     if (generated) {
       const firstChunkMs = Date.now() - startedAt;
       hooks?.onFirstChunk?.({ traceId, provider: aiProvider, model: "templated-rukun", firstChunkMs });
@@ -1216,7 +1223,7 @@ export async function* streamGeneratedText(
     promptMode: "initial"
   });
 
-  for (const modelName of models) {
+  for (const modelName of modelsForRequest(selectedModel)) {
     try {
       const outline = customOutline
         ? customOutline.map((sec, idx) => `${idx + 1}. ${sec.title}\nDetail: ${sec.description}`).join("\n\n")
@@ -1602,7 +1609,8 @@ registerThemeClassifier(classifyThemeWithAI);
 export async function generateOutlineProposal(
   jenis: string,
   parameters: Record<string, unknown>,
-  dalilContext: PromptDalilContext
+  dalilContext: PromptDalilContext,
+  selectedModel?: string
 ): Promise<{ title: string; description: string }[]> {
   const traceId = `proposal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const theme = String(parameters.temaUtama ?? parameters.tema ?? parameters.topik ?? parameters.topikSingkat ?? "Ketakwaan");
@@ -1627,17 +1635,23 @@ Hanya kembalikan JSON array valid. Jangan berikan teks pembuka atau penutup lain
   try {
     let rawText = "";
     if (client) {
-      const modelName = models[0] || model;
-      const response = await client.chat.completions.create({
-        model: modelName,
-        messages: [
-          { role: "system", content: "Anda adalah asisten pembuat kerangka dakwah terstruktur dalam format JSON." },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.3,
-        max_tokens: 1000
-      });
-      rawText = response.choices[0]?.message.content ?? "";
+      for (const modelName of modelsForRequest(selectedModel)) {
+        try {
+          const response = await client.chat.completions.create({
+            model: modelName,
+            messages: [
+              { role: "system", content: "Anda adalah asisten pembuat kerangka dakwah terstruktur dalam format JSON." },
+              { role: "user", content: prompt }
+            ],
+            temperature: 0.3,
+            max_tokens: 1000
+          });
+          rawText = response.choices[0]?.message.content ?? "";
+          break;
+        } catch (error) {
+          console.warn(`[generateOutlineProposal] model=${modelName} failed:`, error);
+        }
+      }
     } else {
       throw new Error("Provider AI tidak terkonfigurasi.");
     }

@@ -15,6 +15,9 @@ import { statsRoutes } from "./routes/stats";
 import {
   activeModelCount,
   aiProvider,
+  aiModel,
+  aiModels,
+  aiBaseURL,
   appPublicUrl,
   corsOrigins,
   generateClientTimeoutMs,
@@ -24,6 +27,7 @@ import {
   turnstileEnabled,
   turnstileSiteKey
 } from "./config";
+import { fetchOpenRouterModelCatalog, resolvePublicAiModels } from "./services/aiConfig";
 import { checkStorageHealth, isStorageRequired } from "./services/storage";
 import type { AppEnv } from "./utils/http";
 
@@ -52,13 +56,16 @@ api.get("/health/storage", async (c) => {
   const status = await checkStorageHealth();
   return c.json(status, status.ok || !status.required ? 200 : 503);
 });
-api.get("/config", (c) =>
+api.get("/config", async (c) =>
   c.json({
     data: {
       generateClientTimeoutMs,
       providerTimeoutMs,
       modelCount: activeModelCount,
       aiProvider,
+      aiModel,
+      aiModels: await resolvePublicAiModels({ provider: aiProvider, model: aiModel, models: aiModels, baseURL: aiBaseURL }),
+      aiBaseURL,
       myQuranEnabled,
       storageRequired: isStorageRequired(),
       googleOAuthEnabled,
@@ -68,6 +75,28 @@ api.get("/config", (c) =>
     }
   })
 );
+api.get("/ai/models", async (c) => {
+  const models = await fetchOpenRouterModelCatalog({
+    provider: aiProvider,
+    model: aiModel,
+    models: aiModels,
+    baseURL: aiBaseURL,
+    apiKey: process.env.OPENAI_API_KEY?.trim() || undefined
+  });
+  return c.json({
+    data: {
+      models:
+        models.length > 0
+          ? models
+          : aiModels.map((id) => ({
+              id,
+              name: id,
+              pricingLabel: "Tidak diketahui" as const,
+              isFree: false
+            }))
+    }
+  });
+});
 api.route("/auth", authRoutes);
 api.route("/generate", generateRoutes);
 api.route("/dalil", dalilRoutes);
@@ -93,7 +122,9 @@ if (shouldServeFrontend) {
           c.header("Cache-Control", "public, max-age=31536000, immutable");
           return;
         }
-        c.header("Cache-Control", "no-cache");
+        c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+        c.header("Pragma", "no-cache");
+        c.header("Expires", "0");
       }
     })
   );
@@ -102,7 +133,9 @@ if (shouldServeFrontend) {
     serveStatic({
       path: "./dist/public/index.html",
       onFound: (_path, c) => {
-        c.header("Cache-Control", "no-cache");
+        c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+        c.header("Pragma", "no-cache");
+        c.header("Expires", "0");
       }
     })
   );

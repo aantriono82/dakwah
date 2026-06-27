@@ -10,6 +10,7 @@ export function useGenerateContentActions({
   parameters,
   content,
   selectedLabel,
+  selectedModel,
   generateTimeoutMs,
   manualDraftKey,
   activeSection,
@@ -34,6 +35,7 @@ export function useGenerateContentActions({
   parameters: Record<string, string>;
   content: string;
   selectedLabel: string;
+  selectedModel: string;
   generateTimeoutMs: number;
   manualDraftKey: string;
   activeSection: SectionBlock | null;
@@ -77,6 +79,7 @@ export function useGenerateContentActions({
       body: JSON.stringify({
         jenis,
         parameters,
+        model: selectedModel || undefined,
         outline: customOutline,
         selectedDalils: customDalils
       })
@@ -184,6 +187,7 @@ export function useGenerateContentActions({
         body: JSON.stringify({
           jenis,
           parameters,
+          model: selectedModel || undefined,
           outline: customOutline,
           selectedDalils: customDalils
         })
