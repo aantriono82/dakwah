@@ -198,7 +198,7 @@ export function GenerateSetupPanel({
               </div>
             </div>
           )}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+          <div className="grid gap-3">
             {categoryJenisOptions.map((item) => (
               <JenisCard key={item.id} item={item} active={jenis === item.id} onClick={changeJenis} />
             ))}
@@ -206,16 +206,28 @@ export function GenerateSetupPanel({
         </div>
       </div>
       <Card className="p-4">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">Parameter {selectedLabel}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Bahasa, durasi, tema, dan konteks inti akan ikut dikirim ke AI. Pengaturan lanjutan tersedia di Advanced.</p>
+        <div className="mb-4 grid gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-semibold">Parameter {selectedLabel}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Bahasa, durasi, tema, dan konteks inti akan ikut dikirim ke AI. Pengaturan lanjutan tersedia di Advanced.
+              </p>
+            </div>
+            <Button
+              type="button"
+              className="h-8 bg-secondary px-2 text-secondary-foreground sm:hidden"
+              onClick={() => setMobileParametersCollapsed((current) => !current)}
+              aria-label={mobileParametersCollapsed ? "Buka parameter" : "Ciutkan parameter"}
+            >
+              {mobileParametersCollapsed ? <IconChevronDown className="size-4" /> : <IconChevronUp className="size-4" />}
+            </Button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap gap-2">
             <Badge>{parameters.bahasa ?? "Indonesia"}</Badge>
             {selectedModel && (
               <>
-                <Badge className="max-w-48 truncate" title={selectedModel}>
+                <Badge className="max-w-full truncate" title={selectedModel}>
                   {selectedModel}
                 </Badge>
                 {selectedModelEntry && (
@@ -233,14 +245,6 @@ export function GenerateSetupPanel({
                 )}
               </>
             )}
-            <Button
-              type="button"
-              className="h-8 bg-secondary px-2 text-secondary-foreground sm:hidden"
-              onClick={() => setMobileParametersCollapsed((current) => !current)}
-              aria-label={mobileParametersCollapsed ? "Buka parameter" : "Ciutkan parameter"}
-            >
-              {mobileParametersCollapsed ? <IconChevronDown className="size-4" /> : <IconChevronUp className="size-4" />}
-            </Button>
           </div>
         </div>
         {mobileParametersCollapsed ? (

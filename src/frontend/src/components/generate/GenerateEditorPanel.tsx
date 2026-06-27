@@ -111,7 +111,7 @@ export function GenerateEditorPanel({
   return (
     <section className="grid gap-4">
       <Card className="p-4">
-        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto]">
+        <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,360px)_auto]">
           <Field label="Judul naskah">
             <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={`${selectedLabel}: tema`} />
           </Field>
